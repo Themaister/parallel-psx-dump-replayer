@@ -73,6 +73,7 @@ class FBAtlas
          unsigned height = 0;
          bool inside = false;
          bool clean_clear = false;
+         bool wait_for_blit = false;
       } renderpass;
 
       StatusFlags &info(unsigned block_x, unsigned block_y)

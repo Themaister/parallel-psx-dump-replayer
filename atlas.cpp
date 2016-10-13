@@ -253,8 +253,6 @@ void FBAtlas::write_fragment(unsigned x, unsigned y,
 void FBAtlas::clear_rect(unsigned x, unsigned y,
       unsigned width, unsigned height)
 {
-   sync_domain(Domain::Scaled, x, y, width, height);
-
    if (x == renderpass.x &&
        y == renderpass.y &&
        width == renderpass.width &&
@@ -262,16 +260,24 @@ void FBAtlas::clear_rect(unsigned x, unsigned y,
    {
       renderpass.inside = true;
       renderpass.clean_clear = true;
+      renderpass.wait_for_blit = false;
       discard_render_pass();
       write_domain(Domain::Scaled, Stage::Fragment, x, y, width, height);
    }
    else if (!renderpass.inside)
    {
+      sync_domain(Domain::Scaled, x, y, width, height);
+
       // Fill
       write_domain(Domain::Scaled, Stage::Transfer, x, y, width, height);
+      renderpass.inside = true;
+      renderpass.clean_clear = false;
+      renderpass.wait_for_blit = false;
    }
    else
    {
+      sync_domain(Domain::Scaled, x, y, width, height);
+
       // Clear quad
       write_domain(Domain::Scaled, Stage::Fragment, x, y, width, height);
    }
