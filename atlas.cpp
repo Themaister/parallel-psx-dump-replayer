@@ -1,5 +1,8 @@
 #include "atlas.hpp"
 #include <stdio.h>
+#include <algorithm>
+
+using namespace std;
 
 namespace PSX
 {
@@ -11,63 +14,71 @@ FBAtlas::FBAtlas()
       f = STATUS_FB_PREFER;
 }
 
-void FBAtlas::read_blit(Domain domain,
-      unsigned x, unsigned y, unsigned width, unsigned height)
+void FBAtlas::read_compute(Domain domain, const Rect &rect)
 {
-   sync_domain(domain, x, y, width, height);
-   read_domain(domain, Stage::Compute, x, y, width, height);
+   sync_domain(domain, rect);
+   read_domain(domain, Stage::Compute, rect);
 }
 
-void FBAtlas::write_blit(Domain domain,
-      unsigned x, unsigned y, unsigned width, unsigned height)
+void FBAtlas::write_compute(Domain domain, const Rect &rect)
 {
-   sync_domain(domain, x, y, width, height);
-   write_domain(domain, Stage::Compute, x, y, width, height);
+   sync_domain(domain, rect);
+   write_domain(domain, Stage::Compute, rect);
 }
 
-void FBAtlas::read_texture(unsigned x, unsigned y, unsigned width, unsigned height)
+void FBAtlas::read_transfer(Domain domain, const Rect &rect)
 {
-   auto domain = find_suitable_domain(x, y, width, height);
-   sync_domain(domain, x, y, width, height);
-   read_domain(domain, Stage::Compute, x, y, width, height);
+   sync_domain(domain, rect);
+   read_domain(domain, Stage::Transfer, rect);
 }
 
-void FBAtlas::write_domain(Domain domain, Stage stage,
-      unsigned x, unsigned y, unsigned width, unsigned height)
+void FBAtlas::write_transfer(Domain domain, const Rect &rect)
 {
-   unsigned xbegin = x / BLOCK_WIDTH;
-   unsigned xend = (x + width - 1) / BLOCK_WIDTH;
-   unsigned ybegin = y / BLOCK_HEIGHT;
-   unsigned yend = (y + height - 1) / BLOCK_HEIGHT;
+   sync_domain(domain, rect);
+   write_domain(domain, Stage::Transfer, rect);
+}
+
+void FBAtlas::read_texture(const Rect &rect)
+{
+   auto domain = find_suitable_domain(rect);
+   sync_domain(domain, rect);
+   read_domain(domain, Stage::Compute, rect);
+}
+
+void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
+{
+   if (inside_render_pass(rect))
+      flush_render_pass();
+
+   unsigned xbegin = rect.x / BLOCK_WIDTH;
+   unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
+   unsigned ybegin = rect.y / BLOCK_HEIGHT;
+   unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
    unsigned write_domains = 0;
    unsigned hazard_domains;
    unsigned resolve_domains;
    if (domain == Domain::Unscaled)
    {
-      hazard_domains =
-         STATUS_BLIT_FB_WRITE |
-         STATUS_BLIT_FB_READ;
-
+      hazard_domains = STATUS_FB_WRITE | STATUS_FB_READ;
       if (stage == Stage::Compute)
-         resolve_domains = STATUS_BLIT_FB_WRITE;
+         resolve_domains = STATUS_COMPUTE_FB_WRITE | STATUS_FB_ONLY;
+      else if (stage == Stage::Transfer)
+         resolve_domains = STATUS_TRANSFER_FB_WRITE | STATUS_FB_ONLY;
    }
    else
    {
-      hazard_domains =
-         STATUS_BLIT_SFB_WRITE |
-         STATUS_BLIT_SFB_READ |
-         STATUS_FRAGMENT_SFB_WRITE |
-         STATUS_SCANOUT;
-
-      // Draw call after draw call isn't really a hazard.
-      if (stage == Stage::Fragment)
-         hazard_domains &= ~STATUS_FRAGMENT_SFB_WRITE;
-
+      hazard_domains = STATUS_SFB_WRITE | STATUS_SFB_READ;
       if (stage == Stage::Compute)
-         resolve_domains = STATUS_BLIT_SFB_WRITE;
+         resolve_domains = STATUS_COMPUTE_SFB_WRITE;
       else if (stage == Stage::Fragment)
+      {
+         hazard_domains &= ~(STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_SFB_READ);
          resolve_domains = STATUS_FRAGMENT_SFB_WRITE;
+      }
+      else if (stage == Stage::Transfer)
+         resolve_domains = STATUS_TRANSFER_SFB_WRITE;
+      resolve_domains |= STATUS_SFB_ONLY;
    }
 
    for (unsigned y = ybegin; y <= yend; y++)
@@ -79,38 +90,43 @@ void FBAtlas::write_domain(Domain domain, Stage stage,
 
    for (unsigned y = ybegin; y <= yend; y++)
       for (unsigned x = xbegin; x <= xend; x++)
-         info(x, y) |= resolve_domains;
+         info(x, y) = (info(x, y) & ~STATUS_OWNERSHIP_MASK) | resolve_domains;
 }
 
 void FBAtlas::read_domain(Domain domain, Stage stage,
-      unsigned x, unsigned y, unsigned width, unsigned height)
+      const Rect &rect)
 {
-   unsigned xbegin = x / BLOCK_WIDTH;
-   unsigned xend = (x + width - 1) / BLOCK_WIDTH;
-   unsigned ybegin = y / BLOCK_HEIGHT;
-   unsigned yend = (y + height - 1) / BLOCK_HEIGHT;
+   if (inside_render_pass(rect))
+      flush_render_pass();
+
+   unsigned xbegin = rect.x / BLOCK_WIDTH;
+   unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
+   unsigned ybegin = rect.y / BLOCK_HEIGHT;
+   unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
    unsigned write_domains = 0;
    unsigned hazard_domains;
    unsigned resolve_domains;
    if (domain == Domain::Unscaled)
    {
-      hazard_domains = STATUS_BLIT_FB_WRITE;
+      hazard_domains = STATUS_FB_WRITE;
       if (stage == Stage::Compute)
-         resolve_domains = STATUS_BLIT_FB_READ;
-      else if (stage == Stage::Fragment)
-         resolve_domains = STATUS_FRAGMENT_FB_READ;
+         resolve_domains = STATUS_COMPUTE_FB_READ;
+      else if (stage == Stage::Transfer)
+         resolve_domains = STATUS_TRANSFER_FB_READ;
    }
    else
    {
-      hazard_domains =
-         STATUS_BLIT_SFB_WRITE |
-         STATUS_FRAGMENT_SFB_WRITE;
-
+      hazard_domains = STATUS_SFB_WRITE;
       if (stage == Stage::Compute)
-         resolve_domains = STATUS_BLIT_SFB_READ;
+         resolve_domains = STATUS_COMPUTE_SFB_READ;
       else if (stage == Stage::Transfer)
-         resolve_domains = STATUS_SCANOUT;
+         resolve_domains = STATUS_TRANSFER_SFB_READ;
+      else if (stage == Stage::Fragment)
+      {
+         hazard_domains &= ~(STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_SFB_READ);
+         resolve_domains = STATUS_FRAGMENT_SFB_READ;
+      }
    }
 
    for (unsigned y = ybegin; y <= yend; y++)
@@ -125,13 +141,12 @@ void FBAtlas::read_domain(Domain domain, Stage stage,
          info(x, y) |= resolve_domains;
 }
 
-void FBAtlas::sync_domain(Domain domain,
-      unsigned x, unsigned y, unsigned width, unsigned height)
+void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 {
-   unsigned xbegin = x / BLOCK_WIDTH;
-   unsigned xend = (x + width - 1) / BLOCK_WIDTH;
-   unsigned ybegin = y / BLOCK_HEIGHT;
-   unsigned yend = (y + height - 1) / BLOCK_HEIGHT;
+   unsigned xbegin = rect.x / BLOCK_WIDTH;
+   unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
+   unsigned ybegin = rect.y / BLOCK_HEIGHT;
+   unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
    // If we need to see a "clean" version
    // of a framebuffer domain, we need to see
@@ -151,6 +166,9 @@ void FBAtlas::sync_domain(Domain domain,
    if ((bits & dirty_bits) == 0)
       return;
 
+   if (inside_render_pass(rect))
+      flush_render_pass();
+
    // For scaled domain,
    // we need to blit from unscaled domain to scaled.
    unsigned ownership;
@@ -160,29 +178,27 @@ void FBAtlas::sync_domain(Domain domain,
    {
       ownership = STATUS_FB_ONLY;
       hazard_domains = 
-         STATUS_BLIT_FB_WRITE |
-         STATUS_BLIT_SFB_WRITE |
-         STATUS_BLIT_SFB_READ |
-         STATUS_FRAGMENT_SFB_WRITE |
-         STATUS_SCANOUT;
+         STATUS_FB_WRITE |
+         STATUS_SFB_WRITE |
+         STATUS_SFB_READ;
 
       resolve_domains =
-         STATUS_BLIT_FB_READ |
+         STATUS_TRANSFER_FB_READ |
          STATUS_FB_PREFER |
-         STATUS_BLIT_SFB_WRITE;
+         STATUS_TRANSFER_SFB_WRITE;
    }
    else
    {
       ownership = STATUS_SFB_ONLY;
       hazard_domains = 
-         STATUS_BLIT_FB_WRITE |
-         STATUS_BLIT_SFB_WRITE |
-         STATUS_BLIT_FB_READ;
+         STATUS_FB_WRITE |
+         STATUS_SFB_WRITE |
+         STATUS_FB_READ;
 
       resolve_domains =
-         STATUS_BLIT_SFB_READ |
+         STATUS_TRANSFER_SFB_READ |
          STATUS_SFB_PREFER |
-         STATUS_BLIT_FB_WRITE;
+         STATUS_TRANSFER_FB_WRITE;
    }
 
    for (unsigned y = ybegin; y <= yend; y++)
@@ -196,26 +212,34 @@ void FBAtlas::sync_domain(Domain domain,
          // and add hazard masks for our writes
          // so other readers can wait for us.
          if ((mask & STATUS_OWNERSHIP_MASK) == ownership)
-         {
             write_domains |= mask & hazard_domains;
-            mask &= ~STATUS_OWNERSHIP_MASK;
-            mask |= resolve_domains;
-         }
       }
    }
 
    // If we hit any hazard, resolve it.
    if (write_domains)
       pipeline_barrier(write_domains);
+
+   for (unsigned y = ybegin; y <= yend; y++)
+   {
+      for (unsigned x = xbegin; x <= xend; x++)
+      {
+         auto &mask = info(x, y);
+         if ((mask & STATUS_OWNERSHIP_MASK) == ownership)
+         {
+            mask &= ~STATUS_OWNERSHIP_MASK;
+            mask |= resolve_domains;
+         }
+      }
+   }
 }
 
-Domain FBAtlas::find_suitable_domain(unsigned x, unsigned y,
-      unsigned width, unsigned height)
+Domain FBAtlas::find_suitable_domain(const Rect &rect)
 {
-   unsigned xbegin = x / BLOCK_WIDTH;
-   unsigned xend = (x + width - 1) / BLOCK_WIDTH;
-   unsigned ybegin = y / BLOCK_HEIGHT;
-   unsigned yend = (y + height - 1) / BLOCK_HEIGHT;
+   unsigned xbegin = rect.x / BLOCK_WIDTH;
+   unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
+   unsigned ybegin = rect.y / BLOCK_HEIGHT;
+   unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
    for (unsigned y = ybegin; y <= yend; y++)
    {
@@ -229,100 +253,101 @@ Domain FBAtlas::find_suitable_domain(unsigned x, unsigned y,
    return Domain::Scaled;
 }
 
-void FBAtlas::write_fragment(unsigned x, unsigned y,
-      unsigned width, unsigned height)
-{
-   (void)x;
-   (void)y;
-   (void)width;
-   (void)height;
-
-   if (!renderpass.inside)
-   {
-      sync_domain(Domain::Scaled, x, y, width, height);
-      write_domain(Domain::Scaled, Stage::Fragment,
-            renderpass.x,
-            renderpass.y,
-            renderpass.width,
-            renderpass.height);
-      renderpass.inside = true;
-      renderpass.clean_clear = false;
-   }
-}
-
-void FBAtlas::clear_rect(unsigned x, unsigned y,
-      unsigned width, unsigned height)
-{
-   if (x == renderpass.x &&
-       y == renderpass.y &&
-       width == renderpass.width &&
-       height == renderpass.height)
-   {
-      renderpass.inside = true;
-      renderpass.clean_clear = true;
-      renderpass.wait_for_blit = false;
-      discard_render_pass();
-      write_domain(Domain::Scaled, Stage::Fragment, x, y, width, height);
-   }
-   else if (!renderpass.inside)
-   {
-      sync_domain(Domain::Scaled, x, y, width, height);
-
-      // Fill
-      write_domain(Domain::Scaled, Stage::Transfer, x, y, width, height);
-      renderpass.inside = true;
-      renderpass.clean_clear = false;
-      renderpass.wait_for_blit = false;
-   }
-   else
-   {
-      sync_domain(Domain::Scaled, x, y, width, height);
-
-      // Clear quad
-      write_domain(Domain::Scaled, Stage::Fragment, x, y, width, height);
-   }
-}
-
-void FBAtlas::set_draw_rect(unsigned x, unsigned y,
-      unsigned width, unsigned height)
+bool FBAtlas::inside_render_pass(const Rect &rect)
 {
    if (!renderpass.inside)
-   {
-      renderpass.x = x;
-      renderpass.y = y;
-      renderpass.width = width;
-      renderpass.height = height;
-   }
-   else if (renderpass.x != x ||
-            renderpass.y != y ||
-            renderpass.width != width ||
-            renderpass.height != height)
-   {
-      flush_render_pass();
-      renderpass.inside = false;
-   }
+      return false;
+
+   unsigned xbegin = rect.x & ~(BLOCK_WIDTH - 1);
+   unsigned ybegin = rect.y & ~(BLOCK_HEIGHT - 1);
+   unsigned xend = ((rect.x + rect.width - 1) | (BLOCK_WIDTH - 1)) + 1;
+   unsigned yend = ((rect.y + rect.height - 1) | (BLOCK_HEIGHT - 1)) + 1;
+
+   unsigned x0 = max(rect.x, xbegin);
+   unsigned x1 = min(rect.x + rect.width, xend);
+   unsigned y0 = max(rect.y, ybegin);
+   unsigned y1 = min(rect.y + rect.height, yend);
+
+   return x1 > x0 && y1 > y0;
 }
 
 void FBAtlas::flush_render_pass()
 {
+   if (!renderpass.inside)
+      return;
+
+   renderpass.inside = false;
+   write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+}
+
+void FBAtlas::set_texture_window(const Rect &rect)
+{
+   renderpass.texture_window = rect;
+}
+
+void FBAtlas::write_fragment()
+{
+   if (inside_render_pass(renderpass.texture_window))
+      flush_render_pass();
+   read_texture(renderpass.texture_window);
+
+   if (!renderpass.inside)
+   {
+      sync_domain(Domain::Scaled, renderpass.rect);
+      renderpass.inside = true;
+      renderpass.clean_clear = false;
+      renderpass.wait_for_blit = false;
+   }
+}
+
+void FBAtlas::clear_rect(const Rect &rect)
+{
+   if (renderpass.rect == rect)
+   {
+      sync_domain(Domain::Scaled, rect);
+
+      discard_render_pass();
+      renderpass.inside = true;
+      renderpass.clean_clear = true;
+      renderpass.wait_for_blit = false;
+   }
+   else if (!renderpass.inside)
+   {
+      sync_domain(Domain::Scaled, rect);
+      renderpass.inside = true;
+      renderpass.clean_clear = false;
+      renderpass.wait_for_blit = false;
+   }
+}
+
+void FBAtlas::set_draw_rect(const Rect &rect)
+{
+   if (!renderpass.inside)
+      renderpass.rect = rect;
+   else if (renderpass.rect != rect)
+      flush_render_pass();
 }
 
 void FBAtlas::discard_render_pass()
 {
+   renderpass.inside = false;
 }
 
 void FBAtlas::pipeline_barrier(unsigned domains)
 {
    unsigned compute_stages =
-      STATUS_BLIT_FB_READ |
-      STATUS_BLIT_FB_WRITE |
-      STATUS_BLIT_SFB_READ |
-      STATUS_BLIT_SFB_WRITE;
+      STATUS_COMPUTE_FB_READ |
+      STATUS_COMPUTE_FB_WRITE |
+      STATUS_COMPUTE_SFB_READ |
+      STATUS_COMPUTE_SFB_WRITE;
 
-   unsigned transfer_stages = STATUS_SCANOUT;
+   unsigned transfer_stages =
+      STATUS_TRANSFER_FB_READ |
+      STATUS_TRANSFER_SFB_READ |
+      STATUS_TRANSFER_FB_WRITE |
+      STATUS_TRANSFER_SFB_WRITE;
 
    unsigned fragment_stages =
-      STATUS_FRAGMENT_FB_READ |
       STATUS_FRAGMENT_SFB_WRITE;
 
    if (domains & compute_stages)

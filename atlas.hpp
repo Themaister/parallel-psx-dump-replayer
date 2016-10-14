@@ -25,6 +25,24 @@ enum class Stage : unsigned
    Fragment
 };
 
+struct Rect
+{
+   unsigned x = 0;
+   unsigned y = 0;
+   unsigned width = 0;
+   unsigned height = 0;
+
+   inline bool operator==(const Rect &rect) const
+   {
+      return x == rect.x && y == rect.y && width == rect.width && height == rect.height;
+   }
+
+   inline bool operator!=(const Rect &rect) const
+   {
+      return x != rect.x || y != rect.y || width != rect.width || height != rect.height;
+   }
+};
+
 enum StatusFlag
 {
    STATUS_FB_ONLY = 0,
@@ -32,13 +50,24 @@ enum StatusFlag
    STATUS_SFB_ONLY = 2,
    STATUS_SFB_PREFER = 3,
    STATUS_OWNERSHIP_MASK = 3,
-   STATUS_BLIT_FB_READ = 1 << 2,
-   STATUS_BLIT_FB_WRITE = 1 << 3,
-   STATUS_BLIT_SFB_READ = 1 << 4,
-   STATUS_BLIT_SFB_WRITE = 1 << 5,
-   STATUS_FRAGMENT_FB_READ = 1 << 6,
-   STATUS_FRAGMENT_SFB_WRITE = 1 << 7,
-   STATUS_SCANOUT = 1 << 8
+
+   STATUS_COMPUTE_FB_READ = 1 << 2,
+   STATUS_COMPUTE_FB_WRITE = 1 << 3,
+   STATUS_COMPUTE_SFB_READ = 1 << 4,
+   STATUS_COMPUTE_SFB_WRITE = 1 << 5,
+
+   STATUS_TRANSFER_FB_READ = 1 << 6,
+   STATUS_TRANSFER_SFB_READ = 1 << 7,
+   STATUS_TRANSFER_FB_WRITE = 1 << 8,
+   STATUS_TRANSFER_SFB_WRITE = 1 << 9,
+
+   STATUS_FRAGMENT_SFB_READ = 1 << 10,
+   STATUS_FRAGMENT_SFB_WRITE = 1 << 11,
+
+   STATUS_FB_READ = STATUS_COMPUTE_FB_READ | STATUS_TRANSFER_FB_READ,
+   STATUS_FB_WRITE = STATUS_COMPUTE_FB_WRITE | STATUS_TRANSFER_FB_WRITE,
+   STATUS_SFB_READ = STATUS_COMPUTE_SFB_READ | STATUS_TRANSFER_SFB_READ | STATUS_FRAGMENT_SFB_READ,
+   STATUS_SFB_WRITE = STATUS_COMPUTE_SFB_WRITE | STATUS_TRANSFER_SFB_WRITE | STATUS_FRAGMENT_SFB_WRITE
 };
 using StatusFlags = uint16_t;
 
@@ -47,30 +76,29 @@ class FBAtlas
    public:
       FBAtlas();
 
-      void read_blit(Domain domain, unsigned x, unsigned y, unsigned width, unsigned height);
-      void write_blit(Domain domain, unsigned x, unsigned y, unsigned width, unsigned height);
-      void read_texture(unsigned x, unsigned y, unsigned width, unsigned height);
-      void write_fragment(unsigned x, unsigned y, unsigned width, unsigned height);
-      void clear_rect(unsigned x, unsigned y, unsigned width, unsigned height);
-      void set_draw_rect(unsigned x, unsigned y, unsigned width, unsigned height);
+      void read_compute(Domain domain, const Rect &rect);
+      void write_compute(Domain domain, const Rect &rect);
+      void read_transfer(Domain domain, const Rect &rect);
+      void write_transfer(Domain domain, const Rect &rect);
+      void read_texture(const Rect &rect);
+
+      void write_fragment();
+      void clear_rect(const Rect &rect);
+      void set_draw_rect(const Rect &rect);
+      void set_texture_window(const Rect &rect);
 
    private:
       std::vector<StatusFlags> fb_info;
 
-      void read_domain(Domain domain, Stage stage,
-            unsigned x, unsigned y, unsigned width, unsigned height);
-      void write_domain(Domain domain, Stage stage,
-            unsigned x, unsigned y, unsigned width, unsigned height);
-      void sync_domain(Domain domain,
-            unsigned x, unsigned y, unsigned width, unsigned height);
-      Domain find_suitable_domain(unsigned x, unsigned y, unsigned width, unsigned height);
+      void read_domain(Domain domain, Stage stage, const Rect &rect);
+      void write_domain(Domain domain, Stage stage, const Rect &rect);
+      void sync_domain(Domain domain, const Rect &rect);
+      Domain find_suitable_domain(const Rect &rect);
 
       struct
       {
-         unsigned x = 0;
-         unsigned y = 0;
-         unsigned width = 0;
-         unsigned height = 0;
+         Rect rect;
+         Rect texture_window;
          bool inside = false;
          bool clean_clear = false;
          bool wait_for_blit = false;
@@ -89,5 +117,6 @@ class FBAtlas
       void pipeline_barrier(unsigned domains);
       void flush_render_pass();
       void discard_render_pass();
+      bool inside_render_pass(const Rect &rect);
 };
 }
