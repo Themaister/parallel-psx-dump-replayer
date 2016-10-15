@@ -1,6 +1,8 @@
 add_library(vulkan
    vulkan.cpp
    vulkan_symbol_wrapper.cpp
+   device.cpp
+   image.cpp
    wsi.cpp)
 
 find_package(glfw3)

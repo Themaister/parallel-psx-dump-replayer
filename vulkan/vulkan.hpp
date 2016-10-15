@@ -1,5 +1,4 @@
-#ifndef VULKAN_HPP
-#define VULKAN_HPP
+#pragma once
 
 #include "vulkan_symbol_wrapper.h"
 #include <memory>
@@ -112,4 +111,3 @@ namespace Vulkan
    };
 }
 
-#endif
