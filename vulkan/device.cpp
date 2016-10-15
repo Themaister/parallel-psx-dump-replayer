@@ -31,7 +31,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images,
 }
 
 Device::PerFrame::PerFrame(VkDevice device)
-   : device(device)
+   : device(device), cmd_pool(device), fence_manager(device), semaphore_manager(device)
 {
 }
 
@@ -55,6 +55,12 @@ void Device::wait_idle()
 {
    for (auto &frame : per_frame)
       frame->begin();
+}
+
+void Device::begin_frame(unsigned index)
+{
+   current_swapchain_index = index;
+   frame().begin();
 }
 
 void Device::PerFrame::begin()

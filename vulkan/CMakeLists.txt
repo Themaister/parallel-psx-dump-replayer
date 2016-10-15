@@ -3,6 +3,9 @@ add_library(vulkan
    vulkan_symbol_wrapper.cpp
    device.cpp
    image.cpp
+   command_pool.cpp
+   fence_manager.cpp
+   semaphore_manager.cpp
    wsi.cpp)
 
 find_package(glfw3)

@@ -3,6 +3,9 @@
 #include "vulkan.hpp"
 #include "hashmap.hpp"
 #include "image.hpp"
+#include "command_pool.hpp"
+#include "fence_manager.hpp"
+#include "semaphore_manager.hpp"
 #include <memory>
 #include <vector>
 
@@ -43,16 +46,14 @@ class Device
 
          void begin();
 
-         //CommandPool cmd_pool;
+         VkDevice device;
+         CommandPool cmd_pool;
          ImageHandle backbuffer;
+         FenceManager fence_manager;
+         SemaphoreManager semaphore_manager;
 
          std::vector<VkImage> destroyed_images;
          std::vector<VkBuffer> destroyed_buffers;
-         VkDevice device;
-
-         //FenceManager fences;
-         //SemaphoreManager semaphores;
-
          //std::vector<CommandBufferHandle> submissions;
       };
 
