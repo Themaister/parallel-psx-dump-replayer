@@ -1,5 +1,3 @@
-CMakeFiles
-CMakeCache*
 /atlas
 Makefile
-cmake_install.cmake
+/build

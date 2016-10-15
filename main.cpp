@@ -1,6 +1,7 @@
 #include "atlas.hpp"
 #include <stdio.h>
 #include <vector>
+#include "wsi.hpp"
 
 using namespace PSX;
 using namespace std;
@@ -216,6 +217,9 @@ void Listener::discard_render_pass()
 
 int main()
 {
+   Vulkan::WSI wsi;
+   wsi.init(1280, 720);
+
    Listener listener;
 
    listener.copy_cpu_to_vram({ 0, 0, 8, 8 });
@@ -231,4 +235,9 @@ int main()
 
    listener.copy_vram_to_vram({ 64, 64, 8, 8 }, { 8, 8, 8, 8 });
    listener.flush();
+
+   while (!wsi.alive())
+   {
+   }
 }
+
