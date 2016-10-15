@@ -2,9 +2,13 @@
 
 namespace Vulkan
 {
-CommandPool::CommandPool(VkDevice device)
+CommandPool::CommandPool(VkDevice device, uint32_t queue_family_index)
    : device(device)
 {
+   VkCommandPoolCreateInfo info = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+   info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+   info.queueFamilyIndex = queue_family_index;
+   vkCreateCommandPool(device, &info, nullptr, &pool);
 }
 
 CommandPool::~CommandPool()

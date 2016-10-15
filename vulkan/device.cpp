@@ -9,6 +9,7 @@ void Device::set_context(const VulkanContext &context)
    instance = context.get_instance();
    gpu = context.get_gpu();
    device = context.get_device();
+   queue_family_index = context.get_queue_family();
 }
 
 void Device::init_swapchain(const vector<VkImage> swapchain_images,
@@ -16,39 +17,33 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images,
 {
    wait_idle();
 
-   teardown_context = true;
+   for (auto &frame : per_frame)
+      frame->backbuffer.release();
    per_frame.clear();
-   teardown_context = false;
 
    const auto info = ImageCreateInfo::render_target(width, height, format);
 
    for (auto &image : swapchain_images)
    {
-      auto frame = unique_ptr<PerFrame>(new PerFrame(device));
+      auto frame = unique_ptr<PerFrame>(new PerFrame(device, queue_family_index));
       frame->backbuffer = make_handle<Image>(this, image, info);
       per_frame.emplace_back(move(frame));
    }
 }
 
-Device::PerFrame::PerFrame(VkDevice device)
-   : device(device), cmd_pool(device), fence_manager(device), semaphore_manager(device)
+Device::PerFrame::PerFrame(VkDevice device, uint32_t queue_family_index)
+   : device(device), cmd_pool(device, queue_family_index), fence_manager(device), semaphore_manager(device)
 {
 }
 
 void Device::destroy_image(VkImage image)
 {
-   if (!teardown_context)
-      frame().destroyed_images.push_back(image);
-   else
-      vkDestroyImage(device, image, nullptr);
+   frame().destroyed_images.push_back(image);
 }
 
 void Device::destroy_buffer(VkBuffer buffer)
 {
-   if (!teardown_context)
-      frame().destroyed_buffers.push_back(buffer);
-   else
-      vkDestroyBuffer(device, buffer, nullptr);
+   frame().destroyed_buffers.push_back(buffer);
 }
 
 void Device::wait_idle()

@@ -60,6 +60,7 @@ bool WSI::init(unsigned width, unsigned height)
    glfwSetWindowUserPointer(window, this);
    glfwSetFramebufferSizeCallback(window, fb_size_cb);
 
+   device.set_context(*context);
    device.init_swapchain(swapchain_images, width, height, format);
    return true;
 }

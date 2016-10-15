@@ -8,7 +8,7 @@ namespace Vulkan
 class CommandPool
 {
    public:
-      CommandPool(VkDevice device);
+      CommandPool(VkDevice device, uint32_t queue_family_index);
       ~CommandPool();
 
       void begin();

@@ -39,7 +39,7 @@ class Device
 
       struct PerFrame
       {
-         PerFrame(VkDevice device);
+         PerFrame(VkDevice device, uint32_t queue_family_index);
          ~PerFrame();
          void operator=(const PerFrame &) = delete;
          PerFrame(const PerFrame &) = delete;
@@ -64,6 +64,6 @@ class Device
 
       std::vector<std::unique_ptr<PerFrame>> per_frame;
       unsigned current_swapchain_index = 0;
-      bool teardown_context = false;
+      uint32_t queue_family_index = 0;
 };
 }
