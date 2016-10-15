@@ -6,6 +6,7 @@ add_library(vulkan
    command_pool.cpp
    fence_manager.cpp
    semaphore_manager.cpp
+   command_buffer.cpp
    wsi.cpp)
 
 find_package(glfw3)

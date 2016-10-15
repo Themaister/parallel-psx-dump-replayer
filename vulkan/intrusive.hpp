@@ -1,10 +1,11 @@
 #pragma once
 
 #include <utility>
+#include <stddef.h>
 
 struct IntrusivePtrEnabled
 {
-   unsigned reference_count = 1;
+   size_t reference_count = 1;
 };
 
 template <typename T>

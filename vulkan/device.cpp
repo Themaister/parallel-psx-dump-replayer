@@ -12,6 +12,12 @@ void Device::set_context(const VulkanContext &context)
    queue_family_index = context.get_queue_family();
 }
 
+CommandBufferHandle Device::request_command_buffer()
+{
+   auto cmd = frame().cmd_pool.request_command_buffer();
+   return make_handle<CommandBuffer>(cmd);
+}
+
 void Device::init_swapchain(const vector<VkImage> swapchain_images,
       unsigned width, unsigned height, VkFormat format)
 {

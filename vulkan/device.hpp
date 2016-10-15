@@ -6,6 +6,7 @@
 #include "command_pool.hpp"
 #include "fence_manager.hpp"
 #include "semaphore_manager.hpp"
+#include "command_buffer.hpp"
 #include <memory>
 #include <vector>
 
@@ -21,8 +22,8 @@ class Device
       void begin_frame(unsigned index);
       void flush_frame();
       void wait_idle();
+      CommandBufferHandle request_command_buffer();
       //void submit(CommandBufferHandle cmd);
-      //CommandBufferHandle request_command_buffer();
 
       VkDevice get_device()
       {
