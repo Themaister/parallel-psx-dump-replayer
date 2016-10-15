@@ -63,36 +63,64 @@ enum StatusFlag
 
    STATUS_FRAGMENT_SFB_READ = 1 << 10,
    STATUS_FRAGMENT_SFB_WRITE = 1 << 11,
+   STATUS_FRAGMENT_FB_READ = 1 << 12,
+   STATUS_FRAGMENT_FB_WRITE = 1 << 13,
 
-   STATUS_FB_READ = STATUS_COMPUTE_FB_READ | STATUS_TRANSFER_FB_READ,
-   STATUS_FB_WRITE = STATUS_COMPUTE_FB_WRITE | STATUS_TRANSFER_FB_WRITE,
+   STATUS_FB_READ = STATUS_COMPUTE_FB_READ | STATUS_TRANSFER_FB_READ | STATUS_FRAGMENT_FB_READ,
+   STATUS_FB_WRITE = STATUS_COMPUTE_FB_WRITE | STATUS_TRANSFER_FB_WRITE | STATUS_FRAGMENT_FB_WRITE,
    STATUS_SFB_READ = STATUS_COMPUTE_SFB_READ | STATUS_TRANSFER_SFB_READ | STATUS_FRAGMENT_SFB_READ,
-   STATUS_SFB_WRITE = STATUS_COMPUTE_SFB_WRITE | STATUS_TRANSFER_SFB_WRITE | STATUS_FRAGMENT_SFB_WRITE
+   STATUS_SFB_WRITE = STATUS_COMPUTE_SFB_WRITE | STATUS_TRANSFER_SFB_WRITE | STATUS_FRAGMENT_SFB_WRITE,
+   STATUS_FRAGMENT = STATUS_FRAGMENT_FB_READ | STATUS_FRAGMENT_FB_WRITE | STATUS_FRAGMENT_SFB_READ | STATUS_FRAGMENT_SFB_WRITE,
+   STATUS_ALL = STATUS_FB_READ | STATUS_FB_WRITE | STATUS_SFB_READ | STATUS_SFB_WRITE
 };
 using StatusFlags = uint16_t;
+
+class HazardListener
+{
+   public:
+      virtual ~HazardListener() = default;
+      virtual void hazard(StatusFlags flags) = 0;
+      virtual void resolve(Domain target_domain, const Rect &rect) = 0;
+      virtual void flush_render_pass() = 0;
+      virtual void discard_render_pass() = 0;
+      virtual void upload_texture(Domain target_domain, const Rect &rect) = 0;
+};
 
 class FBAtlas
 {
    public:
       FBAtlas();
 
+      void set_hazard_listener(HazardListener *hazard)
+      {
+         listener = hazard;
+      }
+
       void read_compute(Domain domain, const Rect &rect);
       void write_compute(Domain domain, const Rect &rect);
       void read_transfer(Domain domain, const Rect &rect);
       void write_transfer(Domain domain, const Rect &rect);
-      void read_texture(const Rect &rect);
 
-      void write_fragment();
+      void write_fragment(bool reads_window);
       void clear_rect(const Rect &rect);
       void set_draw_rect(const Rect &rect);
       void set_texture_window(const Rect &rect);
 
+      bool render_pass_is_clear() const
+      {
+         return renderpass.clean_clear;
+      }
+
+      void pipeline_barrier(StatusFlags domains);
+
    private:
-      std::vector<StatusFlags> fb_info;
+      StatusFlags fb_info[NUM_BLOCKS_X * NUM_BLOCKS_Y];
+      HazardListener *listener = nullptr;
 
       void read_domain(Domain domain, Stage stage, const Rect &rect);
       void write_domain(Domain domain, Stage stage, const Rect &rect);
       void sync_domain(Domain domain, const Rect &rect);
+      void read_texture(const Rect &rect);
       Domain find_suitable_domain(const Rect &rect);
 
       struct
@@ -114,7 +142,6 @@ class FBAtlas
          return fb_info[NUM_BLOCKS_X * block_y + block_x];
       }
 
-      void pipeline_barrier(unsigned domains);
       void flush_render_pass();
       void discard_render_pass();
       bool inside_render_pass(const Rect &rect);

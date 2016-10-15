@@ -1,5 +1,4 @@
 #include "atlas.hpp"
-#include <stdio.h>
 #include <algorithm>
 
 using namespace std;
@@ -9,7 +8,6 @@ namespace PSX
 
 FBAtlas::FBAtlas()
 {
-   fb_info.resize(NUM_BLOCKS_X * NUM_BLOCKS_Y);
    for (auto &f : fb_info)
       f = STATUS_FB_PREFER;
 }
@@ -43,6 +41,9 @@ void FBAtlas::read_texture(const Rect &rect)
    auto domain = find_suitable_domain(rect);
    sync_domain(domain, rect);
    read_domain(domain, Stage::Compute, rect);
+   listener->upload_texture(domain, rect);
+
+   renderpass.wait_for_blit = true;
 }
 
 void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
@@ -65,6 +66,11 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
          resolve_domains = STATUS_COMPUTE_FB_WRITE | STATUS_FB_ONLY;
       else if (stage == Stage::Transfer)
          resolve_domains = STATUS_TRANSFER_FB_WRITE | STATUS_FB_ONLY;
+      else if (stage == Stage::Fragment)
+      {
+         resolve_domains = STATUS_FRAGMENT_FB_WRITE | STATUS_FB_ONLY;
+         hazard_domains &= ~STATUS_FRAGMENT;
+      }
    }
    else
    {
@@ -73,7 +79,7 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
          resolve_domains = STATUS_COMPUTE_SFB_WRITE;
       else if (stage == Stage::Fragment)
       {
-         hazard_domains &= ~(STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_SFB_READ);
+         hazard_domains &= ~STATUS_FRAGMENT;
          resolve_domains = STATUS_FRAGMENT_SFB_WRITE;
       }
       else if (stage == Stage::Transfer)
@@ -114,6 +120,11 @@ void FBAtlas::read_domain(Domain domain, Stage stage,
          resolve_domains = STATUS_COMPUTE_FB_READ;
       else if (stage == Stage::Transfer)
          resolve_domains = STATUS_TRANSFER_FB_READ;
+      else if (stage == Stage::Fragment)
+      {
+         resolve_domains = STATUS_FRAGMENT_FB_READ;
+         hazard_domains &= ~STATUS_FRAGMENT;
+      }
    }
    else
    {
@@ -124,7 +135,7 @@ void FBAtlas::read_domain(Domain domain, Stage stage,
          resolve_domains = STATUS_TRANSFER_SFB_READ;
       else if (stage == Stage::Fragment)
       {
-         hazard_domains &= ~(STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_SFB_READ);
+         hazard_domains &= ~STATUS_FRAGMENT;
          resolve_domains = STATUS_FRAGMENT_SFB_READ;
       }
    }
@@ -229,6 +240,7 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
          {
             mask &= ~STATUS_OWNERSHIP_MASK;
             mask |= resolve_domains;
+            listener->resolve(domain, { BLOCK_WIDTH * x, BLOCK_HEIGHT * y, BLOCK_WIDTH, BLOCK_HEIGHT });
          }
       }
    }
@@ -263,10 +275,10 @@ bool FBAtlas::inside_render_pass(const Rect &rect)
    unsigned xend = ((rect.x + rect.width - 1) | (BLOCK_WIDTH - 1)) + 1;
    unsigned yend = ((rect.y + rect.height - 1) | (BLOCK_HEIGHT - 1)) + 1;
 
-   unsigned x0 = max(rect.x, xbegin);
-   unsigned x1 = min(rect.x + rect.width, xend);
-   unsigned y0 = max(rect.y, ybegin);
-   unsigned y1 = min(rect.y + rect.height, yend);
+   unsigned x0 = max(renderpass.rect.x, xbegin);
+   unsigned x1 = min(renderpass.rect.x + renderpass.rect.width, xend);
+   unsigned y0 = max(renderpass.rect.y, ybegin);
+   unsigned y1 = min(renderpass.rect.y + renderpass.rect.height, yend);
 
    return x1 > x0 && y1 > y0;
 }
@@ -276,8 +288,12 @@ void FBAtlas::flush_render_pass()
    if (!renderpass.inside)
       return;
 
+   if (renderpass.wait_for_blit)
+      pipeline_barrier(STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_WRITE);
+
    renderpass.inside = false;
    write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+   listener->flush_render_pass();
 }
 
 void FBAtlas::set_texture_window(const Rect &rect)
@@ -285,11 +301,14 @@ void FBAtlas::set_texture_window(const Rect &rect)
    renderpass.texture_window = rect;
 }
 
-void FBAtlas::write_fragment()
+void FBAtlas::write_fragment(bool reads_window)
 {
-   if (inside_render_pass(renderpass.texture_window))
-      flush_render_pass();
-   read_texture(renderpass.texture_window);
+   if (reads_window)
+   {
+      if (inside_render_pass(renderpass.texture_window))
+         flush_render_pass();
+      read_texture(renderpass.texture_window);
+   }
 
    if (!renderpass.inside)
    {
@@ -331,34 +350,52 @@ void FBAtlas::set_draw_rect(const Rect &rect)
 void FBAtlas::discard_render_pass()
 {
    renderpass.inside = false;
+   listener->discard_render_pass();
 }
 
-void FBAtlas::pipeline_barrier(unsigned domains)
+void FBAtlas::pipeline_barrier(StatusFlags domains)
 {
-   unsigned compute_stages =
+   static const StatusFlags compute_read_stages =
       STATUS_COMPUTE_FB_READ |
+      STATUS_COMPUTE_SFB_READ;
+
+   static const StatusFlags compute_write_stages =
       STATUS_COMPUTE_FB_WRITE |
-      STATUS_COMPUTE_SFB_READ |
       STATUS_COMPUTE_SFB_WRITE;
 
-   unsigned transfer_stages =
+   static const StatusFlags transfer_read_stages =
       STATUS_TRANSFER_FB_READ |
-      STATUS_TRANSFER_SFB_READ |
+      STATUS_TRANSFER_SFB_READ;
+
+   static const StatusFlags transfer_write_stages =
       STATUS_TRANSFER_FB_WRITE |
       STATUS_TRANSFER_SFB_WRITE;
 
-   unsigned fragment_stages =
-      STATUS_FRAGMENT_SFB_WRITE;
+   static const StatusFlags fragment_write_stages =
+      STATUS_FRAGMENT_SFB_WRITE |
+      STATUS_FRAGMENT_FB_WRITE;
 
-   if (domains & compute_stages)
-      fprintf(stderr, "Wait for compute\n");
-   if (domains & transfer_stages)
-      fprintf(stderr, "Wait for transfer\n");
-   if (domains & fragment_stages)
-      fprintf(stderr, "Wait for fragment\n");
+   static const StatusFlags fragment_read_stages =
+      STATUS_FRAGMENT_SFB_READ |
+      STATUS_FRAGMENT_FB_READ;
+
+   if (domains & compute_write_stages)
+      domains |= compute_write_stages | compute_read_stages;
+   if (domains & compute_read_stages)
+      domains |= compute_read_stages;
+   if (domains & transfer_write_stages)
+      domains |= transfer_write_stages | transfer_read_stages;
+   if (domains & transfer_read_stages)
+      domains |= transfer_read_stages;
+   if (domains & fragment_write_stages)
+      domains |= fragment_write_stages | fragment_read_stages;
+   if (domains & fragment_read_stages)
+      domains |= fragment_read_stages;
 
    for (auto &f : fb_info)
       f &= ~domains;
+
+   listener->hazard(domains);
 }
 
 }
