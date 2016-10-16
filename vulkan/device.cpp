@@ -58,7 +58,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images,
    for (auto &image : swapchain_images)
    {
       auto frame = unique_ptr<PerFrame>(new PerFrame(device, queue_family_index));
-      frame->backbuffer = make_handle<Image>(this, image, MaliSDK::DeviceAllocation{}, info);
+      frame->backbuffer = make_handle<Image>(this, image, nullptr, MaliSDK::DeviceAllocation{}, info);
       per_frame.emplace_back(move(frame));
    }
 }
@@ -71,6 +71,11 @@ Device::PerFrame::PerFrame(VkDevice device, uint32_t queue_family_index)
 void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
 {
    frame().allocations.push_back(alloc);
+}
+
+void Device::destroy_image_view(VkImageView view)
+{
+   frame().destroyed_image_views.push_back(view);
 }
 
 void Device::destroy_image(VkImage image)
@@ -97,6 +102,11 @@ void Device::begin_frame(unsigned index)
 
 void Device::PerFrame::begin()
 {
+   fence_manager.begin();
+   cmd_pool.begin();
+
+   for (auto &view : destroyed_image_views)
+      vkDestroyImageView(device, view, nullptr);
    for (auto &image : destroyed_images)
       vkDestroyImage(device, image, nullptr);
    for (auto &buffer : destroyed_buffers)
@@ -104,6 +114,7 @@ void Device::PerFrame::begin()
    for (auto &alloc : allocations)
       alloc.freeImmediate();
 
+   destroyed_image_views.clear();
    destroyed_images.clear();
    destroyed_buffers.clear();
    allocations.clear();

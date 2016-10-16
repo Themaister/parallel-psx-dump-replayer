@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vulkan.hpp"
+#include "buffer.hpp"
 #include "hashmap.hpp"
 #include "image.hpp"
 #include "command_pool.hpp"
@@ -32,6 +33,7 @@ class Device
 
       void destroy_buffer(VkBuffer buffer);
       void destroy_image(VkImage image);
+      void destroy_image_view(VkImageView view);
       void free_memory(const MaliSDK::DeviceAllocation &alloc);
 
       VkSemaphore set_acquire(VkSemaphore acquire);
@@ -62,6 +64,7 @@ class Device
          FenceManager fence_manager;
 
          std::vector<MaliSDK::DeviceAllocation> allocations;
+         std::vector<VkImageView> destroyed_image_views;
          std::vector<VkImage> destroyed_images;
          std::vector<VkBuffer> destroyed_buffers;
          //std::vector<CommandBufferHandle> submissions;

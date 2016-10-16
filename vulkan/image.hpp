@@ -6,6 +6,7 @@
 
 namespace Vulkan
 {
+   class Device;
    static bool format_is_depth_stencil(VkFormat format)
    {
       switch (format)
@@ -23,7 +24,30 @@ namespace Vulkan
       }
    }
 
-   class Device;
+   class Image;
+   struct ImageViewCreateInfo
+   {
+      Image *image;
+      VkFormat format;
+      unsigned base_level;
+      unsigned levels;
+      unsigned base_layer;
+      unsigned layers;
+   };
+
+   class ImageView : public IntrusivePtrEnabled
+   {
+      public:
+         ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info);
+         ~ImageView();
+
+      private:
+         Device *device;
+         VkImageView view;
+         ImageViewCreateInfo info;
+   };
+   using ImageViewHandle = IntrusivePtr<ImageView>;
+
    struct ImageCreateInfo
    {
       unsigned width;
@@ -47,7 +71,8 @@ namespace Vulkan
    class Image : public IntrusivePtrEnabled
    {
       public:
-         Image(Device *device, VkImage image, const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &info);
+         Image(Device *device, VkImage image, ImageViewHandle view,
+               const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &info);
          ~Image();
          Image(Image &&) = delete;
          Image &operator=(Image &&) = delete;
@@ -55,7 +80,7 @@ namespace Vulkan
       private:
          Device *device;
          VkImage image;
-         VkImageView view;
+         ImageViewHandle view;
          MaliSDK::DeviceAllocation alloc;
          ImageCreateInfo create_info;
    };

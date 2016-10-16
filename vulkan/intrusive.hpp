@@ -6,6 +6,9 @@
 struct IntrusivePtrEnabled
 {
    size_t reference_count = 1;
+   IntrusivePtrEnabled() = default;
+   IntrusivePtrEnabled(const IntrusivePtrEnabled &) = delete;
+   void operator=(const IntrusivePtrEnabled &) = delete;
 };
 
 template <typename T>
@@ -13,19 +16,19 @@ class IntrusivePtr
 {
 public:
    IntrusivePtr() = default;
-   IntrusivePtr(IntrusivePtrEnabled *handle)
+   IntrusivePtr(T *handle)
       : data(handle)
    {
    }
 
    operator T&()
    {
-      return *static_cast<T *>(data);
+      return *data;
    }
 
    operator const T&() const
    {
-      return *static_cast<const T *>(data);
+      return *data;
    }
 
    explicit operator bool() const
@@ -35,12 +38,12 @@ public:
 
    T *get()
    {
-      return static_cast<T *>(data);
+      return data;
    }
 
    const T *get() const
    {
-      return static_cast<const T *>(data);
+      return data;
    }
 
    T *release()
@@ -50,10 +53,10 @@ public:
 
       unsigned count = --data->reference_count;
       if (count == 0)
-         delete static_cast<T *>(data);
+         delete data;
       auto ret = data;
       data = nullptr;
-      return static_cast<T *>(ret);
+      return ret;
    }
 
    IntrusivePtr &operator=(const IntrusivePtr &other)
@@ -94,7 +97,7 @@ public:
    }
 
 private:
-   IntrusivePtrEnabled *data = nullptr;
+   T *data = nullptr;
 };
 
 template <typename T, typename... P>
