@@ -238,6 +238,8 @@ int main()
 
    while (!wsi.alive())
    {
+      wsi.begin_frame();
+      wsi.end_frame();
    }
 }
 

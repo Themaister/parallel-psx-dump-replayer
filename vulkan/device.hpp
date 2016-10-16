@@ -5,8 +5,8 @@
 #include "image.hpp"
 #include "command_pool.hpp"
 #include "fence_manager.hpp"
-#include "semaphore_manager.hpp"
 #include "command_buffer.hpp"
+#include "memory_allocator.hpp"
 #include <memory>
 #include <vector>
 
@@ -32,11 +32,20 @@ class Device
 
       void destroy_buffer(VkBuffer buffer);
       void destroy_image(VkImage image);
+      void free_memory(const MaliSDK::DeviceAllocation &alloc);
+
+      VkSemaphore set_acquire(VkSemaphore acquire);
+      VkSemaphore set_release(VkSemaphore release);
+      bool swapchain_touched() const;
 
    private:
       VkInstance instance = VK_NULL_HANDLE;
       VkPhysicalDevice gpu = VK_NULL_HANDLE;
       VkDevice device = VK_NULL_HANDLE;
+      MaliSDK::DeviceAllocator allocator;
+
+      VkPhysicalDeviceMemoryProperties mem_props;
+      VkPhysicalDeviceProperties gpu_props;
 
       struct PerFrame
       {
@@ -51,14 +60,23 @@ class Device
          CommandPool cmd_pool;
          ImageHandle backbuffer;
          FenceManager fence_manager;
-         SemaphoreManager semaphore_manager;
 
+         std::vector<MaliSDK::DeviceAllocation> allocations;
          std::vector<VkImage> destroyed_images;
          std::vector<VkBuffer> destroyed_buffers;
          //std::vector<CommandBufferHandle> submissions;
+         //
+         bool swapchain_touched = false;
       };
+      VkSemaphore wsi_acquire = VK_NULL_HANDLE;
+      VkSemaphore wsi_release = VK_NULL_HANDLE;
 
       PerFrame &frame()
+      {
+         return *per_frame[current_swapchain_index];
+      }
+
+      const PerFrame &frame() const
       {
          return *per_frame[current_swapchain_index];
       }

@@ -8,14 +8,14 @@ namespace Vulkan
    class SemaphoreManager
    {
       public:
-         SemaphoreManager(VkDevice device);
+         void init(VkDevice device);
          ~SemaphoreManager();
 
          VkSemaphore request_cleared_semaphore();
          void recycle(VkSemaphore semaphore);
 
       private:
-         VkDevice device;
+         VkDevice device = VK_NULL_HANDLE;
          std::vector<VkSemaphore> semaphores;
    };
 }

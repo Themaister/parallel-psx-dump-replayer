@@ -2,9 +2,9 @@
 
 namespace Vulkan
 {
-   SemaphoreManager::SemaphoreManager(VkDevice device)
-      : device(device)
+   void SemaphoreManager::init(VkDevice device)
    {
+      this->device = device;
    }
 
    SemaphoreManager::~SemaphoreManager()
@@ -15,7 +15,8 @@ namespace Vulkan
 
    void SemaphoreManager::recycle(VkSemaphore sem)
    {
-      semaphores.push_back(sem);
+      if (sem != VK_NULL_HANDLE)
+         semaphores.push_back(sem);
    }
 
    VkSemaphore SemaphoreManager::request_cleared_semaphore()

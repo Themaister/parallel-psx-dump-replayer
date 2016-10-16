@@ -60,8 +60,76 @@ bool WSI::init(unsigned width, unsigned height)
    glfwSetWindowUserPointer(window, this);
    glfwSetFramebufferSizeCallback(window, fb_size_cb);
 
+   semaphore_manager.init(context->get_device());
    device.set_context(*context);
    device.init_swapchain(swapchain_images, width, height, format);
+   return true;
+}
+
+bool WSI::begin_frame()
+{
+   if (!need_acquire)
+      return true;
+
+   VkSemaphore acquire = semaphore_manager.request_cleared_semaphore();
+   VkResult result;
+   do
+   {
+      result = vkAcquireNextImageKHR(context->get_device(), swapchain, UINT64_MAX, acquire, VK_NULL_HANDLE, &swapchain_index);
+
+      if (result == VK_SUCCESS)
+      {
+         release_semaphore = semaphore_manager.request_cleared_semaphore();
+         device.begin_frame(swapchain_index);
+         semaphore_manager.recycle(device.set_acquire(acquire));
+         semaphore_manager.recycle(device.set_release(release_semaphore));
+      }
+      else if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+      {
+         if (!init_swapchain(width, height))
+         {
+            semaphore_manager.recycle(acquire);
+            return false;
+         }
+         device.init_swapchain(swapchain_images, width, height, format);
+      }
+      else
+      {
+         semaphore_manager.recycle(acquire);
+         return false;
+      }
+   } while (result != VK_SUCCESS);
+   return true;
+}
+
+bool WSI::end_frame()
+{
+   device.flush_frame();
+
+   if (!device.swapchain_touched())
+   {
+      need_acquire = false;
+      device.wait_idle();
+      return true;
+   }
+
+   need_acquire = true;
+
+   VkResult result;
+   VkPresentInfoKHR info = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+   info.waitSemaphoreCount = 1;
+   info.pWaitSemaphores = &release_semaphore;
+   info.swapchainCount = 1;
+   info.pSwapchains = &swapchain;
+   info.pImageIndices = &swapchain_index;
+   info.pResults = &result;
+
+   VkResult overall = vkQueuePresentKHR(context->get_queue(), &info);
+   if (overall != VK_SUCCESS || result != VK_SUCCESS)
+   {
+      LOG("vkQueuePresentKHR failed.\n");
+      return false;
+   }
    return true;
 }
 
@@ -167,6 +235,8 @@ WSI::~WSI()
    if (context)
    {
       vkDeviceWaitIdle(context->get_device());
+      semaphore_manager.recycle(device.set_acquire(VK_NULL_HANDLE));
+      semaphore_manager.recycle(device.set_release(VK_NULL_HANDLE));
       if (swapchain != VK_NULL_HANDLE)
          vkDestroySwapchainKHR(context->get_device(), swapchain, nullptr);
    }

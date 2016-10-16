@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vulkan_symbol_wrapper.h"
+#include "semaphore_manager.hpp"
 #include "vulkan.hpp"
 #include "device.hpp"
 #include <GLFW/glfw3.h>
@@ -29,6 +30,9 @@ class WSI
          return device;
       }
 
+      bool begin_frame();
+      bool end_frame();
+
    private:
       std::unique_ptr<VulkanContext> context;
       GLFWwindow *window = nullptr;
@@ -40,7 +44,11 @@ class WSI
       unsigned width = 0;
       unsigned height = 0;
       VkFormat format = VK_FORMAT_UNDEFINED;
+      SemaphoreManager semaphore_manager;
 
       bool init_swapchain(unsigned width, unsigned height);
+      uint32_t swapchain_index = 0;
+      VkSemaphore release_semaphore;
+      bool need_acquire = true;
 };
 }

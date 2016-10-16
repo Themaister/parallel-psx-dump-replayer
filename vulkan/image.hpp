@@ -2,6 +2,7 @@
 
 #include "intrusive.hpp"
 #include "vulkan.hpp"
+#include "memory_allocator.hpp"
 
 namespace Vulkan
 {
@@ -46,7 +47,7 @@ namespace Vulkan
    class Image : public IntrusivePtrEnabled
    {
       public:
-         Image(Device *device, VkImage image, const ImageCreateInfo &info);
+         Image(Device *device, VkImage image, const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &info);
          ~Image();
          Image(Image &&) = delete;
          Image &operator=(Image &&) = delete;
@@ -55,6 +56,7 @@ namespace Vulkan
          Device *device;
          VkImage image;
          VkImageView view;
+         MaliSDK::DeviceAllocation alloc;
          ImageCreateInfo create_info;
    };
 

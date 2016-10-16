@@ -3,14 +3,17 @@
 
 namespace Vulkan
 {
-Image::Image(Device *device, VkImage image, const ImageCreateInfo &create_info)
-   : device(device), image(image), create_info(create_info)
+Image::Image(Device *device, VkImage image, const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &create_info)
+   : device(device), image(image), alloc(alloc), create_info(create_info)
 {
 }
 
 Image::~Image()
 {
-   //if (memory)
-   //   device->destroy_image(image);
+   if (alloc.getMemory())
+   {
+      device->destroy_image(image);
+      device->free_memory(alloc);
+   }
 }
 }
