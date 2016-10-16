@@ -3,12 +3,28 @@
 #include <utility>
 #include <stddef.h>
 
-struct IntrusivePtrEnabled
+template <typename T>
+class IntrusivePtrEnabled
 {
-   size_t reference_count = 1;
+public:
+   void release_reference()
+   {
+      size_t count = --reference_count;
+      if (count == 0)
+         delete static_cast<T *>(this);
+   }
+
+   void add_reference()
+   {
+      ++reference_count;
+   }
+
    IntrusivePtrEnabled() = default;
    IntrusivePtrEnabled(const IntrusivePtrEnabled &) = delete;
    void operator=(const IntrusivePtrEnabled &) = delete;
+
+private:
+   size_t reference_count = 1;
 };
 
 template <typename T>
@@ -21,14 +37,24 @@ public:
    {
    }
 
-   operator T&()
+   operator T*()
    {
-      return *data;
+      return data;
    }
 
-   operator const T&() const
+   operator const T*() const
    {
-      return *data;
+      return data;
+   }
+
+   T *operator->()
+   {
+      return data;
+   }
+
+   const T *operator->() const
+   {
+      return data;
    }
 
    explicit operator bool() const
@@ -46,26 +72,20 @@ public:
       return data;
    }
 
-   T *release()
+   void reset()
    {
-      if (!data)
-         return nullptr;
-
-      unsigned count = --data->reference_count;
-      if (count == 0)
-         delete data;
-      auto ret = data;
+      if (data)
+         data->release_reference();
       data = nullptr;
-      return ret;
    }
 
    IntrusivePtr &operator=(const IntrusivePtr &other)
    {
       if (this != &other)
       {
-         release();
+         reset();
          data = other.data;
-         data->reference_count++;
+         data->add_reference();
       }
       return *this;
    }
@@ -77,14 +97,14 @@ public:
 
    ~IntrusivePtr()
    {
-      release();
+      reset();
    }
 
    IntrusivePtr &operator=(IntrusivePtr &&other)
    {
       if (this != &other)
       {
-         release();
+         reset();
          data = other.data;
          other.data = nullptr;
       }

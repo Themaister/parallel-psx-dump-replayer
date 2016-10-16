@@ -5,7 +5,7 @@
 
 namespace Vulkan
 {
-   class CommandBuffer : public IntrusivePtrEnabled
+   class CommandBuffer : public IntrusivePtrEnabled<CommandBuffer>
    {
       public:
          CommandBuffer(VkCommandBuffer cmd);

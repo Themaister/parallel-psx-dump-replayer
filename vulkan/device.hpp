@@ -31,6 +31,8 @@ class Device
          return device;
       }
 
+      BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
+
       void destroy_buffer(VkBuffer buffer);
       void destroy_image(VkImage image);
       void destroy_image_view(VkImageView view);
@@ -87,5 +89,7 @@ class Device
       std::vector<std::unique_ptr<PerFrame>> per_frame;
       unsigned current_swapchain_index = 0;
       uint32_t queue_family_index = 0;
+
+      uint32_t find_memory_type(BufferDomain domain, uint32_t mask);
 };
 }

@@ -411,6 +411,11 @@ public:
 		return base;
 	}
 
+   inline VkDeviceMemory getDeviceMemory() const
+   {
+      return reinterpret_cast<VkDeviceMemory>(base);
+   }
+
 	/// @brief Gets the offset into device memory.
 	/// @returns Memory offset in bytes.
 	inline uint32_t getOffset() const

@@ -7,13 +7,21 @@ namespace Vulkan
 {
    class Device;
 
+   enum class BufferDomain
+   {
+      Device,
+      Host,
+      CachedHost
+   };
+
    struct BufferCreateInfo
    {
+      BufferDomain domain;
       VkDeviceSize size;
       VkBufferUsageFlags usage;
    };
 
-   class Buffer : public IntrusivePtrEnabled
+   class Buffer : public IntrusivePtrEnabled<Buffer>
    {
       public:
          Buffer(Device *device, VkBuffer buffer, const MaliSDK::DeviceAllocation &alloc,
@@ -26,4 +34,5 @@ namespace Vulkan
          MaliSDK::DeviceAllocation alloc;
          BufferCreateInfo info;
    };
+   using BufferHandle = IntrusivePtr<Buffer>;
 }

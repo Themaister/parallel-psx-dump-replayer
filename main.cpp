@@ -1,10 +1,12 @@
 #include "atlas.hpp"
+#include "device.hpp"
 #include <stdio.h>
 #include <vector>
 #include "wsi.hpp"
 
 using namespace PSX;
 using namespace std;
+using namespace Vulkan;
 
 class Listener : public HazardListener
 {
@@ -217,7 +219,7 @@ void Listener::discard_render_pass()
 
 int main()
 {
-   Vulkan::WSI wsi;
+   WSI wsi;
    wsi.init(1280, 720);
 
    Listener listener;
@@ -236,9 +238,21 @@ int main()
    listener.copy_vram_to_vram({ 64, 64, 8, 8 }, { 8, 8, 8, 8 });
    listener.flush();
 
+   auto &device = wsi.get_device();
+
    while (!wsi.alive())
    {
       wsi.begin_frame();
+
+      float dummy[16] = {};
+
+      const BufferCreateInfo info = {
+         BufferDomain::CachedHost,
+         64,
+         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+      };
+
+      auto buffer = device.create_buffer(info, dummy);
       wsi.end_frame();
    }
 }

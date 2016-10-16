@@ -1,4 +1,5 @@
 #include "device.hpp"
+#include <string.h>
 
 using namespace std;
 
@@ -50,7 +51,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images,
    wait_idle();
 
    for (auto &frame : per_frame)
-      frame->backbuffer.release();
+      frame->backbuffer.reset();
    per_frame.clear();
 
    const auto info = ImageCreateInfo::render_target(width, height, format);
@@ -125,6 +126,96 @@ void Device::PerFrame::begin()
 Device::PerFrame::~PerFrame()
 {
    begin();
+}
+
+uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)
+{
+   uint32_t desired, fallback;
+   switch (domain)
+   {
+      case BufferDomain::Device:
+         desired = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+         fallback = 0;
+         break;
+
+      case BufferDomain::Host:
+         desired = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+         fallback = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+         break;
+
+      case BufferDomain::CachedHost:
+         desired = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+         fallback = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+         break;
+   }
+
+   for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++)
+   {
+      if ((1u << i) & mask)
+      {
+         uint32_t flags = mem_props.memoryTypes[i].propertyFlags;
+         if ((flags & desired) == desired)
+            return i;
+      }
+   }
+
+   for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++)
+   {
+      if ((1u << i) & mask)
+      {
+         uint32_t flags = mem_props.memoryTypes[i].propertyFlags;
+         if ((flags & fallback) == fallback)
+            return i;
+      }
+   }
+
+   throw runtime_error("Couldn't find memory type.");
+}
+
+BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const void *initial)
+{
+   VkBuffer buffer;
+   VkMemoryRequirements reqs;
+   MaliSDK::DeviceAllocation allocation;
+
+   VkBufferCreateInfo info = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+   info.size = create_info.size;
+   info.usage = create_info.usage;
+
+   if (vkCreateBuffer(device, &info, nullptr, &buffer) != VK_SUCCESS)
+      return nullptr;
+
+   vkGetBufferMemoryRequirements(device, buffer, &reqs);
+
+   uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
+   if (!allocator.allocate(reqs.size, memory_type, MaliSDK::ALLOCATION_TILING_LINEAR, &allocation))
+   {
+      vkDestroyBuffer(device, buffer, nullptr);
+      return nullptr;
+   }
+
+   if (vkBindBufferMemory(device, buffer,
+            allocation.getDeviceMemory(), allocation.getOffset()) != VK_SUCCESS)
+   {
+      allocation.freeImmediate();
+      vkDestroyBuffer(device, buffer, nullptr);
+      return nullptr;
+   }
+
+   if (initial)
+   {
+      void *ptr = allocator.mapMemory(&allocation, MaliSDK::MEMORY_ACCESS_WRITE);
+      if (!ptr)
+      {
+         allocation.freeImmediate();
+         vkDestroyBuffer(device, buffer, nullptr);
+         return nullptr;
+      }
+      memcpy(ptr, initial, create_info.size);
+      allocator.unmapMemory(allocation);
+   }
+
+   return make_handle<Buffer>(this, buffer, allocation, create_info);
 }
 
 }

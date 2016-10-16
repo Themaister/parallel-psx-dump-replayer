@@ -35,7 +35,7 @@ namespace Vulkan
       unsigned layers;
    };
 
-   class ImageView : public IntrusivePtrEnabled
+   class ImageView : public IntrusivePtrEnabled<ImageView>
    {
       public:
          ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info);
@@ -68,7 +68,7 @@ namespace Vulkan
       }
    };
 
-   class Image : public IntrusivePtrEnabled
+   class Image : public IntrusivePtrEnabled<Image>
    {
       public:
          Image(Device *device, VkImage image, ImageViewHandle view,
