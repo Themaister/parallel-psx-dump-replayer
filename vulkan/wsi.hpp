@@ -1,9 +1,9 @@
 #pragma once
 
-#include "vulkan_symbol_wrapper.h"
+#include "device.hpp"
 #include "semaphore_manager.hpp"
 #include "vulkan.hpp"
-#include "device.hpp"
+#include "vulkan_symbol_wrapper.h"
 #include <GLFW/glfw3.h>
 #include <memory>
 #include <vector>
@@ -13,42 +13,42 @@ namespace Vulkan
 
 class WSI
 {
-   public:
-      bool init(unsigned width, unsigned height);
-      ~WSI();
+public:
+	bool init(unsigned width, unsigned height);
+	~WSI();
 
-      bool alive();
-      void update_framebuffer(unsigned width, unsigned height);
+	bool alive();
+	void update_framebuffer(unsigned width, unsigned height);
 
-      inline VulkanContext &get_context()
-      {
-         return *context;
-      }
+	inline VulkanContext &get_context()
+	{
+		return *context;
+	}
 
-      inline Device &get_device()
-      {
-         return device;
-      }
+	inline Device &get_device()
+	{
+		return device;
+	}
 
-      bool begin_frame();
-      bool end_frame();
+	bool begin_frame();
+	bool end_frame();
 
-   private:
-      std::unique_ptr<VulkanContext> context;
-      GLFWwindow *window = nullptr;
-      VkSurfaceKHR surface = VK_NULL_HANDLE;
-      VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-      std::vector<VkImage> swapchain_images;
-      Device device;
+private:
+	std::unique_ptr<VulkanContext> context;
+	GLFWwindow *window = nullptr;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+	std::vector<VkImage> swapchain_images;
+	Device device;
 
-      unsigned width = 0;
-      unsigned height = 0;
-      VkFormat format = VK_FORMAT_UNDEFINED;
-      SemaphoreManager semaphore_manager;
+	unsigned width = 0;
+	unsigned height = 0;
+	VkFormat format = VK_FORMAT_UNDEFINED;
+	SemaphoreManager semaphore_manager;
 
-      bool init_swapchain(unsigned width, unsigned height);
-      uint32_t swapchain_index = 0;
-      VkSemaphore release_semaphore;
-      bool need_acquire = true;
+	bool init_swapchain(unsigned width, unsigned height);
+	uint32_t swapchain_index = 0;
+	VkSemaphore release_semaphore;
+	bool need_acquire = true;
 };
 }

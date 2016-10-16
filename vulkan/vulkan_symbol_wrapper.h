@@ -73,8 +73,10 @@ extern PFN_vkGetImageMemoryRequirements vulkan_symbol_wrapper_vkGetImageMemoryRe
 #define vkGetImageMemoryRequirements vulkan_symbol_wrapper_vkGetImageMemoryRequirements
 extern PFN_vkGetImageSparseMemoryRequirements vulkan_symbol_wrapper_vkGetImageSparseMemoryRequirements;
 #define vkGetImageSparseMemoryRequirements vulkan_symbol_wrapper_vkGetImageSparseMemoryRequirements
-extern PFN_vkGetPhysicalDeviceSparseImageFormatProperties vulkan_symbol_wrapper_vkGetPhysicalDeviceSparseImageFormatProperties;
-#define vkGetPhysicalDeviceSparseImageFormatProperties vulkan_symbol_wrapper_vkGetPhysicalDeviceSparseImageFormatProperties
+extern PFN_vkGetPhysicalDeviceSparseImageFormatProperties
+    vulkan_symbol_wrapper_vkGetPhysicalDeviceSparseImageFormatProperties;
+#define vkGetPhysicalDeviceSparseImageFormatProperties \
+	vulkan_symbol_wrapper_vkGetPhysicalDeviceSparseImageFormatProperties
 extern PFN_vkQueueBindSparse vulkan_symbol_wrapper_vkQueueBindSparse;
 #define vkQueueBindSparse vulkan_symbol_wrapper_vkQueueBindSparse
 extern PFN_vkCreateFence vulkan_symbol_wrapper_vkCreateFence;
@@ -303,7 +305,8 @@ extern PFN_vkQueuePresentKHR vulkan_symbol_wrapper_vkQueuePresentKHR;
 #define vkQueuePresentKHR vulkan_symbol_wrapper_vkQueuePresentKHR
 extern PFN_vkGetPhysicalDeviceDisplayPropertiesKHR vulkan_symbol_wrapper_vkGetPhysicalDeviceDisplayPropertiesKHR;
 #define vkGetPhysicalDeviceDisplayPropertiesKHR vulkan_symbol_wrapper_vkGetPhysicalDeviceDisplayPropertiesKHR
-extern PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR vulkan_symbol_wrapper_vkGetPhysicalDeviceDisplayPlanePropertiesKHR;
+extern PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR
+    vulkan_symbol_wrapper_vkGetPhysicalDeviceDisplayPlanePropertiesKHR;
 #define vkGetPhysicalDeviceDisplayPlanePropertiesKHR vulkan_symbol_wrapper_vkGetPhysicalDeviceDisplayPlanePropertiesKHR
 extern PFN_vkGetDisplayPlaneSupportedDisplaysKHR vulkan_symbol_wrapper_vkGetDisplayPlaneSupportedDisplaysKHR;
 #define vkGetDisplayPlaneSupportedDisplaysKHR vulkan_symbol_wrapper_vkGetDisplayPlaneSupportedDisplaysKHR
@@ -340,17 +343,20 @@ VkBool32 vulkan_symbol_wrapper_load_global_symbols(void);
 VkBool32 vulkan_symbol_wrapper_load_core_instance_symbols(VkInstance instance);
 VkBool32 vulkan_symbol_wrapper_load_core_symbols(VkInstance instance);
 VkBool32 vulkan_symbol_wrapper_load_core_device_symbols(VkDevice device);
-VkBool32 vulkan_symbol_wrapper_load_instance_symbol(VkInstance instance, const char *name, PFN_vkVoidFunction *ppSymbol);
+VkBool32 vulkan_symbol_wrapper_load_instance_symbol(VkInstance instance, const char *name,
+                                                    PFN_vkVoidFunction *ppSymbol);
 VkBool32 vulkan_symbol_wrapper_load_device_symbol(VkDevice device, const char *name, PFN_vkVoidFunction *ppSymbol);
 
-#define VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_SYMBOL(instance, name, pfn) vulkan_symbol_wrapper_load_instance_symbol(instance, name, (PFN_vkVoidFunction*) &(pfn))
-#define VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(instance, name) vulkan_symbol_wrapper_load_instance_symbol(instance, #name, (PFN_vkVoidFunction*) & name)
-#define VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_SYMBOL(device, name, pfn) vulkan_symbol_wrapper_load_device_symbol(device, name, (PFN_vkVoidFunction*) &(pfn))
-#define VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_EXTENSION_SYMBOL(device, name) vulkan_symbol_wrapper_load_device_symbol(device, #name, (PFN_vkVoidFunction*) & name)
-
+#define VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_SYMBOL(instance, name, pfn) \
+	vulkan_symbol_wrapper_load_instance_symbol(instance, name, (PFN_vkVoidFunction *)&(pfn))
+#define VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(instance, name) \
+	vulkan_symbol_wrapper_load_instance_symbol(instance, #name, (PFN_vkVoidFunction *)&name)
+#define VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_SYMBOL(device, name, pfn) \
+	vulkan_symbol_wrapper_load_device_symbol(device, name, (PFN_vkVoidFunction *)&(pfn))
+#define VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_EXTENSION_SYMBOL(device, name) \
+	vulkan_symbol_wrapper_load_device_symbol(device, #name, (PFN_vkVoidFunction *)&name)
 
 #ifdef __cplusplus
 }
 #endif
 #endif
-

@@ -11,12 +11,12 @@
 #ifndef FRAMEWORK_MEMORY_ALLOCATOR_HPP
 #define FRAMEWORK_MEMORY_ALLOCATOR_HPP
 
+#include "vulkan.hpp"
 #include <assert.h>
 #include <memory>
 #include <stddef.h>
 #include <stdint.h>
 #include <vector>
-#include "vulkan.hpp"
 
 #ifdef MEMORY_ALLOCATOR_THREAD_SAFE
 #include <mutex>
@@ -411,10 +411,10 @@ public:
 		return base;
 	}
 
-   inline VkDeviceMemory getDeviceMemory() const
-   {
-      return reinterpret_cast<VkDeviceMemory>(base);
-   }
+	inline VkDeviceMemory getDeviceMemory() const
+	{
+		return reinterpret_cast<VkDeviceMemory>(base);
+	}
 
 	/// @brief Gets the offset into device memory.
 	/// @returns Memory offset in bytes.
