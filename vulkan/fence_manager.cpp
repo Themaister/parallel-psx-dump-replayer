@@ -25,7 +25,7 @@ namespace Vulkan
    void FenceManager::begin()
    {
       if (index)
-         vkResetFences(device, fences.size(), fences.data());
+         vkResetFences(device, index, fences.data());
       index = 0;
    }
 
