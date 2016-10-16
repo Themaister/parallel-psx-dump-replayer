@@ -24,7 +24,7 @@ class Device
       void flush_frame();
       void wait_idle();
       CommandBufferHandle request_command_buffer();
-      //void submit(CommandBufferHandle cmd);
+      void submit(CommandBufferHandle cmd);
 
       VkDevice get_device()
       {
@@ -46,6 +46,7 @@ class Device
       VkInstance instance = VK_NULL_HANDLE;
       VkPhysicalDevice gpu = VK_NULL_HANDLE;
       VkDevice device = VK_NULL_HANDLE;
+      VkQueue queue = VK_NULL_HANDLE;
       MaliSDK::DeviceAllocator allocator;
 
       VkPhysicalDeviceMemoryProperties mem_props;
@@ -69,12 +70,14 @@ class Device
          std::vector<VkImageView> destroyed_image_views;
          std::vector<VkImage> destroyed_images;
          std::vector<VkBuffer> destroyed_buffers;
-         //std::vector<CommandBufferHandle> submissions;
-         //
+         std::vector<CommandBufferHandle> submissions;
          bool swapchain_touched = false;
       };
       VkSemaphore wsi_acquire = VK_NULL_HANDLE;
       VkSemaphore wsi_release = VK_NULL_HANDLE;
+      CommandBufferHandle staging_cmd;
+      void begin_staging();
+      void submit_queue();
 
       PerFrame &frame()
       {

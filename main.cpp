@@ -253,6 +253,8 @@ int main()
       };
 
       auto buffer = device.create_buffer(info, dummy);
+      auto cmd = device.request_command_buffer();
+      device.submit(cmd);
       wsi.end_frame();
    }
 }

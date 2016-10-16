@@ -2,8 +2,8 @@
 
 namespace Vulkan
 {
-   CommandBuffer::CommandBuffer(VkCommandBuffer cmd)
-      : cmd(cmd)
+   CommandBuffer::CommandBuffer(Device *device, VkCommandBuffer cmd)
+      : device(device), cmd(cmd)
    {
    }
 }

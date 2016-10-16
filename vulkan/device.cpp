@@ -11,6 +11,7 @@ void Device::set_context(const VulkanContext &context)
    gpu = context.get_gpu();
    device = context.get_device();
    queue_family_index = context.get_queue_family();
+   queue = context.get_queue();
 
    mem_props = context.get_mem_props();
    gpu_props = context.get_gpu_props();
@@ -18,8 +19,103 @@ void Device::set_context(const VulkanContext &context)
    allocator.init(gpu, device);
 }
 
+void Device::submit(CommandBufferHandle cmd)
+{
+   if (staging_cmd)
+   {
+      vkEndCommandBuffer(staging_cmd->get_command_buffer());
+      frame().submissions.push_back(staging_cmd);
+      staging_cmd.reset();
+   }
+
+   vkEndCommandBuffer(cmd->get_command_buffer());
+   frame().submissions.push_back(move(cmd));
+}
+
+void Device::submit_queue()
+{
+   vector<VkCommandBuffer> cmds;
+   cmds.reserve(frame().submissions.size());
+
+   vector<VkSubmitInfo> submits;
+   submits.reserve(2);
+   size_t last_cmd = 0;
+
+   for (auto &cmd : frame().submissions)
+   {
+      if (cmd->swapchain_touched() && !frame().swapchain_touched)
+      {
+         if (!cmds.empty())
+         {
+            // Push all pending cmd buffers to their own submission.
+            submits.emplace_back();
+
+            auto &submit = submits.back();
+            memset(&submit, 0, sizeof(submit));
+            submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit.pNext = nullptr;
+            submit.commandBufferCount = cmds.size() - last_cmd;
+            submit.pCommandBuffers = cmds.data() + last_cmd;
+            last_cmd = cmds.size();
+         }
+         frame().swapchain_touched = true;
+      }
+
+      cmds.push_back(cmd->get_command_buffer());
+   }
+
+   if (cmds.size() > last_cmd)
+   {
+      // Push all pending cmd buffers to their own submission.
+      submits.emplace_back();
+
+      auto &submit = submits.back();
+      memset(&submit, 0, sizeof(submit));
+      submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+      submit.pNext = nullptr;
+      submit.commandBufferCount = cmds.size() - last_cmd;
+      submit.pCommandBuffers = cmds.data() + last_cmd;
+      if (frame().swapchain_touched)
+      {
+         submit.waitSemaphoreCount = 1;
+         submit.pWaitSemaphores = &wsi_acquire;
+         static const uint32_t wait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+         submit.pWaitDstStageMask = &wait;
+         submit.signalSemaphoreCount = 1;
+         submit.pSignalSemaphores = &wsi_release;
+      }
+      last_cmd = cmds.size();
+   }
+   VkResult result = vkQueueSubmit(queue, submits.size(), submits.data(),
+         frame().fence_manager.request_cleared_fence());
+   if (result != VK_SUCCESS)
+      LOG("vkQueueSubmit failed.\n");
+   frame().submissions.clear();
+}
+
 void Device::flush_frame()
 {
+   if (staging_cmd)
+      frame().submissions.push_back(staging_cmd);
+   staging_cmd.reset();
+
+   submit_queue();
+}
+
+void Device::begin_staging()
+{
+   if (!staging_cmd)
+      staging_cmd = request_command_buffer();
+}
+
+CommandBufferHandle Device::request_command_buffer()
+{
+   auto cmd = frame().cmd_pool.request_command_buffer();
+
+   VkCommandBufferBeginInfo info = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+   info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+   vkBeginCommandBuffer(cmd, &info);
+   return make_handle<CommandBuffer>(this, cmd);
 }
 
 VkSemaphore Device::set_acquire(VkSemaphore acquire)
@@ -32,12 +128,6 @@ VkSemaphore Device::set_release(VkSemaphore release)
 {
    swap(release, wsi_release);
    return release;
-}
-
-CommandBufferHandle Device::request_command_buffer()
-{
-   auto cmd = frame().cmd_pool.request_command_buffer();
-   return make_handle<CommandBuffer>(cmd);
 }
 
 bool Device::swapchain_touched() const
@@ -91,6 +181,10 @@ void Device::destroy_buffer(VkBuffer buffer)
 
 void Device::wait_idle()
 {
+   if (!per_frame.empty())
+      flush_frame();
+
+   vkDeviceWaitIdle(device);
    for (auto &frame : per_frame)
       frame->begin();
 }

@@ -47,6 +47,16 @@ public:
       return data;
    }
 
+   T& operator*()
+   {
+      return *data;
+   }
+
+   const T& operator*() const
+   {
+      return *data;
+   }
+
    T *operator->()
    {
       return data;
@@ -85,7 +95,8 @@ public:
       {
          reset();
          data = other.data;
-         data->add_reference();
+         if (data)
+            data->add_reference();
       }
       return *this;
    }
