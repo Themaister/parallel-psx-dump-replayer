@@ -1,4 +1,5 @@
 #include "device.hpp"
+#include "format.hpp"
 #include <string.h>
 
 using namespace std;
@@ -162,7 +163,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 		view_info.components.g = VK_COMPONENT_SWIZZLE_G;
 		view_info.components.b = VK_COMPONENT_SWIZZLE_B;
 		view_info.components.a = VK_COMPONENT_SWIZZLE_A;
-		view_info.subresourceRange.aspectMask = format_to_aspect_flags(format);
+		view_info.subresourceRange.aspectMask = format_to_aspect_mask(format);
 		view_info.subresourceRange.baseMipLevel = 0;
 		view_info.subresourceRange.baseArrayLayer = 0;
 		view_info.subresourceRange.levelCount = 1;
@@ -336,7 +337,7 @@ uint32_t Device::find_memory_type(ImageDomain domain, uint32_t mask)
 	throw runtime_error("Couldn't find memory type.");
 }
 
-ImageHandle Device::create_image(const ImageCreateInfo &create_info, const ImageInitialData *)
+ImageHandle Device::create_image(const ImageCreateInfo &create_info, const ImageInitialData *initial)
 {
 	VkImage image;
 	VkMemoryRequirements reqs;
@@ -359,6 +360,9 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 	if (create_info.usage & VK_IMAGE_USAGE_STORAGE_BIT)
 		info.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+
+	if (info.mipLevels == 0)
+		info.mipLevels = image_num_miplevels(info.extent);
 
 	VK_ASSERT(format_is_supported(create_info.format, image_usage_to_features(info.usage)));
 
@@ -386,6 +390,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 	auto tmpinfo = create_info;
 	tmpinfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	tmpinfo.levels = info.mipLevels;
 	if (tmpinfo.domain == ImageDomain::Transient)
 		tmpinfo.usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
@@ -401,7 +406,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		view_info.components.g = VK_COMPONENT_SWIZZLE_G;
 		view_info.components.b = VK_COMPONENT_SWIZZLE_B;
 		view_info.components.a = VK_COMPONENT_SWIZZLE_A;
-		view_info.subresourceRange.aspectMask = format_to_aspect_flags(view_info.format);
+		view_info.subresourceRange.aspectMask = format_to_aspect_mask(view_info.format);
 		view_info.subresourceRange.baseMipLevel = 0;
 		view_info.subresourceRange.baseArrayLayer = 0;
 		view_info.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
@@ -465,7 +470,60 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		}
 	}
 
-	return make_handle<Image>(this, image, image_view, allocation, tmpinfo);
+	auto handle = make_handle<Image>(this, image, image_view, allocation, tmpinfo);
+
+	// Copy initial data to texture.
+	if (initial)
+	{
+		bool generate_mips = (create_info.flags & IMAGE_VIEW_GENERATE_MIPS_BIT) != 0;
+		unsigned copy_levels = generate_mips ? 1u : info.mipLevels;
+		begin_staging();
+
+		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		                           VK_ACCESS_TRANSFER_WRITE_BIT);
+		handle->set_layout(VK_IMAGE_LAYOUT_GENERAL);
+
+		for (unsigned i = 0; i < copy_levels; i++)
+		{
+			uint32_t row_length = initial[i].row_length ? initial[i].row_length : create_info.width;
+			uint32_t array_height = initial[i].array_height ? initial[i].array_height : create_info.height;
+
+			VkDeviceSize size = format_pixel_size(create_info.format) * create_info.layers * create_info.width *
+			                    (initial[i].array_height ? initial[i].array_height : create_info.height);
+
+			auto temp = create_buffer({ BufferDomain::Host, size, 0 }, initial[i].data);
+
+			staging_cmd->copy_buffer_to_image(*handle, *tmp, create_info.width, create_info.height, create_info.depth,
+			                                  row_length, array_height);
+		}
+
+		if (generate_mips)
+		{
+			unsigned width = create_info.width;
+			unsigned height = create_info.height;
+			unsigned depth = create_info.depth;
+
+			for (unsigned i = 1; i < tmpinfo.levels; i++)
+			{
+				staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+				                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+
+				unsigned src_width = width;
+				unsigned src_height = height;
+				unsigned src_depth = depth;
+				width = max(width >> 1u, 1u);
+				height = max(height >> 1u, 1u);
+				depth = max(depth >> 1u, 1u);
+			}
+		}
+
+		staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+		                           image_usage_to_possible_stages(info.usage),
+		                           image_usage_to_possible_access(info.usage));
+	}
+
+	return handle;
 }
 
 BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const void *initial)
@@ -510,8 +568,8 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 		const BufferCreateInfo staging_info = { BufferDomain::Host, create_info.size, 0 };
 		auto tmp = create_buffer(staging_info, initial);
 		staging_cmd->copy_buffer(*handle, *tmp);
-		staging_cmd->buffer_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-		                            buffer_usage_to_possible_stages(info.usage), VK_ACCESS_TRANSFER_WRITE_BIT,
+		staging_cmd->buffer_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+		                            buffer_usage_to_possible_stages(info.usage),
 		                            buffer_usage_to_possible_access(info.usage));
 	}
 	else if (initial)

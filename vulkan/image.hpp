@@ -1,5 +1,6 @@
 #pragma once
 
+#include "format.hpp"
 #include "intrusive.hpp"
 #include "memory_allocator.hpp"
 #include "vulkan.hpp"
@@ -7,6 +8,18 @@
 namespace Vulkan
 {
 class Device;
+
+static inline uint32_t image_num_miplevels(const VkExtent3D &extent)
+{
+	uint32_t size = std::max(std::max(extent.width, extent.height), extent.depth);
+	uint32_t levels = 0;
+	while (size)
+	{
+		levels++;
+		size >>= 1;
+	}
+	return levels;
+}
 
 static inline VkFormatFeatureFlags image_usage_to_features(VkImageUsageFlags usage)
 {
@@ -25,55 +38,18 @@ static inline VkFormatFeatureFlags image_usage_to_features(VkImageUsageFlags usa
 	return flags;
 }
 
-static inline bool format_is_depth_stencil(VkFormat format)
-{
-	switch (format)
-	{
-	case VK_FORMAT_D16_UNORM:
-	case VK_FORMAT_D16_UNORM_S8_UINT:
-	case VK_FORMAT_D24_UNORM_S8_UINT:
-	case VK_FORMAT_D32_SFLOAT:
-	case VK_FORMAT_X8_D24_UNORM_PACK32:
-	case VK_FORMAT_D32_SFLOAT_S8_UINT:
-	case VK_FORMAT_S8_UINT:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-static inline VkImageAspectFlags format_to_aspect_flags(VkFormat format)
-{
-	switch (format)
-	{
-	case VK_FORMAT_UNDEFINED:
-		return 0;
-
-	case VK_FORMAT_S8_UINT:
-		return VK_IMAGE_ASPECT_STENCIL_BIT;
-
-	case VK_FORMAT_D16_UNORM:
-	case VK_FORMAT_D16_UNORM_S8_UINT:
-	case VK_FORMAT_D24_UNORM_S8_UINT:
-		return VK_IMAGE_ASPECT_STENCIL_BIT | VK_IMAGE_ASPECT_DEPTH_BIT;
-
-	case VK_FORMAT_D32_SFLOAT:
-	case VK_FORMAT_X8_D24_UNORM_PACK32:
-	case VK_FORMAT_D32_SFLOAT_S8_UINT:
-		return VK_IMAGE_ASPECT_DEPTH_BIT;
-
-	default:
-		return VK_IMAGE_ASPECT_COLOR_BIT;
-	}
-}
-
 struct ImageInitialData
 {
 	const void *data;
 	unsigned row_length;
 	unsigned array_height;
 };
+
+enum ImageViewCreateFlagBits
+{
+	IMAGE_VIEW_GENERATE_MIPS_BIT = 1 << 0
+};
+using ImageViewCreateFlags = uint32_t;
 
 class Image;
 struct ImageViewCreateInfo
@@ -84,6 +60,7 @@ struct ImageViewCreateInfo
 	unsigned levels;
 	unsigned base_layer;
 	unsigned layers;
+	ImageViewCreateFlags flags;
 };
 
 class ImageView : public IntrusivePtrEnabled<ImageView>
@@ -142,6 +119,11 @@ public:
 	{
 		VK_ASSERT(view);
 		return *view;
+	}
+
+	VkImage get_image() const
+	{
+		return image;
 	}
 
 	const ImageCreateInfo &get_create_info() const

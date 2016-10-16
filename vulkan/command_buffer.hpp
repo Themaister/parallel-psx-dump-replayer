@@ -29,6 +29,12 @@ public:
 	void buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stage, VkAccessFlags src_access,
 	                    VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
 
+	void image_barrier(const Image &image, VkImageLayout old_layout, VkImageLayout new_layout,
+	                   VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage,
+	                   VkAccessFlags dst_access);
+	void image_barrier(const Image &image, VkPipelineStageFlags src_stage, VkAccessFlags src_access,
+	                   VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
+
 private:
 	Device *device;
 	VkCommandBuffer cmd;
