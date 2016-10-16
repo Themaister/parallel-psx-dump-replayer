@@ -16,6 +16,7 @@ namespace Vulkan
 class Device
 {
    public:
+      ~Device();
       void set_context(const VulkanContext &context);
       void init_swapchain(const std::vector<VkImage> swapchain_images,
             unsigned width, unsigned height, VkFormat format);
@@ -32,6 +33,7 @@ class Device
       }
 
       BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
+      ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
 
       void destroy_buffer(VkBuffer buffer);
       void destroy_image(VkImage image);
@@ -41,6 +43,10 @@ class Device
       VkSemaphore set_acquire(VkSemaphore acquire);
       VkSemaphore set_release(VkSemaphore release);
       bool swapchain_touched() const;
+
+      bool format_is_supported(VkFormat format, VkFormatFeatureFlags required) const;
+      VkFormat get_default_depth_stencil_format() const;
+      VkFormat get_default_depth_format() const;
 
    private:
       VkInstance instance = VK_NULL_HANDLE;
@@ -59,6 +65,7 @@ class Device
          void operator=(const PerFrame &) = delete;
          PerFrame(const PerFrame &) = delete;
 
+         void cleanup();
          void begin();
 
          VkDevice device;
@@ -81,11 +88,15 @@ class Device
 
       PerFrame &frame()
       {
+         VK_ASSERT(current_swapchain_index < per_frame.size());
+         VK_ASSERT(per_frame[current_swapchain_index]);
          return *per_frame[current_swapchain_index];
       }
 
       const PerFrame &frame() const
       {
+         VK_ASSERT(current_swapchain_index < per_frame.size());
+         VK_ASSERT(per_frame[current_swapchain_index]);
          return *per_frame[current_swapchain_index];
       }
 
@@ -94,5 +105,8 @@ class Device
       uint32_t queue_family_index = 0;
 
       uint32_t find_memory_type(BufferDomain domain, uint32_t mask);
+      uint32_t find_memory_type(ImageDomain domain, uint32_t mask);
+      bool memory_type_is_device_optimal(uint32_t type) const;
+      bool memory_type_is_host_visible(uint32_t type) const;
 };
 }

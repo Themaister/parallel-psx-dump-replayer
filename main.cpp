@@ -247,7 +247,7 @@ int main()
       float dummy[16] = {};
 
       const BufferCreateInfo info = {
-         BufferDomain::CachedHost,
+         BufferDomain::Device,
          64,
          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
       };

@@ -18,6 +18,17 @@
    fprintf(stderr, __VA_ARGS__); \
 } while(0)
 
+#ifdef VULKAN_DEBUG
+#define VK_ASSERT(x) do { \
+   if (!(x)) { \
+      LOG("Vulkan error at %s:%d.\n", __FILE__, __LINE__); \
+      std::terminate(); \
+   } \
+} while(0)
+#else
+#define VK_ASSERT(x)
+#endif
+
 namespace Vulkan
 {
    class VulkanContext

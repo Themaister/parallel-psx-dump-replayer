@@ -16,9 +16,17 @@ ImageView::~ImageView()
    device->destroy_image_view(view);
 }
 
-Image::Image(Device *device, VkImage image, ImageViewHandle view, const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &create_info)
+Image::Image(Device *device, VkImage image, VkImageView default_view, const MaliSDK::DeviceAllocation &alloc, const ImageCreateInfo &create_info)
    : device(device), image(image), view(move(view)), alloc(alloc), create_info(create_info)
 {
+   if (default_view != VK_NULL_HANDLE)
+   {
+      view = make_handle<ImageView>(device, default_view, ImageViewCreateInfo{
+               this, create_info.format,
+               0, create_info.levels,
+               0, create_info.layers,
+            });
+   }
 }
 
 Image::~Image()
