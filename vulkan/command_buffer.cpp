@@ -44,6 +44,15 @@ void CommandBuffer::copy_image_to_buffer(const Buffer &buffer, const Image &imag
 	vkCmdCopyImageToBuffer(cmd, image.get_image(), image.get_layout(), buffer.get_buffer(), 1, &region);
 }
 
+void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_access, VkPipelineStageFlags dst_stages,
+                            VkAccessFlags dst_access)
+{
+	VkMemoryBarrier barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+	barrier.srcAccessMask = src_access;
+	barrier.dstAccessMask = dst_access;
+	vkCmdPipelineBarrier(cmd, src_stages, dst_stages, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+}
+
 void CommandBuffer::buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stages, VkAccessFlags src_access,
                                    VkPipelineStageFlags dst_stages, VkAccessFlags dst_access)
 {

@@ -34,6 +34,9 @@ public:
 	                          const VkExtent3D &extent, unsigned row_length, unsigned slice_height,
 	                          const VkImageSubresourceLayers &subresrouce);
 
+	void barrier(VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage,
+	             VkAccessFlags dst_access);
+
 	void buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stage, VkAccessFlags src_access,
 	                    VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
 
@@ -45,8 +48,8 @@ public:
 
 	void blit_image(const Image &dst, const Image &src, const VkOffset3D &dst_offset, const VkOffset3D &dst_extent,
 	                const VkOffset3D &src_offset, const VkOffset3D &src_extent, unsigned dst_level, unsigned src_level,
-	                unsigned dst_base_layer = 0, uint32_t src_base_layer = 0,
-	                unsigned num_layers = 1, VkFilter filter = VK_FILTER_LINEAR);
+	                unsigned dst_base_layer = 0, uint32_t src_base_layer = 0, unsigned num_layers = 1,
+	                VkFilter filter = VK_FILTER_LINEAR);
 
 private:
 	Device *device;
