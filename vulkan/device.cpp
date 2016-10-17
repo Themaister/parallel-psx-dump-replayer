@@ -484,6 +484,13 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		                           VK_ACCESS_TRANSFER_WRITE_BIT);
 		handle->set_layout(VK_IMAGE_LAYOUT_GENERAL);
 
+      VkExtent3D extent = { create_info.width, create_info.height, create_info.depth };
+
+      VkImageSubresourceLayers subresource = {
+         format_to_aspect_mask(info.format),
+         0, 0, VK_REMAINING_ARRAY_LAYERS,
+      };
+
 		for (unsigned i = 0; i < copy_levels; i++)
 		{
 			uint32_t row_length = initial[i].row_length ? initial[i].row_length : create_info.width;
@@ -494,27 +501,31 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 			auto temp = create_buffer({ BufferDomain::Host, size, 0 }, initial[i].data);
 
-			staging_cmd->copy_buffer_to_image(*handle, *tmp, create_info.width, create_info.height, create_info.depth,
-			                                  row_length, array_height);
+         subresource.mipLevel = i;
+
+			staging_cmd->copy_buffer_to_image(*handle, *temp, 0,
+               { 0, 0, 0 },
+               extent,
+               row_length, array_height, subresource);
+
+         extent.width = max(extent.width >> 1u, 1u);
+         extent.height = max(extent.height >> 1u, 1u);
+         extent.depth = max(extent.depth >> 1u, 1u);
 		}
 
 		if (generate_mips)
 		{
-			unsigned width = create_info.width;
-			unsigned height = create_info.height;
-			unsigned depth = create_info.depth;
+         extent = { create_info.width, create_info.height, create_info.depth };
 
 			for (unsigned i = 1; i < tmpinfo.levels; i++)
 			{
 				staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 				                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
 
-				unsigned src_width = width;
-				unsigned src_height = height;
-				unsigned src_depth = depth;
-				width = max(width >> 1u, 1u);
-				height = max(height >> 1u, 1u);
-				depth = max(depth >> 1u, 1u);
+            auto src_extent = extent;
+				extent.width = max(extent.width >> 1u, 1u);
+				extent.height = max(extent.height >> 1u, 1u);
+				extent.depth = max(extent.depth >> 1u, 1u);
 			}
 		}
 
