@@ -44,8 +44,8 @@ public:
 	                   VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
 
    void blit_image(const Image &dst, const Image &src,
-         const VkOffset3D &dst_offset, const VkExtent3D &dst_extent,
-         const VkOffset3D &src_offset, const VkExtent3D &src_extent,
+         const VkOffset3D &dst_offset, const VkOffset3D &dst_extent,
+         const VkOffset3D &src_offset, const VkOffset3D &src_extent,
          unsigned dst_level, unsigned src_level,
          unsigned dst_base_layer = 0, uint32_t src_base_layer = 0,
          unsigned num_layers = VK_REMAINING_ARRAY_LAYERS,

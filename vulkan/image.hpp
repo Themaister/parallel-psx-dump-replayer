@@ -87,11 +87,11 @@ struct ImageInitialData
 	unsigned array_height;
 };
 
-enum ImageViewCreateFlagBits
+enum ImageMiscFlagBits
 {
-	IMAGE_VIEW_GENERATE_MIPS_BIT = 1 << 0
+	IMAGE_MISC_GENERATE_MIPS_BIT = 1 << 0
 };
-using ImageViewCreateFlags = uint32_t;
+using ImageMiscFlags = uint32_t;
 
 class Image;
 struct ImageViewCreateInfo
@@ -102,7 +102,6 @@ struct ImageViewCreateInfo
 	unsigned levels;
 	unsigned base_layer;
 	unsigned layers;
-	ImageViewCreateFlags flags;
 };
 
 class ImageView : public IntrusivePtrEnabled<ImageView>
@@ -137,6 +136,16 @@ struct ImageCreateInfo
 	VkImageUsageFlags usage = 0;
 	VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 	VkImageCreateFlags flags = 0;
+   ImageMiscFlags misc = 0;
+
+   static ImageCreateInfo immutable_2d_image(unsigned width, unsigned height, VkFormat format, bool mipmapped = false)
+   {
+      return { ImageDomain::Physical,
+         width, height, 1, mipmapped ? 0u : 1u,
+         format, VK_IMAGE_TYPE_2D, 1, VK_IMAGE_USAGE_SAMPLED_BIT,
+         VK_SAMPLE_COUNT_1_BIT,
+         0, mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u };
+   }
 
 	static ImageCreateInfo render_target(unsigned width, unsigned height, VkFormat format)
 	{
@@ -144,7 +153,7 @@ struct ImageCreateInfo
 			     VkImageUsageFlags((format_is_depth_stencil(format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
 			                                                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) |
 			                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-			     VK_SAMPLE_COUNT_1_BIT, 0 };
+			     VK_SAMPLE_COUNT_1_BIT, 0, 0 };
 	}
 };
 

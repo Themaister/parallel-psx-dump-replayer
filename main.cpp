@@ -236,6 +236,11 @@ int main()
 		const BufferCreateInfo info = { BufferDomain::Device, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT };
 
 		auto buffer = device.create_buffer(info, dummy);
+
+      ImageCreateInfo imageinfo = ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8G8B8A8_UNORM, true);
+      ImageInitialData initial_image = { dummy, 0, 0 };
+      auto image = device.create_image(imageinfo, &initial_image);
+
 		auto cmd = device.request_command_buffer();
 		device.submit(cmd);
 		wsi.end_frame();

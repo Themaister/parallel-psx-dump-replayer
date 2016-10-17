@@ -475,7 +475,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	// Copy initial data to texture.
 	if (initial)
 	{
-		bool generate_mips = (create_info.flags & IMAGE_VIEW_GENERATE_MIPS_BIT) != 0;
+		bool generate_mips = (create_info.misc & IMAGE_MISC_GENERATE_MIPS_BIT) != 0;
 		unsigned copy_levels = generate_mips ? 1u : info.mipLevels;
 		begin_staging();
 
@@ -512,22 +512,26 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 		if (generate_mips)
 		{
-			extent = { create_info.width, create_info.height, create_info.depth };
+			VkOffset3D size = {
+            int(create_info.width),
+            int(create_info.height),
+            int(create_info.depth)
+         };
+         const VkOffset3D origin = { 0, 0, 0 };
 
 			for (unsigned i = 1; i < tmpinfo.levels; i++)
 			{
 				staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 				                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
 
-				auto src_extent = extent;
-				extent.width = max(extent.width >> 1u, 1u);
-				extent.height = max(extent.height >> 1u, 1u);
-				extent.depth = max(extent.depth >> 1u, 1u);
-            const VkOffset3D origin = { 0, 0, 0 };
+				VkOffset3D src_size = size;
+				size.x = max(size.x >> 1, 1);
+				size.y = max(size.y >> 1, 1);
+				size.z = max(size.z >> 1, 1);
 
             staging_cmd->blit_image(*handle, *handle,
-                  origin, extent,
-                  origin, src_extent,
+                  origin, size,
+                  origin, src_size,
                   i, i - 1);
 			}
 		}
