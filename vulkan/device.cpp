@@ -521,7 +521,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 				size.y = max(size.y >> 1, 1);
 				size.z = max(size.z >> 1, 1);
 
-				staging_cmd->blit_image(*handle, *handle, origin, size, origin, src_size, i, i - 1);
+				staging_cmd->blit_image(*handle, *handle, origin, size, origin, src_size, i, i - 1, 0, 0, create_info.layers);
 			}
 		}
 
