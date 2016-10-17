@@ -1,4 +1,5 @@
 #include "shader.hpp"
+#include "spirv_cross.hpp"
 
 namespace Vulkan
 {
