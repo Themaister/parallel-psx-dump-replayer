@@ -79,4 +79,23 @@ void CommandBuffer::image_barrier(const Image &image, VkPipelineStageFlags src_s
 {
 	image_barrier(image, image.get_layout(), image.get_layout(), src_stages, src_access, dst_stages, dst_access);
 }
+
+void CommandBuffer::blit_image(const Image &dst, const Image &src,
+      const VkOffset3D &dst_offset, const VkExtent3D &dst_extent,
+      const VkOffset3D &src_offset, const VkExtent3D &src_extent,
+      unsigned dst_level, unsigned src_level,
+      unsigned dst_base_layer, unsigned src_base_layer,
+      unsigned num_layers,
+      VkFilter filter)
+{
+   const VkImageBlit blit = {
+      { format_to_aspect_mask(src.get_create_info().format), src_level, src_base_layer, num_layers },
+      { src_offset, { int(src_extent.width), int(src_extent.height), int(src_extent.depth) } },
+      { format_to_aspect_mask(dst.get_create_info().format), dst_level, dst_base_layer, num_layers },
+      { dst_offset, { int(dst_extent.width), int(dst_extent.height), int(dst_extent.depth) } },
+   };
+
+   vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(),
+         1, &blit, filter);
+}
 }

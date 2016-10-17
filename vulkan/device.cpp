@@ -523,6 +523,12 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 				extent.width = max(extent.width >> 1u, 1u);
 				extent.height = max(extent.height >> 1u, 1u);
 				extent.depth = max(extent.depth >> 1u, 1u);
+            const VkOffset3D origin = { 0, 0, 0 };
+
+            staging_cmd->blit_image(*handle, *handle,
+                  origin, extent,
+                  origin, src_extent,
+                  i, i - 1);
 			}
 		}
 
