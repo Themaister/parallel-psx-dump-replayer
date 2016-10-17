@@ -37,16 +37,6 @@ public:
 	{
 	}
 
-	operator T *()
-	{
-		return data;
-	}
-
-	operator const T *() const
-	{
-		return data;
-	}
-
 	T &operator*()
 	{
 		return *data;

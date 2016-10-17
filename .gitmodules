@@ -1,0 +1,3 @@
+[submodule "vulkan/SPIRV-Cross"]
+	path = vulkan/SPIRV-Cross
+	url = git://github.com/KhronosGroup/SPIRV-Cross
