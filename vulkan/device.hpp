@@ -7,8 +7,8 @@
 #include "hashmap.hpp"
 #include "image.hpp"
 #include "memory_allocator.hpp"
-#include "vulkan.hpp"
 #include "shader.hpp"
+#include "vulkan.hpp"
 #include <memory>
 #include <vector>
 
