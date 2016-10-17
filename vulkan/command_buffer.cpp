@@ -24,40 +24,25 @@ void CommandBuffer::copy_buffer(const Buffer &dst, const Buffer &src)
 	copy_buffer(dst, 0, src, 0, dst.get_create_info().size);
 }
 
-void CommandBuffer::copy_buffer_to_image(const Image &image, const Buffer &src,
-      VkDeviceSize buffer_offset,
-      const VkOffset3D &offset,
-      const VkExtent3D &extent,
-      unsigned row_length, unsigned slice_height,
-      const VkImageSubresourceLayers &subresource)
+void CommandBuffer::copy_buffer_to_image(const Image &image, const Buffer &src, VkDeviceSize buffer_offset,
+                                         const VkOffset3D &offset, const VkExtent3D &extent, unsigned row_length,
+                                         unsigned slice_height, const VkImageSubresourceLayers &subresource)
 {
-   const VkBufferImageCopy region = {
-      buffer_offset, row_length, slice_height,
-      subresource,
-      offset,
-      extent,
-   };
-   vkCmdCopyBufferToImage(cmd, src.get_buffer(), image.get_image(), image.get_layout(),
-         1, &region);
+	const VkBufferImageCopy region = {
+		buffer_offset, row_length, slice_height, subresource, offset, extent,
+	};
+	vkCmdCopyBufferToImage(cmd, src.get_buffer(), image.get_image(), image.get_layout(), 1, &region);
 }
 
-void CommandBuffer::copy_image_to_buffer(const Buffer &buffer, const Image &image,
-      VkDeviceSize buffer_offset,
-      const VkOffset3D &offset,
-      const VkExtent3D &extent,
-      unsigned row_length, unsigned slice_height,
-      const VkImageSubresourceLayers &subresource)
+void CommandBuffer::copy_image_to_buffer(const Buffer &buffer, const Image &image, VkDeviceSize buffer_offset,
+                                         const VkOffset3D &offset, const VkExtent3D &extent, unsigned row_length,
+                                         unsigned slice_height, const VkImageSubresourceLayers &subresource)
 {
-   const VkBufferImageCopy region = {
-      buffer_offset, row_length, slice_height,
-      subresource,
-      offset,
-      extent,
-   };
-   vkCmdCopyImageToBuffer(cmd, image.get_image(), image.get_layout(), buffer.get_buffer(),
-         1, &region);
+	const VkBufferImageCopy region = {
+		buffer_offset, row_length, slice_height, subresource, offset, extent,
+	};
+	vkCmdCopyImageToBuffer(cmd, image.get_image(), image.get_layout(), buffer.get_buffer(), 1, &region);
 }
-
 
 void CommandBuffer::buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stages, VkAccessFlags src_access,
                                    VkPipelineStageFlags dst_stages, VkAccessFlags dst_access)

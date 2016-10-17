@@ -11,12 +11,12 @@ class Device;
 
 static inline VkPipelineStageFlags image_usage_to_possible_stages(VkImageUsageFlags usage)
 {
-   return 0;
+	return 0;
 }
 
 static inline VkAccessFlags image_usage_to_possible_access(VkImageUsageFlags usage)
 {
-   return 0;
+	return 0;
 }
 
 static inline uint32_t image_num_miplevels(const VkExtent3D &extent)
