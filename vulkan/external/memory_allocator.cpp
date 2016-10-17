@@ -318,13 +318,22 @@ void ClassAllocator::free(DeviceAllocation *pAlloc)
 	}
 }
 
-bool Allocator::allocate(uint32_t size, AllocationTiling mode, DeviceAllocation *pAlloc)
+bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mode, DeviceAllocation *pAlloc)
 {
 	for (auto &c : classes)
 	{
 		// Find a suitable class to allocate from.
 		if (size <= c.subBlockSize * Block::NumSubBlocks)
 		{
+			if (alignment > c.subBlockSize)
+			{
+				size_t paddedSize = size + alignment;
+				if (paddedSize <= c.subBlockSize * Block::NumSubBlocks)
+					size = paddedSize;
+				else
+					continue;
+			}
+
 			bool ret = c.allocate(size, mode, pAlloc, false);
 #ifdef VULKAN_TEST
 			if (ret)
@@ -411,9 +420,10 @@ void DeviceAllocator::init(VkPhysicalDevice gpu, VkDevice vkdevice)
 	}
 }
 
-bool DeviceAllocator::allocate(uint32_t size, uint32_t memoryType, AllocationTiling mode, DeviceAllocation *pAlloc)
+bool DeviceAllocator::allocate(uint32_t size, uint32_t alignment, uint32_t memoryType, AllocationTiling mode,
+                               DeviceAllocation *pAlloc)
 {
-	return allocators[memoryType]->allocate(size, mode, pAlloc);
+	return allocators[memoryType]->allocate(size, alignment, mode, pAlloc);
 }
 
 void DeviceAllocator::Heap::garbageCollect(VkDevice device)

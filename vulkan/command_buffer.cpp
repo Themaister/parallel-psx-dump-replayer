@@ -80,26 +80,22 @@ void CommandBuffer::image_barrier(const Image &image, VkPipelineStageFlags src_s
 	image_barrier(image, image.get_layout(), image.get_layout(), src_stages, src_access, dst_stages, dst_access);
 }
 
-void CommandBuffer::blit_image(const Image &dst, const Image &src,
-      const VkOffset3D &dst_offset, const VkOffset3D &dst_extent,
-      const VkOffset3D &src_offset, const VkOffset3D &src_extent,
-      unsigned dst_level, unsigned src_level,
-      unsigned dst_base_layer, unsigned src_base_layer,
-      unsigned num_layers,
-      VkFilter filter)
+void CommandBuffer::blit_image(const Image &dst, const Image &src, const VkOffset3D &dst_offset,
+                               const VkOffset3D &dst_extent, const VkOffset3D &src_offset, const VkOffset3D &src_extent,
+                               unsigned dst_level, unsigned src_level, unsigned dst_base_layer, unsigned src_base_layer,
+                               unsigned num_layers, VkFilter filter)
 {
-   const auto add_offset = [](const VkOffset3D &a, const VkOffset3D &b) -> VkOffset3D {
-      return { a.x + b.x, a.y + b.y, a.z + b.z };
-   };
+	const auto add_offset = [](const VkOffset3D &a, const VkOffset3D &b) -> VkOffset3D {
+		return { a.x + b.x, a.y + b.y, a.z + b.z };
+	};
 
-   const VkImageBlit blit = {
-      { format_to_aspect_mask(src.get_create_info().format), src_level, src_base_layer, num_layers },
-      { src_offset, add_offset(src_offset, src_extent) },
-      { format_to_aspect_mask(dst.get_create_info().format), dst_level, dst_base_layer, num_layers },
-      { dst_offset, add_offset(dst_offset, dst_extent) },
-   };
+	const VkImageBlit blit = {
+		{ format_to_aspect_mask(src.get_create_info().format), src_level, src_base_layer, num_layers },
+		{ src_offset, add_offset(src_offset, src_extent) },
+		{ format_to_aspect_mask(dst.get_create_info().format), dst_level, dst_base_layer, num_layers },
+		{ dst_offset, add_offset(dst_offset, dst_extent) },
+	};
 
-   vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(),
-         1, &blit, filter);
+	vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(), 1, &blit, filter);
 }
 }

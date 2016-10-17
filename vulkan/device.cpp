@@ -371,11 +371,8 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 	vkGetImageMemoryRequirements(device, image, &reqs);
 
-	// FIXME: Not handled in memory allocator yet.
-	VK_ASSERT(reqs.alignment <= 256);
-
 	uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
-	if (!allocator.allocate(reqs.size, memory_type, MaliSDK::ALLOCATION_TILING_OPTIMAL, &allocation))
+	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, MaliSDK::ALLOCATION_TILING_OPTIMAL, &allocation))
 	{
 		vkDestroyImage(device, image, nullptr);
 		return nullptr;
@@ -461,7 +458,6 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 			VK_ASSERT(0 && "bogus");
 		}
 
-		VkImageView image_view;
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 		{
 			allocation.freeImmediate();
@@ -487,7 +483,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		VkExtent3D extent = { create_info.width, create_info.height, create_info.depth };
 
 		VkImageSubresourceLayers subresource = {
-			format_to_aspect_mask(info.format), 0, 0, VK_REMAINING_ARRAY_LAYERS,
+			format_to_aspect_mask(info.format), 0, 0, create_info.layers,
 		};
 
 		for (unsigned i = 0; i < copy_levels; i++)
@@ -512,12 +508,8 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 		if (generate_mips)
 		{
-			VkOffset3D size = {
-            int(create_info.width),
-            int(create_info.height),
-            int(create_info.depth)
-         };
-         const VkOffset3D origin = { 0, 0, 0 };
+			VkOffset3D size = { int(create_info.width), int(create_info.height), int(create_info.depth) };
+			const VkOffset3D origin = { 0, 0, 0 };
 
 			for (unsigned i = 1; i < tmpinfo.levels; i++)
 			{
@@ -529,10 +521,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 				size.y = max(size.y >> 1, 1);
 				size.z = max(size.z >> 1, 1);
 
-            staging_cmd->blit_image(*handle, *handle,
-                  origin, size,
-                  origin, src_size,
-                  i, i - 1);
+				staging_cmd->blit_image(*handle, *handle, origin, size, origin, src_size, i, i - 1);
 			}
 		}
 
@@ -559,11 +548,8 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 
 	vkGetBufferMemoryRequirements(device, buffer, &reqs);
 
-	// FIXME: Not handled in memory allocator yet.
-	VK_ASSERT(reqs.alignment <= 256);
-
 	uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
-	if (!allocator.allocate(reqs.size, memory_type, MaliSDK::ALLOCATION_TILING_LINEAR, &allocation))
+	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, MaliSDK::ALLOCATION_TILING_LINEAR, &allocation))
 	{
 		vkDestroyBuffer(device, buffer, nullptr);
 		return nullptr;

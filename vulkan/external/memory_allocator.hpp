@@ -609,7 +609,7 @@ public:
 	/// @param tiling The tiling mode of the allocation, used to give higher alignment requirements to optimal vs. linear tiled images.
 	/// @param[out] pAlloc The allocation
 	/// @returns true if allocation succeeds, false otherwise.
-	bool allocate(uint32_t size, AllocationTiling tiling, DeviceAllocation *pAlloc);
+	bool allocate(uint32_t size, uint32_t alignment, AllocationTiling tiling, DeviceAllocation *pAlloc);
 
 	/// @brief Gets a class allocator
 	/// @param clazz The allocation class.
@@ -676,7 +676,8 @@ public:
 	/// @param tiling The tiling mode for this allocation.
 	/// @param[out] pAlloc The allocation.
 	/// @returns True is allocation succeeded, false otherwise.
-	bool allocate(uint32_t size, uint32_t memoryType, AllocationTiling tiling, DeviceAllocation *pAlloc);
+	bool allocate(uint32_t size, uint32_t alignment, uint32_t memoryType, AllocationTiling tiling,
+	              DeviceAllocation *pAlloc);
 
 	/// @brief Reclaims all currently unused memory blocks.
 	///

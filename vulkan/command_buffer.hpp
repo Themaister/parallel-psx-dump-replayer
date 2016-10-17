@@ -43,13 +43,10 @@ public:
 	void image_barrier(const Image &image, VkPipelineStageFlags src_stage, VkAccessFlags src_access,
 	                   VkPipelineStageFlags dst_stage, VkAccessFlags dst_access);
 
-   void blit_image(const Image &dst, const Image &src,
-         const VkOffset3D &dst_offset, const VkOffset3D &dst_extent,
-         const VkOffset3D &src_offset, const VkOffset3D &src_extent,
-         unsigned dst_level, unsigned src_level,
-         unsigned dst_base_layer = 0, uint32_t src_base_layer = 0,
-         unsigned num_layers = VK_REMAINING_ARRAY_LAYERS,
-         VkFilter filter = VK_FILTER_LINEAR);
+	void blit_image(const Image &dst, const Image &src, const VkOffset3D &dst_offset, const VkOffset3D &dst_extent,
+	                const VkOffset3D &src_offset, const VkOffset3D &src_extent, unsigned dst_level, unsigned src_level,
+	                unsigned dst_base_layer = 0, uint32_t src_base_layer = 0,
+	                unsigned num_layers = VK_REMAINING_ARRAY_LAYERS, VkFilter filter = VK_FILTER_LINEAR);
 
 private:
 	Device *device;

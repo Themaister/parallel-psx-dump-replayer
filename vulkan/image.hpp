@@ -11,42 +11,41 @@ class Device;
 
 static inline VkPipelineStageFlags image_usage_to_possible_stages(VkImageUsageFlags usage)
 {
-   VkPipelineStageFlags flags = 0;
+	VkPipelineStageFlags flags = 0;
 
-   if (usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-      flags |= VK_PIPELINE_STAGE_TRANSFER_BIT;
-   if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
-      flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-   if (usage & VK_IMAGE_USAGE_STORAGE_BIT)
-      flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-   if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-      flags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-   if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-      flags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-   if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-      flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	if (usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+		flags |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+		flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+		         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	if (usage & VK_IMAGE_USAGE_STORAGE_BIT)
+		flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		flags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		flags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+		flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
 	return flags;
 }
 
 static inline VkAccessFlags image_usage_to_possible_access(VkImageUsageFlags usage)
 {
-   VkAccessFlags flags = 0;
+	VkAccessFlags flags = 0;
 
-   if (usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-      flags |= VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-   if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
-      flags |= VK_ACCESS_SHADER_READ_BIT;
-   if (usage & VK_IMAGE_USAGE_STORAGE_BIT)
-      flags |= VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-   if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-      flags |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-   if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-      flags |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-   if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-      flags |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	if (usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+		flags |= VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+		flags |= VK_ACCESS_SHADER_READ_BIT;
+	if (usage & VK_IMAGE_USAGE_STORAGE_BIT)
+		flags |= VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+	if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		flags |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		flags |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+		flags |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 
 	return 0;
 }
@@ -136,16 +135,23 @@ struct ImageCreateInfo
 	VkImageUsageFlags usage = 0;
 	VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 	VkImageCreateFlags flags = 0;
-   ImageMiscFlags misc = 0;
+	ImageMiscFlags misc = 0;
 
-   static ImageCreateInfo immutable_2d_image(unsigned width, unsigned height, VkFormat format, bool mipmapped = false)
-   {
-      return { ImageDomain::Physical,
-         width, height, 1, mipmapped ? 0u : 1u,
-         format, VK_IMAGE_TYPE_2D, 1, VK_IMAGE_USAGE_SAMPLED_BIT,
-         VK_SAMPLE_COUNT_1_BIT,
-         0, mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u };
-   }
+	static ImageCreateInfo immutable_2d_image(unsigned width, unsigned height, VkFormat format, bool mipmapped = false)
+	{
+		return { ImageDomain::Physical,
+			     width,
+			     height,
+			     1,
+			     mipmapped ? 0u : 1u,
+			     format,
+			     VK_IMAGE_TYPE_2D,
+			     1,
+			     VK_IMAGE_USAGE_SAMPLED_BIT,
+			     VK_SAMPLE_COUNT_1_BIT,
+			     0,
+			     mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u };
+	}
 
 	static ImageCreateInfo render_target(unsigned width, unsigned height, VkFormat format)
 	{
