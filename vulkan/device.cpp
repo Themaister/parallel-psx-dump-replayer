@@ -7,6 +7,30 @@ using namespace std;
 namespace Vulkan
 {
 
+ShaderHandle Device::create_shader(ShaderStage stage, const uint32_t *data, size_t size)
+{
+	return make_handle<Shader>(device, stage, data, size);
+}
+
+ProgramHandle Device::create_program(const uint32_t *compute_data, size_t compute_size)
+{
+	auto compute = make_handle<Shader>(device, ShaderStage::Compute, compute_data, compute_size);
+	auto program = make_handle<Program>();
+	program->set_shader(compute);
+	return program;
+}
+
+ProgramHandle Device::create_program(const uint32_t *vertex_data, size_t vertex_size, const uint32_t *fragment_data,
+                                     size_t fragment_size)
+{
+	auto vertex = make_handle<Shader>(device, ShaderStage::Vertex, vertex_data, vertex_size);
+	auto fragment = make_handle<Shader>(device, ShaderStage::Fragment, fragment_data, fragment_size);
+	auto program = make_handle<Program>();
+	program->set_shader(vertex);
+	program->set_shader(fragment);
+	return program;
+}
+
 void Device::set_context(const VulkanContext &context)
 {
 	instance = context.get_instance();

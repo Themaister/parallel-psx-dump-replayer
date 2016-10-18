@@ -32,6 +32,12 @@ public:
 		return device;
 	}
 
+	ShaderHandle create_shader(ShaderStage stage, const uint32_t *code, size_t size);
+	ProgramHandle create_program(const uint32_t *vertex_data, size_t vertex_size, const uint32_t *fragment_data,
+	                             size_t fragment_size);
+	ProgramHandle create_program(const uint32_t *compute_data, size_t compute_size);
+	void bake_program(ProgramHandle program);
+
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
 

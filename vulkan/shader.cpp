@@ -93,4 +93,9 @@ Shader::~Shader()
 	if (module)
 		vkDestroyShaderModule(device, module, nullptr);
 }
+
+void Program::set_shader(ShaderHandle handle)
+{
+	shaders[static_cast<unsigned>(handle->get_stage())] = handle;
+}
 }

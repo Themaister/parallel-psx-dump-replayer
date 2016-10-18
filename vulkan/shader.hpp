@@ -64,7 +64,7 @@ private:
 class Shader : public IntrusivePtrEnabled<Shader>
 {
 public:
-	Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDeviceSize size);
+	Shader(VkDevice device, ShaderStage stage, const uint32_t *data, size_t size);
 	~Shader();
 
 	const ResourceLayout &get_layout() const
@@ -88,7 +88,7 @@ using ShaderHandle = IntrusivePtr<Shader>;
 class Program : public IntrusivePtrEnabled<Program>
 {
 public:
-	void set_shader(ShaderStage stage, ShaderHandle handle);
+	void set_shader(ShaderHandle handle);
 	inline const Shader *get_shader(ShaderStage stage) const
 	{
 		return shaders[static_cast<unsigned>(stage)].get();
