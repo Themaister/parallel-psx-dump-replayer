@@ -24,6 +24,6 @@ public:
 
 private:
 	Device *device;
-	VkDescriptorSetLayout layout;
+	VkDescriptorSetLayout layout = VK_NULL_HANDLE;
 };
 }

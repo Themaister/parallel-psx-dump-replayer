@@ -29,17 +29,37 @@ ProgramHandle Device::create_program(const uint32_t *vertex_data, size_t vertex_
 	auto program = make_handle<Program>(this);
 	program->set_shader(vertex);
 	program->set_shader(fragment);
+	bake_program(*program);
 	return program;
 }
 
-PipelineLayout *Device::request_pipeline_layout(const CombinedResourceLayout &)
+PipelineLayout *Device::request_pipeline_layout(const CombinedResourceLayout &layout)
 {
-	return nullptr;
+	Hasher h;
+	h.data(reinterpret_cast<const uint32_t *>(layout.sets), sizeof(layout.sets));
+	h.data(reinterpret_cast<const uint32_t *>(layout.ranges), sizeof(layout.ranges));
+	auto hash = h.get();
+	auto itr = pipeline_layouts.find(hash);
+	if (itr != end(pipeline_layouts))
+		return itr->second.get();
+
+	auto *pipe = new PipelineLayout(this, layout);
+	pipeline_layouts.emplace(hash, pipe);
+	return pipe;
 }
 
-DescriptorSetAllocator *Device::request_descriptor_set_allocator(const DescriptorSetLayout &)
+DescriptorSetAllocator *Device::request_descriptor_set_allocator(const DescriptorSetLayout &layout)
 {
-	return nullptr;
+	Hasher h;
+	h.data(reinterpret_cast<const uint32_t *>(&layout), sizeof(layout));
+	auto hash = h.get();
+	auto itr = descriptor_set_allocators.find(hash);
+	if (itr != end(descriptor_set_allocators))
+		return itr->second.get();
+
+	auto *allocator = new DescriptorSetAllocator(this, layout);
+	descriptor_set_allocators.emplace(hash, allocator);
+	return allocator;
 }
 
 void Device::bake_program(Program &program)

@@ -39,13 +39,8 @@ struct CombinedResourceLayout
 class PipelineLayout
 {
 public:
-	PipelineLayout(VkDevice device, VkPipelineLayout pipe_layout, const CombinedResourceLayout &layout);
+	PipelineLayout(Device *device, const CombinedResourceLayout &layout);
 	~PipelineLayout();
-
-	void set_allocator(unsigned set, DescriptorSetAllocator *set_allocator)
-	{
-		set_allocators[set] = set_allocator;
-	}
 
 	const CombinedResourceLayout &get_resource_layout() const
 	{
@@ -63,8 +58,8 @@ public:
 	}
 
 private:
-	VkDevice device;
-	VkPipelineLayout pipe_layout;
+	Device *device;
+	VkPipelineLayout pipe_layout = VK_NULL_HANDLE;
 	CombinedResourceLayout layout;
 	DescriptorSetAllocator *set_allocators[VULKAN_NUM_DESCRIPTOR_SETS] = {};
 };

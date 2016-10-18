@@ -7,16 +7,20 @@ using namespace spirv_cross;
 
 namespace Vulkan
 {
-PipelineLayout::PipelineLayout(VkDevice device, VkPipelineLayout pipe_layout, const CombinedResourceLayout &layout)
+PipelineLayout::PipelineLayout(Device *device, const CombinedResourceLayout &layout)
     : device(device)
-    , pipe_layout(pipe_layout)
     , layout(layout)
 {
+	for (unsigned i = 0; i < VULKAN_NUM_DESCRIPTOR_SETS; i++)
+		set_allocators[i] = device->request_descriptor_set_allocator(layout.sets[i]);
+
+	// Build pipeline layout.
 }
 
 PipelineLayout::~PipelineLayout()
 {
-	vkDestroyPipelineLayout(device, pipe_layout, nullptr);
+	if (pipe_layout != VK_NULL_HANDLE)
+		vkDestroyPipelineLayout(device->get_device(), pipe_layout, nullptr);
 }
 
 Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDeviceSize size)

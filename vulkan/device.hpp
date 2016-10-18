@@ -55,6 +55,9 @@ public:
 	VkFormat get_default_depth_stencil_format() const;
 	VkFormat get_default_depth_format() const;
 
+	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
+	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
+
 private:
 	VkInstance instance = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
@@ -117,8 +120,6 @@ private:
 	bool memory_type_is_device_optimal(uint32_t type) const;
 	bool memory_type_is_host_visible(uint32_t type) const;
 
-	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
-	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
 	HashMap<std::unique_ptr<PipelineLayout>> pipeline_layouts;
 	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
 };
