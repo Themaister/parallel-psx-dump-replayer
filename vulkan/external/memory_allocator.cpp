@@ -327,7 +327,7 @@ bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mod
 		{
 			if (alignment > c.subBlockSize)
 			{
-				size_t paddedSize = size + alignment;
+				size_t paddedSize = size + (alignment - c.subBlockSize);
 				if (paddedSize <= c.subBlockSize * Block::NumSubBlocks)
 					size = paddedSize;
 				else
@@ -339,6 +339,13 @@ bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mod
 			if (ret)
 				pAlloc->initCookie();
 #endif
+			if (ret)
+			{
+				uint32_t alignedOffset = (pAlloc->offset + alignment - 1) & ~(alignment - 1);
+				if (pAlloc->pHostBase)
+					pAlloc->pHostBase += alignedOffset - pAlloc->offset;
+				pAlloc->offset = alignedOffset;
+			}
 			return ret;
 		}
 	}
