@@ -1,6 +1,9 @@
 #pragma once
 
+#include "hashmap.hpp"
 #include "vulkan.hpp"
+#include <utility>
+#include <vector>
 
 namespace Vulkan
 {
@@ -14,6 +17,9 @@ struct DescriptorSetLayout
 	VkShaderStageFlags stages = 0;
 };
 
+static const unsigned VULKAN_NUM_SETS_PER_POOL = 16;
+static const unsigned VULKAN_RING_SIZE = 8;
+
 class DescriptorSetAllocator
 {
 public:
@@ -22,8 +28,20 @@ public:
 	void operator=(const DescriptorSetAllocator &) = delete;
 	DescriptorSetAllocator(const DescriptorSetAllocator &) = delete;
 
+	void begin();
+	std::pair<VkDescriptorSet, bool> find(Hash hash);
+
 private:
+	struct DescriptorSetNode
+	{
+		VkDescriptorSet set;
+	};
+
 	Device *device;
-	VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+	VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
+	std::vector<VkDescriptorSet> vacant;
+	std::vector<VkDescriptorPoolSize> pool_size;
+	std::vector<VkDescriptorPool> pools;
+	HashMap<DescriptorSetNode> set_nodes;
 };
 }
