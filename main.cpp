@@ -227,6 +227,14 @@ int main()
 
 	auto &device = wsi.get_device();
 
+	static const uint32_t triangle_vert[] =
+#include "triangle.vert.inc"
+	    ;
+	static const uint32_t triangle_frag[] =
+#include "triangle.frag.inc"
+	    ;
+	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
+
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
