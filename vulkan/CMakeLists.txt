@@ -10,6 +10,7 @@ add_library(vulkan
    image.cpp
    command_pool.cpp
    fence_manager.cpp
+   descriptor_set.cpp
    semaphore_manager.cpp
    command_buffer.cpp
    shader.cpp

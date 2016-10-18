@@ -1,5 +1,7 @@
 #pragma once
 
+#include "descriptor_set.hpp"
+#include "hashmap.hpp"
 #include "intrusive.hpp"
 #include "limits.hpp"
 #include "vulkan.hpp"
@@ -19,14 +21,6 @@ enum class ShaderStage
 	Count
 };
 
-struct DescriptorSetLayout
-{
-	uint32_t sampled_image_mask = 0;
-	uint32_t storage_image_mask = 0;
-	uint32_t uniform_buffer_mask = 0;
-	uint32_t storage_buffer_mask = 0;
-};
-
 struct ResourceLayout
 {
 	uint32_t attribute_mask = 0;
@@ -42,7 +36,6 @@ struct CombinedResourceLayout
 	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)] = {};
 };
 
-class DescriptorSetAllocator;
 class PipelineLayout
 {
 public:
@@ -52,6 +45,21 @@ public:
 	void set_allocator(unsigned set, DescriptorSetAllocator *set_allocator)
 	{
 		set_allocators[set] = set_allocator;
+	}
+
+	const CombinedResourceLayout &get_resource_layout() const
+	{
+		return layout;
+	}
+
+	VkPipelineLayout get_layout() const
+	{
+		return pipe_layout;
+	}
+
+	DescriptorSetAllocator *get_allocator(unsigned set) const
+	{
+		return set_allocators[set];
 	}
 
 private:
@@ -88,6 +96,9 @@ using ShaderHandle = IntrusivePtr<Shader>;
 class Program : public IntrusivePtrEnabled<Program>
 {
 public:
+	Program(Device *device);
+	~Program();
+
 	void set_shader(ShaderHandle handle);
 	inline const Shader *get_shader(ShaderStage stage) const
 	{
@@ -99,9 +110,14 @@ public:
 		layout = new_layout;
 	}
 
+	VkPipeline get_pipeline(Hash hash);
+	void add_pipeline(Hash hash, VkPipeline pipeline);
+
 private:
+	Device *device;
 	ShaderHandle shaders[static_cast<unsigned>(ShaderStage::Count)];
 	const PipelineLayout *layout = nullptr;
+	HashMap<VkPipeline> pipelines;
 };
 using ProgramHandle = IntrusivePtr<Program>;
 }

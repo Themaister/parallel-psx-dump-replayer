@@ -15,8 +15,9 @@ ShaderHandle Device::create_shader(ShaderStage stage, const uint32_t *data, size
 ProgramHandle Device::create_program(const uint32_t *compute_data, size_t compute_size)
 {
 	auto compute = make_handle<Shader>(device, ShaderStage::Compute, compute_data, compute_size);
-	auto program = make_handle<Program>();
+	auto program = make_handle<Program>(this);
 	program->set_shader(compute);
+	bake_program(*program);
 	return program;
 }
 
@@ -25,10 +26,50 @@ ProgramHandle Device::create_program(const uint32_t *vertex_data, size_t vertex_
 {
 	auto vertex = make_handle<Shader>(device, ShaderStage::Vertex, vertex_data, vertex_size);
 	auto fragment = make_handle<Shader>(device, ShaderStage::Fragment, fragment_data, fragment_size);
-	auto program = make_handle<Program>();
+	auto program = make_handle<Program>(this);
 	program->set_shader(vertex);
 	program->set_shader(fragment);
 	return program;
+}
+
+PipelineLayout *Device::request_pipeline_layout(const CombinedResourceLayout &)
+{
+	return nullptr;
+}
+
+DescriptorSetAllocator *Device::request_descriptor_set_allocator(const DescriptorSetLayout &)
+{
+	return nullptr;
+}
+
+void Device::bake_program(Program &program)
+{
+	CombinedResourceLayout layout;
+	if (program.get_shader(ShaderStage::Vertex))
+		layout.attribute_mask = program.get_shader(ShaderStage::Vertex)->get_layout().attribute_mask;
+
+	for (unsigned i = 0; i < static_cast<unsigned>(ShaderStage::Count); i++)
+	{
+		auto *shader = program.get_shader(static_cast<ShaderStage>(i));
+		if (!shader)
+			continue;
+
+		auto &shader_layout = shader->get_layout();
+		for (unsigned set = 0; set < VULKAN_NUM_DESCRIPTOR_SETS; set++)
+		{
+			layout.sets[set].sampled_image_mask |= shader_layout.sets[set].sampled_image_mask;
+			layout.sets[set].storage_image_mask |= shader_layout.sets[set].storage_image_mask;
+			layout.sets[set].uniform_buffer_mask |= shader_layout.sets[set].uniform_buffer_mask;
+			layout.sets[set].storage_buffer_mask |= shader_layout.sets[set].storage_buffer_mask;
+			layout.sets[set].stages |= shader_layout.sets[set].stages;
+		}
+
+		layout.ranges[i].stageFlags = 1u << i;
+		layout.ranges[i].offset = shader_layout.push_constant_offset;
+		layout.ranges[i].size = shader_layout.push_constant_range;
+	}
+
+	program.set_pipeline_layout(request_pipeline_layout(layout));
 }
 
 void Device::set_context(const VulkanContext &context)
@@ -214,6 +255,11 @@ void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
 	frame().allocations.push_back(alloc);
 }
 
+void Device::destroy_pipeline(VkPipeline pipeline)
+{
+	frame().destroyed_pipelines.push_back(pipeline);
+}
+
 void Device::destroy_image_view(VkImageView view)
 {
 	frame().destroyed_image_views.push_back(view);
@@ -250,6 +296,8 @@ void Device::PerFrame::begin()
 	fence_manager.begin();
 	cmd_pool.begin();
 
+	for (auto &pipeline : destroyed_pipelines)
+		vkDestroyPipeline(device, pipeline, nullptr);
 	for (auto &view : destroyed_image_views)
 		vkDestroyImageView(device, view, nullptr);
 	for (auto &image : destroyed_images)

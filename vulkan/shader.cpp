@@ -1,4 +1,5 @@
 #include "shader.hpp"
+#include "device.hpp"
 #include "spirv_cross.hpp"
 
 using namespace std;
@@ -38,6 +39,7 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 		auto set = compiler.get_decoration(image.id, spv::DecorationDescriptorSet);
 		auto binding = compiler.get_decoration(image.id, spv::DecorationBinding);
 		layout.sets[set].sampled_image_mask |= 1u << binding;
+		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 
 	for (auto &image : resources.storage_images)
@@ -45,6 +47,7 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 		auto set = compiler.get_decoration(image.id, spv::DecorationDescriptorSet);
 		auto binding = compiler.get_decoration(image.id, spv::DecorationBinding);
 		layout.sets[set].storage_image_mask |= 1u << binding;
+		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 
 	for (auto &buffer : resources.uniform_buffers)
@@ -52,6 +55,7 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 		auto set = compiler.get_decoration(buffer.id, spv::DecorationDescriptorSet);
 		auto binding = compiler.get_decoration(buffer.id, spv::DecorationBinding);
 		layout.sets[set].uniform_buffer_mask |= 1u << binding;
+		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 
 	for (auto &buffer : resources.storage_buffers)
@@ -59,6 +63,7 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 		auto set = compiler.get_decoration(buffer.id, spv::DecorationDescriptorSet);
 		auto binding = compiler.get_decoration(buffer.id, spv::DecorationBinding);
 		layout.sets[set].storage_buffer_mask |= 1u << binding;
+		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 
 	if (stage == ShaderStage::Vertex)
@@ -97,5 +102,16 @@ Shader::~Shader()
 void Program::set_shader(ShaderHandle handle)
 {
 	shaders[static_cast<unsigned>(handle->get_stage())] = handle;
+}
+
+Program::Program(Device *device)
+    : device(device)
+{
+}
+
+Program::~Program()
+{
+	for (auto &pipe : pipelines)
+		device->destroy_pipeline(pipe.second);
 }
 }

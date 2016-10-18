@@ -36,7 +36,7 @@ public:
 	ProgramHandle create_program(const uint32_t *vertex_data, size_t vertex_size, const uint32_t *fragment_data,
 	                             size_t fragment_size);
 	ProgramHandle create_program(const uint32_t *compute_data, size_t compute_size);
-	void bake_program(ProgramHandle program);
+	void bake_program(Program &program);
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
@@ -44,6 +44,7 @@ public:
 	void destroy_buffer(VkBuffer buffer);
 	void destroy_image(VkImage image);
 	void destroy_image_view(VkImageView view);
+	void destroy_pipeline(VkPipeline pipeline);
 	void free_memory(const MaliSDK::DeviceAllocation &alloc);
 
 	VkSemaphore set_acquire(VkSemaphore acquire);
@@ -80,6 +81,7 @@ private:
 		FenceManager fence_manager;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
+		std::vector<VkPipeline> destroyed_pipelines;
 		std::vector<VkImageView> destroyed_image_views;
 		std::vector<VkImage> destroyed_images;
 		std::vector<VkBuffer> destroyed_buffers;
@@ -114,5 +116,10 @@ private:
 	uint32_t find_memory_type(ImageDomain domain, uint32_t mask);
 	bool memory_type_is_device_optimal(uint32_t type) const;
 	bool memory_type_is_host_visible(uint32_t type) const;
+
+	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
+	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
+	HashMap<std::unique_ptr<PipelineLayout>> pipeline_layouts;
+	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
 };
 }
