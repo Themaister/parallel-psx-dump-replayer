@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cookie.hpp"
 #include "format.hpp"
 #include "intrusive.hpp"
 #include "memory_allocator.hpp"
@@ -103,7 +104,7 @@ struct ImageViewCreateInfo
 	unsigned layers;
 };
 
-class ImageView : public IntrusivePtrEnabled<ImageView>
+class ImageView : public IntrusivePtrEnabled<ImageView>, public Cookie
 {
 public:
 	ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info);
@@ -163,7 +164,7 @@ struct ImageCreateInfo
 	}
 };
 
-class Image : public IntrusivePtrEnabled<Image>
+class Image : public IntrusivePtrEnabled<Image>, public Cookie
 {
 public:
 	Image(Device *device, VkImage image, VkImageView default_view, const MaliSDK::DeviceAllocation &alloc,

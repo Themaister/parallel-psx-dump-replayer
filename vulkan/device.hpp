@@ -58,12 +58,18 @@ public:
 	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
 	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
 
+	uint64_t allocate_cookie()
+	{
+		return ++cookie;
+	}
+
 private:
 	VkInstance instance = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
 	VkDevice device = VK_NULL_HANDLE;
 	VkQueue queue = VK_NULL_HANDLE;
 	MaliSDK::DeviceAllocator allocator;
+	uint64_t cookie = 0;
 
 	VkPhysicalDeviceMemoryProperties mem_props;
 	VkPhysicalDeviceProperties gpu_props;

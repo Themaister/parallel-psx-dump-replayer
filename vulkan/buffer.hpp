@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cookie.hpp"
 #include "intrusive.hpp"
 #include "memory_allocator.hpp"
 
@@ -59,7 +60,7 @@ struct BufferCreateInfo
 	VkBufferUsageFlags usage;
 };
 
-class Buffer : public IntrusivePtrEnabled<Buffer>
+class Buffer : public IntrusivePtrEnabled<Buffer>, public Cookie
 {
 public:
 	Buffer(Device *device, VkBuffer buffer, const MaliSDK::DeviceAllocation &alloc, const BufferCreateInfo &info);

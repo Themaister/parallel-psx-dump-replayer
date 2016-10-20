@@ -8,6 +8,7 @@ add_library(vulkan
    vulkan.cpp
    device.cpp
    image.cpp
+   cookie.cpp
    command_pool.cpp
    fence_manager.cpp
    descriptor_set.cpp

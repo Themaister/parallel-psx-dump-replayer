@@ -141,6 +141,21 @@ Program::Program(Device *device)
 {
 }
 
+VkPipeline Program::get_pipeline(Hash hash)
+{
+	auto itr = pipelines.find(hash);
+	if (itr != end(pipelines))
+		return itr->second;
+	else
+		return VK_NULL_HANDLE;
+}
+
+void Program::add_pipeline(Hash hash, VkPipeline pipeline)
+{
+	VK_ASSERT(pipelines[hash] == VK_NULL_HANDLE);
+	pipelines[hash] = pipeline;
+}
+
 Program::~Program()
 {
 	for (auto &pipe : pipelines)

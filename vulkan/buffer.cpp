@@ -4,7 +4,8 @@
 namespace Vulkan
 {
 Buffer::Buffer(Device *device, VkBuffer buffer, const MaliSDK::DeviceAllocation &alloc, const BufferCreateInfo &info)
-    : device(device)
+    : Cookie(device)
+    , device(device)
     , buffer(buffer)
     , alloc(alloc)
     , info(info)

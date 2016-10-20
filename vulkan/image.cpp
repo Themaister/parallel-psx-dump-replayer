@@ -7,7 +7,8 @@ namespace Vulkan
 {
 
 ImageView::ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info)
-    : device(device)
+    : Cookie(device)
+    , device(device)
     , view(view)
     , info(info)
 {
@@ -20,7 +21,8 @@ ImageView::~ImageView()
 
 Image::Image(Device *device, VkImage image, VkImageView default_view, const MaliSDK::DeviceAllocation &alloc,
              const ImageCreateInfo &create_info)
-    : device(device)
+    : Cookie(device)
+    , device(device)
     , image(image)
     , view(move(view))
     , alloc(alloc)
