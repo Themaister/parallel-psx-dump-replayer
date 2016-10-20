@@ -309,6 +309,8 @@ void Device::begin_frame(unsigned index)
 {
 	current_swapchain_index = index;
 	frame().begin();
+	for (auto &allocator : descriptor_set_allocators)
+		allocator.second->begin_frame();
 }
 
 void Device::PerFrame::begin()
