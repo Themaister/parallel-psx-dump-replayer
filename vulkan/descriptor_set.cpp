@@ -57,6 +57,76 @@ DescriptorSetAllocator::DescriptorSetAllocator(Device *device, const DescriptorS
 	}
 }
 
+void DescriptorSetAllocator::begin_frame()
+{
+	index = (index + 1) & (VULKAN_DESCRIPTOR_RING_SIZE - 1);
+	for (auto itr = begin(rings[index]); itr != end(rings[index]); ++itr)
+	{
+		vacant.push_back(itr);
+		set_nodes.erase(itr->hash);
+	}
+	rings[index].clear();
+}
+
+pair<VkDescriptorSet, bool> DescriptorSetAllocator::find(Hash hash)
+{
+	auto itr = set_nodes.find(hash);
+	if (itr != end(set_nodes))
+	{
+		auto i = itr->second;
+		if (i->index != index)
+		{
+			rings[index].move_to_front(rings[i->index], i);
+			i->index = index;
+		}
+
+		return { i->set, true };
+	}
+	else
+	{
+		if (vacant.empty())
+		{
+			VkDescriptorPool pool;
+			VkDescriptorPoolCreateInfo info = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+			info.maxSets = VULKAN_NUM_SETS_PER_POOL;
+			if (!pool_size.empty())
+			{
+				info.poolSizeCount = pool_size.size();
+				info.pPoolSizes = pool_size.data();
+			}
+
+			if (vkCreateDescriptorPool(device->get_device(), &info, nullptr, &pool) != VK_SUCCESS)
+				LOG("Failed to create descriptor pool.\n");
+
+			VkDescriptorSet sets[VULKAN_NUM_SETS_PER_POOL];
+			VkDescriptorSetLayout layouts[VULKAN_NUM_SETS_PER_POOL];
+			fill(begin(layouts), end(layouts), set_layout);
+
+			VkDescriptorSetAllocateInfo alloc = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+			alloc.descriptorPool = pool;
+			alloc.descriptorSetCount = VULKAN_NUM_SETS_PER_POOL;
+			alloc.pSetLayouts = layouts;
+
+			if (vkAllocateDescriptorSets(device->get_device(), &alloc, sets) != VK_SUCCESS)
+				LOG("Failed to allocate descriptor sets.\n");
+			pools.push_back(pool);
+
+			for (auto set : sets)
+				vacant.push_back(object_pool.allocate(set));
+		}
+
+		auto node = vacant.back();
+
+		node->index = index;
+		node->hash = hash;
+		set_nodes[hash] = node;
+
+		vacant.pop_back();
+		rings[index].insert_front(node);
+		return { node->set, false };
+	}
+}
+
 DescriptorSetAllocator::~DescriptorSetAllocator()
 {
 	if (set_layout != VK_NULL_HANDLE)

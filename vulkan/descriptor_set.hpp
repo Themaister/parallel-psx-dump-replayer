@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hashmap.hpp"
+#include "object_pool.hpp"
 #include "vulkan.hpp"
 #include <utility>
 #include <vector>
@@ -18,7 +19,7 @@ struct DescriptorSetLayout
 };
 
 static const unsigned VULKAN_NUM_SETS_PER_POOL = 16;
-static const unsigned VULKAN_RING_SIZE = 8;
+static const unsigned VULKAN_DESCRIPTOR_RING_SIZE = 8;
 
 class DescriptorSetAllocator
 {
@@ -28,7 +29,7 @@ public:
 	void operator=(const DescriptorSetAllocator &) = delete;
 	DescriptorSetAllocator(const DescriptorSetAllocator &) = delete;
 
-	void begin();
+	void begin_frame();
 	std::pair<VkDescriptorSet, bool> find(Hash hash);
 
 	VkDescriptorSetLayout get_layout() const
@@ -37,16 +38,28 @@ public:
 	}
 
 private:
-	struct DescriptorSetNode
+	struct DescriptorSetNode : IntrusiveListEnabled<DescriptorSetNode>
 	{
+		DescriptorSetNode(VkDescriptorSet set)
+		    : set(set)
+		{
+		}
+
 		VkDescriptorSet set;
+		Hash hash = 0;
+		unsigned index = 0;
 	};
 
 	Device *device;
 	VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
-	std::vector<VkDescriptorSet> vacant;
+
+	WeakList<DescriptorSetNode> rings[VULKAN_DESCRIPTOR_RING_SIZE];
+	ObjectPool<DescriptorSetNode> object_pool;
+	unsigned index = 0;
+
+	std::vector<WeakList<DescriptorSetNode>::Iterator> vacant;
 	std::vector<VkDescriptorPoolSize> pool_size;
 	std::vector<VkDescriptorPool> pools;
-	HashMap<DescriptorSetNode> set_nodes;
+	HashMap<WeakList<DescriptorSetNode>::Iterator> set_nodes;
 };
 }
