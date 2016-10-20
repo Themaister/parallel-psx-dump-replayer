@@ -7,6 +7,7 @@
 #include "hashmap.hpp"
 #include "image.hpp"
 #include "memory_allocator.hpp"
+#include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
 #include <memory>
@@ -40,11 +41,14 @@ public:
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
+	SamplerHandle create_sampler(const SamplerCreateInfo &info);
+	const Sampler &get_stock_sampler(StockSampler sampler) const;
 
 	void destroy_buffer(VkBuffer buffer);
 	void destroy_image(VkImage image);
 	void destroy_image_view(VkImageView view);
 	void destroy_pipeline(VkPipeline pipeline);
+	void destroy_sampler(VkSampler sampler);
 	void free_memory(const MaliSDK::DeviceAllocation &alloc);
 
 	VkSemaphore set_acquire(VkSemaphore acquire);
@@ -73,6 +77,8 @@ private:
 
 	VkPhysicalDeviceMemoryProperties mem_props;
 	VkPhysicalDeviceProperties gpu_props;
+	SamplerHandle samplers[static_cast<unsigned>(StockSampler::Count)];
+	void init_stock_samplers();
 
 	struct PerFrame
 	{
@@ -90,6 +96,7 @@ private:
 		FenceManager fence_manager;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
+		std::vector<VkSampler> destroyed_samplers;
 		std::vector<VkPipeline> destroyed_pipelines;
 		std::vector<VkImageView> destroyed_image_views;
 		std::vector<VkImage> destroyed_images;

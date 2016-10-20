@@ -104,6 +104,51 @@ void Device::set_context(const VulkanContext &context)
 	gpu_props = context.get_gpu_props();
 
 	allocator.init(gpu, device);
+	init_stock_samplers();
+}
+
+void Device::init_stock_samplers()
+{
+	SamplerCreateInfo info = {};
+	info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	info.maxLod = VK_LOD_CLAMP_NONE;
+
+	for (unsigned i = 0; i < static_cast<unsigned>(StockSampler::Count); i++)
+	{
+		auto mode = static_cast<StockSampler>(i);
+		switch (mode)
+		{
+		default:
+		case StockSampler::NearestClamp:
+		case StockSampler::NearestWrap:
+			info.magFilter = VK_FILTER_NEAREST;
+			break;
+
+		case StockSampler::LinearClamp:
+		case StockSampler::LinearWrap:
+			info.magFilter = VK_FILTER_LINEAR;
+			break;
+		}
+
+		switch (mode)
+		{
+		default:
+		case StockSampler::LinearWrap:
+		case StockSampler::NearestWrap:
+			info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			break;
+
+		case StockSampler::LinearClamp:
+		case StockSampler::NearestClamp:
+			info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			break;
+		}
+		samplers[i] = create_sampler(info);
+	}
 }
 
 void Device::submit(CommandBufferHandle cmd)
@@ -217,6 +262,11 @@ VkSemaphore Device::set_release(VkSemaphore release)
 	return release;
 }
 
+const Sampler &Device::get_stock_sampler(StockSampler sampler) const
+{
+	return *samplers[static_cast<unsigned>(sampler)];
+}
+
 bool Device::swapchain_touched() const
 {
 	return frame().swapchain_touched;
@@ -224,6 +274,9 @@ bool Device::swapchain_touched() const
 
 Device::~Device()
 {
+	for (auto &sampler : samplers)
+		sampler.reset();
+
 	for (auto &frame : per_frame)
 		frame->cleanup();
 }
@@ -295,6 +348,11 @@ void Device::destroy_buffer(VkBuffer buffer)
 	frame().destroyed_buffers.push_back(buffer);
 }
 
+void Device::destroy_sampler(VkSampler sampler)
+{
+	frame().destroyed_samplers.push_back(sampler);
+}
+
 void Device::wait_idle()
 {
 	if (!per_frame.empty())
@@ -318,6 +376,8 @@ void Device::PerFrame::begin()
 	fence_manager.begin();
 	cmd_pool.begin();
 
+	for (auto &sampler : destroyed_samplers)
+		vkDestroySampler(device, sampler, nullptr);
 	for (auto &pipeline : destroyed_pipelines)
 		vkDestroyPipeline(device, pipeline, nullptr);
 	for (auto &view : destroyed_image_views)
@@ -329,6 +389,8 @@ void Device::PerFrame::begin()
 	for (auto &alloc : allocations)
 		alloc.freeImmediate();
 
+	destroyed_samplers.clear();
+	destroyed_pipelines.clear();
 	destroyed_image_views.clear();
 	destroyed_images.clear();
 	destroyed_buffers.clear();
@@ -561,13 +623,13 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	}
 
 	auto handle = make_handle<Image>(this, image, image_view, allocation, tmpinfo);
+	begin_staging();
 
 	// Copy initial data to texture.
 	if (initial)
 	{
 		bool generate_mips = (create_info.misc & IMAGE_MISC_GENERATE_MIPS_BIT) != 0;
 		unsigned copy_levels = generate_mips ? 1u : info.mipLevels;
-		begin_staging();
 
 		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
 		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -624,8 +686,41 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		                           image_usage_to_possible_stages(info.usage),
 		                           image_usage_to_possible_access(info.usage));
 	}
+	else
+	{
+		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, image_usage_to_possible_stages(info.usage),
+		                           image_usage_to_possible_access(info.usage));
+		handle->set_layout(VK_IMAGE_LAYOUT_GENERAL);
+	}
 
 	return handle;
+}
+
+SamplerHandle Device::create_sampler(const SamplerCreateInfo &sampler_info)
+{
+	VkSamplerCreateInfo info = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+
+	info.magFilter = sampler_info.magFilter;
+	info.minFilter = sampler_info.minFilter;
+	info.mipmapMode = sampler_info.mipmapMode;
+	info.addressModeU = sampler_info.addressModeU;
+	info.addressModeV = sampler_info.addressModeV;
+	info.addressModeW = sampler_info.addressModeW;
+	info.mipLodBias = sampler_info.mipLodBias;
+	info.anisotropyEnable = sampler_info.anisotropyEnable;
+	info.maxAnisotropy = sampler_info.maxAnisotropy;
+	info.compareEnable = sampler_info.compareEnable;
+	info.compareOp = sampler_info.compareOp;
+	info.minLod = sampler_info.minLod;
+	info.maxLod = sampler_info.maxLod;
+	info.borderColor = sampler_info.borderColor;
+	info.unnormalizedCoordinates = sampler_info.unnormalizedCoordinates;
+
+	VkSampler sampler;
+	if (vkCreateSampler(device, &info, nullptr, &sampler) != VK_SUCCESS)
+		return nullptr;
+	return make_handle<Sampler>(this, sampler, sampler_info);
 }
 
 BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const void *initial)
