@@ -11,10 +11,38 @@ PipelineLayout::PipelineLayout(Device *device, const CombinedResourceLayout &lay
     : device(device)
     , layout(layout)
 {
+	VkDescriptorSetLayout layouts[VULKAN_NUM_DESCRIPTOR_SETS] = {};
+	unsigned num_sets = 0;
 	for (unsigned i = 0; i < VULKAN_NUM_DESCRIPTOR_SETS; i++)
+	{
 		set_allocators[i] = device->request_descriptor_set_allocator(layout.sets[i]);
+		layouts[i] = set_allocators[i]->get_layout();
+		if (layouts[i])
+			num_sets = i + 1;
+	}
 
-	// Build pipeline layout.
+	unsigned num_ranges = 0;
+	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)];
+
+	for (auto &range : layout.ranges)
+		if (range.size != 0)
+			ranges[num_ranges++] = range;
+
+	VkPipelineLayoutCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+	if (num_sets)
+	{
+		info.setLayoutCount = num_sets;
+		info.pSetLayouts = layouts;
+	}
+
+	if (num_ranges)
+	{
+		info.pushConstantRangeCount = num_ranges;
+		info.pPushConstantRanges = ranges;
+	}
+
+	if (vkCreatePipelineLayout(device->get_device(), &info, nullptr, &pipe_layout) != VK_SUCCESS)
+		LOG("Failed to create pipeline layout.\n");
 }
 
 PipelineLayout::~PipelineLayout()

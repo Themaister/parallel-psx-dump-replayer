@@ -51,10 +51,10 @@ DescriptorSetAllocator::DescriptorSetAllocator(Device *device, const DescriptorS
 	{
 		info.bindingCount = bindings.size();
 		info.pBindings = bindings.data();
-	}
 
-	if (vkCreateDescriptorSetLayout(device->get_device(), &info, nullptr, &set_layout) != VK_SUCCESS)
-		LOG("Failed to create descriptor set layout.");
+		if (vkCreateDescriptorSetLayout(device->get_device(), &info, nullptr, &set_layout) != VK_SUCCESS)
+			LOG("Failed to create descriptor set layout.");
+	}
 }
 
 DescriptorSetAllocator::~DescriptorSetAllocator()

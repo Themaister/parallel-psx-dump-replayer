@@ -31,6 +31,11 @@ public:
 	void begin();
 	std::pair<VkDescriptorSet, bool> find(Hash hash);
 
+	VkDescriptorSetLayout get_layout() const
+	{
+		return set_layout;
+	}
+
 private:
 	struct DescriptorSetNode
 	{
