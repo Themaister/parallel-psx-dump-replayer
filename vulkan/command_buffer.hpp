@@ -130,7 +130,6 @@ private:
 	CommandBufferDirtyFlags dirty = ~0u;
 	uint32_t dirty_sets = 0;
 	bool uses_swapchain = false;
-	bool render_pass_uses_only_swapchain = false;
 	bool is_compute = false;
 
 	void invalidate_all();

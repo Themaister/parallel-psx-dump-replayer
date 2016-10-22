@@ -16,6 +16,13 @@
 
 namespace Vulkan
 {
+enum class SwapchainRenderPass
+{
+	ColorOnly,
+	Depth,
+	DepthStencil
+};
+
 class Device
 {
 public:
@@ -73,7 +80,7 @@ public:
 		return ++cookie;
 	}
 
-	RenderPassInfo get_swapchain_render_pass();
+	RenderPassInfo get_swapchain_render_pass(SwapchainRenderPass style);
 
 private:
 	VkInstance instance = VK_NULL_HANDLE;
@@ -135,6 +142,8 @@ private:
 	// The per frame structure must be destroyed after
 	// the hashmap data structures below, so it must be declared before.
 	std::vector<std::unique_ptr<PerFrame>> per_frame;
+	ImageHandle backbuffer_depth;
+	ImageHandle backbuffer_depth_stencil;
 
 	unsigned current_swapchain_index = 0;
 	uint32_t queue_family_index = 0;

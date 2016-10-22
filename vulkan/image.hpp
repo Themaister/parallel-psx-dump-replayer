@@ -28,7 +28,34 @@ static inline VkPipelineStageFlags image_usage_to_possible_stages(VkImageUsageFl
 	if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
 		flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
+	if (usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT)
+	{
+		VkPipelineStageFlags possible = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+		                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+		                                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+		if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+			possible |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+		flags &= possible;
+	}
+
 	return flags;
+}
+
+static inline VkAccessFlags image_layout_to_possible_access(VkImageLayout layout)
+{
+	switch (layout)
+	{
+	case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+		return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+		return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+		return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	default:
+		return ~0u;
+	}
 }
 
 static inline VkAccessFlags image_usage_to_possible_access(VkImageUsageFlags usage)
@@ -48,7 +75,15 @@ static inline VkAccessFlags image_usage_to_possible_access(VkImageUsageFlags usa
 	if (usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
 		flags |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 
-	return 0;
+	// Transient attachments can only be attachments, and never other resources.
+	if (usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT)
+	{
+		flags &= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+		         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+		         VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	}
+
+	return flags;
 }
 
 static inline uint32_t image_num_miplevels(const VkExtent3D &extent)
@@ -66,8 +101,6 @@ static inline uint32_t image_num_miplevels(const VkExtent3D &extent)
 static inline VkFormatFeatureFlags image_usage_to_features(VkImageUsageFlags usage)
 {
 	VkFormatFeatureFlags flags = 0;
-	if (usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-		flags |= VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
 	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
 		flags |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
 	if (usage & VK_IMAGE_USAGE_STORAGE_BIT)
@@ -133,6 +166,11 @@ public:
 		return *info.image;
 	}
 
+	const ImageViewCreateInfo &get_create_info() const
+	{
+		return info;
+	}
+
 private:
 	Device *device;
 	VkImageView view;
@@ -160,6 +198,7 @@ struct ImageCreateInfo
 	VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 	VkImageCreateFlags flags = 0;
 	ImageMiscFlags misc = 0;
+	VkImageLayout initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 
 	static ImageCreateInfo immutable_2d_image(unsigned width, unsigned height, VkFormat format, bool mipmapped = false)
 	{
@@ -174,7 +213,8 @@ struct ImageCreateInfo
 			     VK_IMAGE_USAGE_SAMPLED_BIT,
 			     VK_SAMPLE_COUNT_1_BIT,
 			     0,
-			     mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u };
+			     mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u,
+			     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 	}
 
 	static ImageCreateInfo render_target(unsigned width, unsigned height, VkFormat format)
@@ -183,7 +223,7 @@ struct ImageCreateInfo
 			     VkImageUsageFlags((format_is_depth_stencil(format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
 			                                                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) |
 			                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-			     VK_SAMPLE_COUNT_1_BIT, 0, 0 };
+			     VK_SAMPLE_COUNT_1_BIT, 0, 0, VK_IMAGE_LAYOUT_GENERAL };
 	}
 };
 
@@ -253,6 +293,26 @@ public:
 		return alloc.getMemory() == VK_NULL_HANDLE;
 	}
 
+	void set_stage_flags(VkPipelineStageFlags flags)
+	{
+		stage_flags = flags;
+	}
+
+	void set_access_flags(VkAccessFlags flags)
+	{
+		access_flags = flags;
+	}
+
+	VkPipelineStageFlags get_stage_flags() const
+	{
+		return stage_flags;
+	}
+
+	VkAccessFlags get_access_flags() const
+	{
+		return access_flags;
+	}
+
 private:
 	Device *device;
 	VkImage image;
@@ -261,6 +321,8 @@ private:
 	ImageCreateInfo create_info;
 
 	VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL;
+	VkPipelineStageFlags stage_flags = 0;
+	VkAccessFlags access_flags = 0;
 };
 
 using ImageHandle = IntrusivePtr<Image>;

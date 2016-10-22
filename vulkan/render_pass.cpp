@@ -202,17 +202,26 @@ FramebufferAllocator::FramebufferAllocator(Device *device)
 {
 }
 
-FramebufferAllocator::~FramebufferAllocator()
+void FramebufferAllocator::clear()
 {
 	for (auto &ring : rings)
+	{
 		for (auto node : ring)
 			object_pool.free(&node);
+		ring.clear();
+	}
+	framebuffers.clear();
+}
+
+FramebufferAllocator::~FramebufferAllocator()
+{
+	clear();
 }
 
 void FramebufferAllocator::begin_frame()
 {
-	index = (index + 1) & (VULKAN_DESCRIPTOR_RING_SIZE - 1);
-	for (auto node : rings[index])
+	index = (index + 1) & (VULKAN_FRAMEBUFFER_RING_SIZE - 1);
+	for (auto &node : rings[index])
 	{
 		framebuffers.erase(node.hash);
 		object_pool.free(&node);

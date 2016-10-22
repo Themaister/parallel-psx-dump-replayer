@@ -109,6 +109,7 @@ public:
 	Framebuffer &request_framebuffer(const RenderPassInfo &info);
 
 	void begin_frame();
+	void clear();
 
 private:
 	struct FramebufferNode : public IntrusiveListEnabled<FramebufferNode>, public Framebuffer

@@ -124,7 +124,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_cb(VkDebugReportFlagsEXT flag
 	}
 	else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
 	{
-		fprintf(stderr, "[Vulkan]: Performance warning: %s: %s\n", pLayerPrefix, pMessage);
+		//fprintf(stderr, "[Vulkan]: Performance warning: %s: %s\n", pLayerPrefix, pMessage);
 	}
 	else
 	{

@@ -250,6 +250,12 @@ int main()
 		auto image = device.create_image(imageinfo, &initial_image);
 
 		auto cmd = device.request_command_buffer();
+
+		auto rp = device.get_swapchain_render_pass(SwapchainRenderPass::DepthStencil);
+		rp.clear_color[0].float32[0] = 1.0f;
+		cmd->begin_render_pass(rp);
+		cmd->end_render_pass();
+
 		device.submit(cmd);
 		wsi.end_frame();
 	}

@@ -83,6 +83,8 @@ void CommandBuffer::image_barrier(const Image &image, VkImageLayout old_layout, 
 	barrier.subresourceRange.aspectMask = format_to_aspect_mask(image.get_create_info().format);
 	barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 	barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
 	vkCmdPipelineBarrier(cmd, src_stages, dst_stages, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
@@ -140,7 +142,6 @@ void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
 	VkClearValue clear_values[VULKAN_NUM_ATTACHMENTS + 1];
 	unsigned num_clear_values = 0;
 
-	unsigned swapchain_count = 0;
 	for (unsigned i = 0; i < info.num_color_attachments; i++)
 	{
 		if (info.color_attachments[i])
@@ -150,19 +151,16 @@ void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
 			{
 				auto &image = info.color_attachments[i]->get_image();
 				uses_swapchain = true;
-				swapchain_count++;
 				VkImageLayout layout = info.op_flags & RENDER_PASS_OP_COLOR_OPTIMAL_BIT ?
 				                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL :
 				                           VK_IMAGE_LAYOUT_GENERAL;
 				image_barrier(image, VK_IMAGE_LAYOUT_UNDEFINED, layout, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+				              0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 				              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
 				image.set_layout(layout);
 			}
 		}
 	}
-
-	render_pass_uses_only_swapchain = swapchain_count && info.num_color_attachments == swapchain_count;
 
 	if (info.depth_stencil)
 		clear_values[num_clear_values++].depthStencil = info.clear_depth_stencil;
@@ -195,23 +193,7 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 	framebuffer = nullptr;
 	render_pass = nullptr;
 
-	if (!render_pass_info.num_color_attachments || render_pass_uses_only_swapchain)
-	{
-		color_access_stages = 0;
-		color_access = 0;
-	}
-
-	if (!render_pass_info.depth_stencil)
-	{
-		depth_stencil_access_stages = 0;
-		depth_stencil_access = 0;
-	}
-
-	if (color_access_stages == 0 && depth_stencil_access_stages == 0)
-	{
-		color_access_stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		depth_stencil_access_stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-	}
+	VkPipelineStageFlags dst_stages = 0;
 
 	VkImageMemoryBarrier barriers[VULKAN_NUM_ATTACHMENTS + 1];
 	unsigned num_barriers = 0;
@@ -222,16 +204,30 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 		if (view)
 		{
 			auto &image = view->get_image();
-			auto &barrier = barriers[num_barriers];
+			auto &barrier = barriers[num_barriers++];
+			memset(&barrier, 0, sizeof(barrier));
 			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			barrier.pNext = nullptr;
+			barrier.image = image.get_image();
 			barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			barrier.dstAccessMask = color_access;
+			barrier.dstAccessMask = color_access & image.get_access_flags();
 			barrier.oldLayout = image.get_layout();
+			barrier.subresourceRange.aspectMask = format_to_aspect_mask(view->get_format());
+			barrier.subresourceRange.baseMipLevel = view->get_create_info().base_level;
+			barrier.subresourceRange.baseArrayLayer = view->get_create_info().base_layer;
+			barrier.subresourceRange.levelCount = view->get_create_info().levels;
+			barrier.subresourceRange.layerCount = view->get_create_info().layers;
+			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+			dst_stages |= color_access_stages & image.get_stage_flags();
 
 			if (image.is_swapchain_image())
 			{
 				barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+				// Validation layer seems to want this, but it's not really required.
+				barrier.dstAccessMask |= VK_ACCESS_MEMORY_READ_BIT;
+
 				image.set_layout(barrier.newLayout);
 			}
 			else
@@ -242,16 +238,32 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 	if (render_pass_info.depth_stencil)
 	{
 		ImageView *view = render_pass_info.depth_stencil;
-		auto &barrier = barriers[num_barriers];
+		auto &barrier = barriers[num_barriers++];
+		memset(&barrier, 0, sizeof(barrier));
+		auto &image = view->get_image();
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.pNext = nullptr;
+		barrier.image = image.get_image();
 		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		barrier.dstAccessMask = depth_stencil_access;
-		barrier.oldLayout = view->get_image().get_layout();
-		barrier.newLayout = view->get_image().get_layout();
+		barrier.dstAccessMask = depth_stencil_access & image.get_access_flags();
+		barrier.oldLayout = image.get_layout();
+		barrier.newLayout = image.get_layout();
+		barrier.subresourceRange.aspectMask = format_to_aspect_mask(view->get_format());
+		barrier.subresourceRange.baseMipLevel = view->get_create_info().base_level;
+		barrier.subresourceRange.baseArrayLayer = view->get_create_info().base_layer;
+		barrier.subresourceRange.levelCount = view->get_create_info().levels;
+		barrier.subresourceRange.layerCount = view->get_create_info().layers;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+		dst_stages |= depth_stencil_access_stages & image.get_stage_flags();
 	}
 
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, color_access_stages | depth_stencil_access_stages, 0,
-	                     0, nullptr, 0, nullptr, num_barriers, barriers);
+	if (!dst_stages)
+	{
+		dst_stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	}
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, dst_stages, 0, 0, nullptr, 0, nullptr, num_barriers,
+	                     barriers);
 }
 }

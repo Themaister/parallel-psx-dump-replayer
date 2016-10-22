@@ -1,5 +1,6 @@
 #include "device.hpp"
 #include "format.hpp"
+#include <algorithm>
 #include <string.h>
 
 using namespace std;
@@ -278,6 +279,10 @@ bool Device::swapchain_touched() const
 
 Device::~Device()
 {
+	framebuffer_allocator.clear();
+	for (auto &sampler : samplers)
+		sampler.reset();
+
 	for (auto &frame : per_frame)
 		frame->cleanup();
 }
@@ -285,6 +290,12 @@ Device::~Device()
 void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format)
 {
 	wait_idle();
+
+	// Clear out caches which might contain stale data from now on.
+	backbuffer_depth.reset();
+	backbuffer_depth_stencil.reset();
+	framebuffer_allocator.clear();
+
 	for (auto &frame : per_frame)
 		frame->cleanup();
 	per_frame.clear();
@@ -329,8 +340,15 @@ void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
 	frame().allocations.push_back(alloc);
 }
 
+template <typename T, typename U>
+static inline bool exists(const T &container, const U &value)
+{
+	return find(begin(container), end(container), value) != end(container);
+}
+
 void Device::destroy_pipeline(VkPipeline pipeline)
 {
+	VK_ASSERT(!exists(frame().destroyed_pipelines, pipeline));
 	frame().destroyed_pipelines.push_back(pipeline);
 }
 
@@ -356,6 +374,7 @@ void Device::destroy_sampler(VkSampler sampler)
 
 void Device::destroy_framebuffer(VkFramebuffer framebuffer)
 {
+	VK_ASSERT(!exists(frame().destroyed_framebuffers, framebuffer));
 	frame().destroyed_framebuffers.push_back(framebuffer);
 }
 
@@ -373,6 +392,7 @@ void Device::begin_frame(unsigned index)
 {
 	current_swapchain_index = index;
 	frame().begin();
+	framebuffer_allocator.begin_frame();
 	for (auto &allocator : descriptor_set_allocators)
 		allocator.second->begin_frame();
 }
@@ -669,6 +689,11 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	}
 
 	auto handle = make_handle<Image>(this, image, image_view, allocation, tmpinfo);
+
+	// Set possible dstStage and dstAccess.
+	handle->set_stage_flags(image_usage_to_possible_stages(info.usage));
+	handle->set_access_flags(image_usage_to_possible_access(info.usage));
+
 	begin_staging();
 
 	// Copy initial data to texture.
@@ -728,16 +753,19 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 			}
 		}
 
-		staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-		                           image_usage_to_possible_stages(info.usage),
-		                           image_usage_to_possible_access(info.usage));
+		staging_cmd->image_barrier(
+		    *handle, VK_IMAGE_LAYOUT_GENERAL, create_info.initial_layout, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		    VK_ACCESS_TRANSFER_WRITE_BIT, handle->get_stage_flags(),
+		    handle->get_access_flags() & image_layout_to_possible_access(create_info.initial_layout));
+		handle->set_layout(create_info.initial_layout);
 	}
 	else
 	{
-		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, image_usage_to_possible_stages(info.usage),
-		                           image_usage_to_possible_access(info.usage));
-		handle->set_layout(VK_IMAGE_LAYOUT_GENERAL);
+		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, create_info.initial_layout,
+		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, handle->get_stage_flags(),
+		                           handle->get_access_flags() &
+		                               image_layout_to_possible_access(create_info.initial_layout));
+		handle->set_layout(create_info.initial_layout);
 	}
 
 	return handle;
@@ -904,12 +932,50 @@ const Framebuffer &Device::request_framebuffer(const RenderPassInfo &info)
 	return framebuffer_allocator.request_framebuffer(info);
 }
 
-RenderPassInfo Device::get_swapchain_render_pass()
+RenderPassInfo Device::get_swapchain_render_pass(SwapchainRenderPass style)
 {
 	RenderPassInfo info;
 	info.num_color_attachments = 1;
 	info.color_attachments[0] = &frame().backbuffer->get_view();
 	info.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_ALL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT;
+
+	switch (style)
+	{
+	case SwapchainRenderPass::Depth:
+	{
+		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
+		if (!backbuffer_depth)
+		{
+			auto info = ImageCreateInfo::render_target(frame().backbuffer->get_create_info().width,
+			                                           frame().backbuffer->get_create_info().height,
+			                                           get_default_depth_format());
+			info.initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			info.domain = ImageDomain::Transient;
+			backbuffer_depth = create_image(info, nullptr);
+		}
+		info.depth_stencil = &backbuffer_depth->get_view();
+		break;
+	}
+
+	case SwapchainRenderPass::DepthStencil:
+	{
+		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
+		if (!backbuffer_depth_stencil)
+		{
+			auto info = ImageCreateInfo::render_target(frame().backbuffer->get_create_info().width,
+			                                           frame().backbuffer->get_create_info().height,
+			                                           get_default_depth_stencil_format());
+			info.initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			info.domain = ImageDomain::Transient;
+			backbuffer_depth_stencil = create_image(info, nullptr);
+		}
+		info.depth_stencil = &backbuffer_depth_stencil->get_view();
+		break;
+	}
+
+	default:
+		break;
+	}
 	return info;
 }
 }

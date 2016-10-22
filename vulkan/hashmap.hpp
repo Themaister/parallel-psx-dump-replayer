@@ -6,8 +6,17 @@
 namespace Vulkan
 {
 using Hash = uint64_t;
+
+struct UnityHasher
+{
+	inline size_t operator()(uint64_t hash) const
+	{
+		return hash;
+	}
+};
+
 template <typename T>
-using HashMap = std::unordered_map<Hash, T>;
+using HashMap = std::unordered_map<Hash, T, UnityHasher>;
 
 class Hasher
 {
