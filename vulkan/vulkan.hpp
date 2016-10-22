@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util.hpp"
 #include "vulkan_symbol_wrapper.h"
 #include <memory>
 #include <stdexcept>

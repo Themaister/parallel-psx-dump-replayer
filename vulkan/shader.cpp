@@ -8,7 +8,8 @@ using namespace spirv_cross;
 namespace Vulkan
 {
 PipelineLayout::PipelineLayout(Device *device, const CombinedResourceLayout &layout)
-    : device(device)
+    : Cookie(device)
+    , device(device)
     , layout(layout)
 {
 	VkDescriptorSetLayout layouts[VULKAN_NUM_DESCRIPTOR_SETS] = {};
@@ -137,7 +138,8 @@ void Program::set_shader(ShaderHandle handle)
 }
 
 Program::Program(Device *device)
-    : device(device)
+    : Cookie(device)
+    , device(device)
 {
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cookie.hpp"
 #include "descriptor_set.hpp"
 #include "hashmap.hpp"
 #include "intrusive.hpp"
@@ -36,7 +37,7 @@ struct CombinedResourceLayout
 	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)] = {};
 };
 
-class PipelineLayout
+class PipelineLayout : public Cookie
 {
 public:
 	PipelineLayout(Device *device, const CombinedResourceLayout &layout);
@@ -88,7 +89,7 @@ private:
 };
 using ShaderHandle = IntrusivePtr<Shader>;
 
-class Program : public IntrusivePtrEnabled<Program>
+class Program : public IntrusivePtrEnabled<Program>, public Cookie
 {
 public:
 	Program(Device *device);
@@ -100,9 +101,14 @@ public:
 		return shaders[static_cast<unsigned>(stage)].get();
 	}
 
-	void set_pipeline_layout(const PipelineLayout *new_layout)
+	void set_pipeline_layout(PipelineLayout *new_layout)
 	{
 		layout = new_layout;
+	}
+
+	PipelineLayout *get_pipeline_layout() const
+	{
+		return layout;
 	}
 
 	VkPipeline get_pipeline(Hash hash);
@@ -111,7 +117,7 @@ public:
 private:
 	Device *device;
 	ShaderHandle shaders[static_cast<unsigned>(ShaderStage::Count)];
-	const PipelineLayout *layout = nullptr;
+	PipelineLayout *layout = nullptr;
 	HashMap<VkPipeline> pipelines;
 };
 using ProgramHandle = IntrusivePtr<Program>;

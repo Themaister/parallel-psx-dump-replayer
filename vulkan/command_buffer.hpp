@@ -13,12 +13,17 @@ namespace Vulkan
 
 enum CommandBufferDirtyBits
 {
-	COMMAND_BUFFER_DIRTY_STATIC = 1 << 0,
-	COMMAND_BUFFER_DIRTY_PIPELINE_LAYOUT = 1 << 1,
-	COMMAND_BUFFER_DIRTY_PIPELINE = 1 << 2,
+	COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT = 1 << 0,
+	COMMAND_BUFFER_DIRTY_PIPELINE_LAYOUT_BIT = 1 << 1,
+	COMMAND_BUFFER_DIRTY_PIPELINE_BIT = 1 << 2,
 
-	COMMAND_BUFFER_DIRTY_VIEWPORT = 1 << 3,
-	COMMAND_BUFFER_DIRTY_SCISSOR = 1 << 4
+	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT = 1 << 3,
+	COMMAND_BUFFER_DIRTY_SCISSOR_BIT = 1 << 4,
+
+	COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT = 1 << 5,
+	COMMAND_BUFFER_DIRTY_DYNAMIC_VERTEX_BIT = 1 << 6,
+
+	COMMAND_BUFFER_DYNAMIC_BITS = COMMAND_BUFFER_DIRTY_VIEWPORT_BIT | COMMAND_BUFFER_DIRTY_SCISSOR_BIT
 };
 using CommandBufferDirtyFlags = uint32_t;
 
@@ -91,6 +96,13 @@ public:
 	void set_storage_buffer(unsigned set, unsigned binding, const Buffer &buffer, VkDeviceSize offset,
 	                        VkDeviceSize range);
 
+	void set_viewport(const VkViewport &viewport);
+	void set_scissor(const VkRect2D &rect);
+
+	void set_vertex_attrib(uint32_t attrib, uint32_t binding, VkFormat format, VkDeviceSize offset);
+	void set_vertex_binding(uint32_t binding, const Buffer &buffer, VkDeviceSize offset, VkDeviceSize stride,
+	                        VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
+
 private:
 	Device *device;
 	VkCommandBuffer cmd;
@@ -99,6 +111,19 @@ private:
 	const RenderPass *render_pass = nullptr;
 	RenderPassInfo render_pass_info;
 
+	struct AttribState
+	{
+		uint32_t binding;
+		VkFormat format;
+		VkDeviceSize offset;
+	};
+	AttribState attribs[VULKAN_NUM_VERTEX_ATTRIBS] = {};
+
+	VkBuffer vbo_buffers[VULKAN_NUM_VERTEX_BUFFERS] = {};
+	VkDeviceSize vbo_offsets[VULKAN_NUM_VERTEX_BUFFERS] = {};
+	VkDeviceSize vbo_strides[VULKAN_NUM_VERTEX_BUFFERS] = {};
+	VkVertexInputRate vbo_input_rates[VULKAN_NUM_VERTEX_BUFFERS] = {};
+
 	struct Binding
 	{
 		union {
@@ -106,6 +131,7 @@ private:
 			{
 				VkImageView view;
 				VkSampler sampler;
+				uint64_t sampler_cookie;
 			} image;
 
 			struct
@@ -133,6 +159,29 @@ private:
 	bool is_compute = false;
 
 	void invalidate_all();
+
+	void set_dirty(CommandBufferDirtyFlags flags)
+	{
+		dirty |= flags;
+	}
+
+	CommandBufferDirtyFlags get_and_clear(CommandBufferDirtyFlags flags)
+	{
+		auto mask = dirty & flags;
+		dirty &= ~flags;
+		return mask;
+	}
+
+	union PipelineState {
+		struct
+		{
+			uint32_t state;
+		} state;
+		uint64_t words = 0;
+	};
+	PipelineState static_state = {};
+
+	void flush_render_state();
 };
 
 using CommandBufferHandle = IntrusivePtr<CommandBuffer>;

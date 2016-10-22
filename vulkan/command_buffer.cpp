@@ -269,4 +269,99 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, dst_stages, 0, 0, nullptr, 0, nullptr, num_barriers,
 	                     barriers);
 }
+
+void CommandBuffer::flush_render_state()
+{
+	VK_ASSERT(current_layout);
+	VK_ASSERT(current_program);
+
+	// We've invalidated pipeline state, update the VkPipeline.
+	if (get_and_clear(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT | COMMAND_BUFFER_DIRTY_PIPELINE_BIT |
+	                  COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT))
+	{
+		Hasher h;
+		auto &layout = current_layout->get_resource_layout();
+		for_each_bit(layout.attribute_mask, [&](uint32_t bit) {
+			h.u32(bit);
+			h.u32(attribs[bit].binding);
+			h.u32(attribs[bit].format);
+			h.u32(attribs[bit].offset);
+		});
+
+		h.u64(render_pass->get_cookie());
+		h.u64(current_layout->get_cookie());
+		h.u64(current_program->get_cookie());
+		h.u64(static_state.words);
+
+		auto hash = h.get();
+	}
+}
+
+void CommandBuffer::set_vertex_attrib(uint32_t attrib, uint32_t binding, VkFormat format, VkDeviceSize offset)
+{
+	VK_ASSERT(attrib < VULKAN_NUM_VERTEX_ATTRIBS);
+	VK_ASSERT(framebuffer);
+
+	auto &attr = attribs[attrib];
+
+	if (attr.binding != binding || attr.format != format || attr.offset != offset)
+		set_dirty(COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT);
+
+	attr.binding = binding;
+	attr.format = format;
+	attr.offset = offset;
+}
+
+void CommandBuffer::set_vertex_binding(uint32_t binding, const Buffer &buffer, VkDeviceSize offset, VkDeviceSize stride,
+                                       VkVertexInputRate step_rate)
+{
+	VK_ASSERT(binding < VULKAN_NUM_VERTEX_BUFFERS);
+	VK_ASSERT(framebuffer);
+
+	VkBuffer vkbuffer = buffer.get_buffer();
+	if (vbo_buffers[binding] != vkbuffer || vbo_offsets[binding] != offset)
+		set_dirty(COMMAND_BUFFER_DIRTY_DYNAMIC_VERTEX_BIT);
+	if (vbo_strides[binding] != stride || vbo_input_rates[binding] != step_rate)
+		set_dirty(COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT);
+
+	vbo_buffers[binding] = vkbuffer;
+	vbo_offsets[binding] = offset;
+	vbo_strides[binding] = stride;
+	vbo_input_rates[binding] = step_rate;
+}
+
+void CommandBuffer::set_viewport(const VkViewport &viewport)
+{
+	VK_ASSERT(framebuffer);
+	this->viewport = viewport;
+	set_dirty(COMMAND_BUFFER_DIRTY_VIEWPORT_BIT);
+}
+
+void CommandBuffer::set_scissor(const VkRect2D &rect)
+{
+	VK_ASSERT(framebuffer);
+	scissor = rect;
+	set_dirty(COMMAND_BUFFER_DIRTY_SCISSOR_BIT);
+}
+
+void CommandBuffer::bind_program(const Program &program)
+{
+	if (current_program == &program)
+		return;
+
+	current_program = &program;
+	current_pipeline = VK_NULL_HANDLE;
+
+	VK_ASSERT((framebuffer && current_program->get_shader(ShaderStage::Vertex)) ||
+	          (!framebuffer && current_program->get_shader(ShaderStage::Compute)));
+
+	set_dirty(COMMAND_BUFFER_DIRTY_PIPELINE_BIT | COMMAND_BUFFER_DYNAMIC_BITS);
+
+	if (program.get_pipeline_layout() != current_layout)
+	{
+		current_layout = program.get_pipeline_layout();
+		set_dirty(COMMAND_BUFFER_DIRTY_PIPELINE_LAYOUT_BIT);
+		dirty_sets = ~0u;
+	}
+}
 }
