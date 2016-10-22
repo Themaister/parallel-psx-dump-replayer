@@ -346,7 +346,7 @@ void CommandBuffer::set_scissor(const VkRect2D &rect)
 
 void CommandBuffer::bind_program(const Program &program)
 {
-	if (current_program == &program)
+	if (current_program->get_cookie() == program.get_cookie())
 		return;
 
 	current_program = &program;
@@ -357,7 +357,7 @@ void CommandBuffer::bind_program(const Program &program)
 
 	set_dirty(COMMAND_BUFFER_DIRTY_PIPELINE_BIT | COMMAND_BUFFER_DYNAMIC_BITS);
 
-	if (program.get_pipeline_layout() != current_layout)
+	if (program.get_pipeline_layout()->get_cookie() != current_layout->get_cookie())
 	{
 		current_layout = program.get_pipeline_layout();
 		set_dirty(COMMAND_BUFFER_DIRTY_PIPELINE_LAYOUT_BIT);
