@@ -16,6 +16,7 @@ bool WSI::alive()
 static void fb_size_cb(GLFWwindow *window, int width, int height)
 {
 	auto *wsi = static_cast<WSI *>(glfwGetWindowUserPointer(window));
+	VK_ASSERT(width != 0 && height != 0);
 	wsi->update_framebuffer(width, height);
 }
 
@@ -65,6 +66,8 @@ bool WSI::init(unsigned width, unsigned height)
 	semaphore_manager.init(context->get_device());
 	device.set_context(*context);
 	device.init_swapchain(swapchain_images, width, height, format);
+	this->width = width;
+	this->height = height;
 	return true;
 }
 
@@ -89,6 +92,8 @@ bool WSI::begin_frame()
 		}
 		else if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
+			VK_ASSERT(width != 0);
+			VK_ASSERT(height != 0);
 			if (!init_swapchain(width, height))
 			{
 				semaphore_manager.recycle(acquire);
@@ -118,7 +123,7 @@ bool WSI::end_frame()
 
 	need_acquire = true;
 
-	VkResult result;
+	VkResult result = VK_SUCCESS;
 	VkPresentInfoKHR info = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
 	info.waitSemaphoreCount = 1;
 	info.pWaitSemaphores = &release_semaphore;
@@ -216,11 +221,11 @@ bool WSI::init_swapchain(unsigned width, unsigned height)
 	if (old_swapchain != VK_NULL_HANDLE)
 		vkDestroySwapchainKHR(context->get_device(), old_swapchain, nullptr);
 
-	width = swapchain_size.width;
-	height = swapchain_size.height;
+	this->width = swapchain_size.width;
+	this->height = swapchain_size.height;
 	this->format = format.format;
 
-	LOG("Created swapchain %u x %u (fmt: %u).\n", width, height, static_cast<unsigned>(this->format));
+	LOG("Created swapchain %u x %u (fmt: %u).\n", this->width, this->height, static_cast<unsigned>(this->format));
 
 	uint32_t image_count;
 	V(vkGetSwapchainImagesKHR(context->get_device(), swapchain, &image_count, nullptr));
