@@ -128,6 +128,11 @@ public:
 		return *info.image;
 	}
 
+	Image &get_image()
+	{
+		return *info.image;
+	}
+
 private:
 	Device *device;
 	VkImageView view;
@@ -197,6 +202,12 @@ public:
 		return *view;
 	}
 
+	ImageView &get_view()
+	{
+		VK_ASSERT(view);
+		return *view;
+	}
+
 	VkImage get_image() const
 	{
 		return image;
@@ -235,6 +246,11 @@ public:
 	void set_layout(VkImageLayout new_layout)
 	{
 		layout = new_layout;
+	}
+
+	bool is_swapchain_image() const
+	{
+		return alloc.getMemory() == VK_NULL_HANDLE;
 	}
 
 private:

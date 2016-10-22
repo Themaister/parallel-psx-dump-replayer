@@ -73,6 +73,8 @@ public:
 		return ++cookie;
 	}
 
+	RenderPassInfo get_swapchain_render_pass();
+
 private:
 	VkInstance instance = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;

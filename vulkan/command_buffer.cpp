@@ -1,5 +1,9 @@
 #include "command_buffer.hpp"
+#include "device.hpp"
 #include "format.hpp"
+#include <string.h>
+
+using namespace std;
 
 namespace Vulkan
 {
@@ -106,5 +110,148 @@ void CommandBuffer::blit_image(const Image &dst, const Image &src, const VkOffse
 	};
 
 	vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(), 1, &blit, filter);
+}
+
+void CommandBuffer::invalidate_all()
+{
+	dirty = ~0u;
+	dirty_sets = ~0u;
+	is_compute = false;
+	current_pipeline = VK_NULL_HANDLE;
+	current_layout = nullptr;
+	memset(current_sets, 0, sizeof(current_sets));
+	current_program = nullptr;
+}
+
+void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
+{
+	VK_ASSERT(!framebuffer);
+	VK_ASSERT(!render_pass);
+
+	framebuffer = &device->request_framebuffer(info);
+	render_pass = &framebuffer->get_render_pass();
+
+	VkRect2D rect = info.render_area;
+	rect.offset.x = min(framebuffer->get_width(), uint32_t(rect.offset.x));
+	rect.offset.y = min(framebuffer->get_height(), uint32_t(rect.offset.y));
+	rect.extent.width = min(framebuffer->get_width() - rect.offset.x, rect.extent.width);
+	rect.extent.height = min(framebuffer->get_height() - rect.offset.y, rect.extent.height);
+
+	VkClearValue clear_values[VULKAN_NUM_ATTACHMENTS + 1];
+	unsigned num_clear_values = 0;
+
+	unsigned swapchain_count = 0;
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+	{
+		if (info.color_attachments[i])
+		{
+			clear_values[num_clear_values++].color = info.clear_color[i];
+			if (info.color_attachments[i]->get_image().is_swapchain_image())
+			{
+				auto &image = info.color_attachments[i]->get_image();
+				uses_swapchain = true;
+				swapchain_count++;
+				VkImageLayout layout = info.op_flags & RENDER_PASS_OP_COLOR_OPTIMAL_BIT ?
+				                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL :
+				                           VK_IMAGE_LAYOUT_GENERAL;
+				image_barrier(image, VK_IMAGE_LAYOUT_UNDEFINED, layout, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+				              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
+				image.set_layout(layout);
+			}
+		}
+	}
+
+	render_pass_uses_only_swapchain = swapchain_count && info.num_color_attachments == swapchain_count;
+
+	if (info.depth_stencil)
+		clear_values[num_clear_values++].depthStencil = info.clear_depth_stencil;
+
+	VkRenderPassBeginInfo begin_info = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+	begin_info.renderPass = render_pass->get_render_pass();
+	begin_info.framebuffer = framebuffer->get_framebuffer();
+	begin_info.renderArea = rect;
+	begin_info.clearValueCount = num_clear_values;
+	begin_info.pClearValues = clear_values;
+
+	vkCmdBeginRenderPass(cmd, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	viewport = { 0.0f, 0.0f, float(framebuffer->get_width()), float(framebuffer->get_height()), 0.0f, 1.0f };
+	scissor = rect;
+	invalidate_all();
+
+	render_pass_info = info;
+}
+
+void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, VkAccessFlags color_access,
+                                    VkPipelineStageFlags depth_stencil_access_stages,
+                                    VkAccessFlags depth_stencil_access)
+{
+	VK_ASSERT(framebuffer);
+	VK_ASSERT(render_pass);
+
+	vkCmdEndRenderPass(cmd);
+
+	framebuffer = nullptr;
+	render_pass = nullptr;
+
+	if (!render_pass_info.num_color_attachments || render_pass_uses_only_swapchain)
+	{
+		color_access_stages = 0;
+		color_access = 0;
+	}
+
+	if (!render_pass_info.depth_stencil)
+	{
+		depth_stencil_access_stages = 0;
+		depth_stencil_access = 0;
+	}
+
+	if (color_access_stages == 0 && depth_stencil_access_stages == 0)
+	{
+		color_access_stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		depth_stencil_access_stages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	}
+
+	VkImageMemoryBarrier barriers[VULKAN_NUM_ATTACHMENTS + 1];
+	unsigned num_barriers = 0;
+
+	for (unsigned i = 0; i < render_pass_info.num_color_attachments; i++)
+	{
+		ImageView *view = render_pass_info.color_attachments[i];
+		if (view)
+		{
+			auto &image = view->get_image();
+			auto &barrier = barriers[num_barriers];
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.pNext = nullptr;
+			barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			barrier.dstAccessMask = color_access;
+			barrier.oldLayout = image.get_layout();
+
+			if (image.is_swapchain_image())
+			{
+				barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				image.set_layout(barrier.newLayout);
+			}
+			else
+				barrier.newLayout = image.get_layout();
+		}
+	}
+
+	if (render_pass_info.depth_stencil)
+	{
+		ImageView *view = render_pass_info.depth_stencil;
+		auto &barrier = barriers[num_barriers];
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.pNext = nullptr;
+		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = depth_stencil_access;
+		barrier.oldLayout = view->get_image().get_layout();
+		barrier.newLayout = view->get_image().get_layout();
+	}
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, color_access_stages | depth_stencil_access_stages, 0,
+	                     0, nullptr, 0, nullptr, num_barriers, barriers);
 }
 }

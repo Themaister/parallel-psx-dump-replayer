@@ -69,6 +69,14 @@ RenderPass::RenderPass(Device *device, const RenderPassInfo &info)
 			color_ref[i].attachment = num_attachments;
 			color_ref[i].layout = color_layout;
 
+			if (image.get_create_info().domain == ImageDomain::Transient)
+			{
+				if (att.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
+					att.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				if (att.storeOp == VK_ATTACHMENT_STORE_OP_STORE)
+					att.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			}
+
 			num_attachments++;
 		}
 		else
@@ -98,6 +106,18 @@ RenderPass::RenderPass(Device *device, const RenderPassInfo &info)
 		{
 			att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		}
+
+		if (image.get_create_info().domain == ImageDomain::Transient)
+		{
+			if (att.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
+				att.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			if (att.storeOp == VK_ATTACHMENT_STORE_OP_STORE)
+				att.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			if (att.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
+				att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			if (att.stencilStoreOp == VK_ATTACHMENT_STORE_OP_STORE)
+				att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		}
 
 		att.initialLayout = depth_stencil_layout;

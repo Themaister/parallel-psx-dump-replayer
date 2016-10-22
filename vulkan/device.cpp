@@ -868,17 +868,24 @@ const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 	Hasher h;
 	VkFormat formats[VULKAN_NUM_ATTACHMENTS];
 	VkFormat depth_stencil;
+	uint32_t lazy = 0;
 
 	for (unsigned i = 0; i < info.num_color_attachments; i++)
 	{
 		formats[i] = info.color_attachments[i] ? info.color_attachments[i]->get_format() : VK_FORMAT_UNDEFINED;
+		if (info.color_attachments[i]->get_image().get_create_info().domain == ImageDomain::Transient)
+			lazy |= 1u << i;
 	}
+
+	if (info.depth_stencil && info.depth_stencil->get_image().get_create_info().domain == ImageDomain::Transient)
+		lazy |= 1u << info.num_color_attachments;
 
 	depth_stencil = info.depth_stencil ? info.depth_stencil->get_format() : VK_FORMAT_UNDEFINED;
 	h.data(formats, info.num_color_attachments * sizeof(VkFormat));
 	h.u32(info.num_color_attachments);
 	h.u32(depth_stencil);
 	h.u32(info.op_flags);
+	h.u32(lazy);
 
 	auto hash = h.get();
 	auto itr = render_passes.find(hash);
@@ -895,5 +902,14 @@ const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 const Framebuffer &Device::request_framebuffer(const RenderPassInfo &info)
 {
 	return framebuffer_allocator.request_framebuffer(info);
+}
+
+RenderPassInfo Device::get_swapchain_render_pass()
+{
+	RenderPassInfo info;
+	info.num_color_attachments = 1;
+	info.color_attachments[0] = &frame().backbuffer->get_view();
+	info.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_ALL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT;
+	return info;
 }
 }

@@ -3,6 +3,7 @@
 #include "buffer.hpp"
 #include "image.hpp"
 #include "intrusive.hpp"
+#include "render_pass.hpp"
 #include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
@@ -65,6 +66,18 @@ public:
 	                unsigned dst_base_layer = 0, uint32_t src_base_layer = 0, unsigned num_layers = 1,
 	                VkFilter filter = VK_FILTER_LINEAR);
 
+	void begin_render_pass(const RenderPassInfo &info);
+	void end_render_pass(VkPipelineStageFlags color_access_stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+	                                                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	                     VkAccessFlags color_access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	                                                  VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+	                     VkPipelineStageFlags depth_stencil_access_stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+	                                                                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+	                                                                        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+	                     VkAccessFlags depth_stencil_access = VK_ACCESS_SHADER_READ_BIT |
+	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+
 	void bind_program(const Program &program);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, const Sampler &sampler);
@@ -82,6 +95,10 @@ private:
 	Device *device;
 	VkCommandBuffer cmd;
 
+	const Framebuffer *framebuffer = nullptr;
+	const RenderPass *render_pass = nullptr;
+	RenderPassInfo render_pass_info;
+
 	struct Binding
 	{
 		union {
@@ -98,9 +115,9 @@ private:
 				VkDeviceSize range;
 			} buffer;
 		};
-		uint64_t cookie;
 	};
 	Binding bindings[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
+	uint64_t cookies[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
 
 	VkPipeline current_pipeline = VK_NULL_HANDLE;
 	PipelineLayout *current_layout = nullptr;
@@ -113,7 +130,10 @@ private:
 	CommandBufferDirtyFlags dirty = ~0u;
 	uint32_t dirty_sets = 0;
 	bool uses_swapchain = false;
+	bool render_pass_uses_only_swapchain = false;
 	bool is_compute = false;
+
+	void invalidate_all();
 };
 
 using CommandBufferHandle = IntrusivePtr<CommandBuffer>;

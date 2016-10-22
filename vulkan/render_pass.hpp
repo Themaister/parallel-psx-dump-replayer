@@ -33,13 +33,16 @@ using RenderPassOpFlags = uint32_t;
 class ImageView;
 struct RenderPassInfo
 {
-	const ImageView *color_attachments[VULKAN_NUM_ATTACHMENTS] = {};
-	const ImageView *depth_stencil = nullptr;
+	ImageView *color_attachments[VULKAN_NUM_ATTACHMENTS] = {};
+	ImageView *depth_stencil = nullptr;
 	unsigned num_color_attachments = 0;
 	RenderPassOpFlags op_flags = 0;
 
 	// Render area will be clipped to the actual framebuffer.
 	VkRect2D render_area = { { 0, 0 }, { UINT32_MAX, UINT32_MAX } };
+
+	VkClearColorValue clear_color[VULKAN_NUM_ATTACHMENTS] = {};
+	VkClearDepthStencilValue clear_depth_stencil = { 1.0f, 0 };
 };
 
 class RenderPass : public Cookie
@@ -123,7 +126,6 @@ private:
 	WeakList<FramebufferNode> rings[VULKAN_FRAMEBUFFER_RING_SIZE];
 	ObjectPool<FramebufferNode> object_pool;
 	unsigned index = 0;
-
 	HashMap<WeakList<FramebufferNode>::Iterator> framebuffers;
 };
 }
