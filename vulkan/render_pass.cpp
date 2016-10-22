@@ -130,4 +130,110 @@ RenderPass::~RenderPass()
 	if (render_pass != VK_NULL_HANDLE)
 		vkDestroyRenderPass(device->get_device(), render_pass, nullptr);
 }
+
+Framebuffer::Framebuffer(Device *device, const RenderPass &rp, const RenderPassInfo &info)
+    : Cookie(device)
+    , device(device)
+    , render_pass(rp)
+    , info(info)
+{
+	width = UINT32_MAX;
+	height = UINT32_MAX;
+	VkImageView views[VULKAN_NUM_ATTACHMENTS + 1];
+	unsigned num_views = 0;
+
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+	{
+		if (info.color_attachments[i])
+		{
+			width = min(width, info.color_attachments[i]->get_image().get_width());
+			height = min(height, info.color_attachments[i]->get_image().get_height());
+			views[num_views++] = info.color_attachments[i]->get_view();
+		}
+	}
+
+	if (info.depth_stencil)
+	{
+		width = min(width, info.depth_stencil->get_image().get_width());
+		height = min(height, info.depth_stencil->get_image().get_height());
+		views[num_views++] = info.depth_stencil->get_view();
+	}
+
+	VkFramebufferCreateInfo fb_info = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+	fb_info.renderPass = rp.get_render_pass();
+	fb_info.attachmentCount = num_views;
+	fb_info.pAttachments = views;
+	fb_info.width = width;
+	fb_info.height = height;
+	fb_info.layers = 1;
+
+	if (vkCreateFramebuffer(device->get_device(), &fb_info, nullptr, &framebuffer) != VK_SUCCESS)
+		LOG("Failed to create framebuffer.");
+}
+
+Framebuffer::~Framebuffer()
+{
+	if (framebuffer != VK_NULL_HANDLE)
+		device->destroy_framebuffer(framebuffer);
+}
+
+FramebufferAllocator::FramebufferAllocator(Device *device)
+    : device(device)
+{
+}
+
+FramebufferAllocator::~FramebufferAllocator()
+{
+	for (auto &ring : rings)
+		for (auto node : ring)
+			object_pool.free(&node);
+}
+
+void FramebufferAllocator::begin_frame()
+{
+	index = (index + 1) & (VULKAN_DESCRIPTOR_RING_SIZE - 1);
+	for (auto node : rings[index])
+	{
+		framebuffers.erase(node.hash);
+		object_pool.free(&node);
+	}
+	rings[index].clear();
+}
+
+Framebuffer &FramebufferAllocator::request_framebuffer(const RenderPassInfo &info)
+{
+	auto &rp = device->request_render_pass(info);
+	Hasher h;
+	h.u64(rp.get_cookie());
+
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+		if (info.color_attachments[i])
+			h.u64(info.color_attachments[i]->get_cookie());
+
+	if (info.depth_stencil)
+		h.u64(info.depth_stencil->get_cookie());
+
+	auto hash = h.get();
+	auto itr = framebuffers.find(hash);
+	if (itr != end(framebuffers))
+	{
+		auto i = itr->second;
+		if (i->index != index)
+		{
+			rings[index].move_to_front(rings[i->index], i);
+			i->index = index;
+		}
+
+		return *i;
+	}
+	else
+	{
+		auto *node = object_pool.allocate(device, rp, info);
+		node->index = index;
+		node->hash = hash;
+		framebuffers[hash] = node;
+		rings[index].insert_front(node);
+		return *node;
+	}
+}
 }

@@ -7,10 +7,10 @@
 #include "hashmap.hpp"
 #include "image.hpp"
 #include "memory_allocator.hpp"
+#include "render_pass.hpp"
 #include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
-#include "render_pass.hpp"
 #include <memory>
 #include <vector>
 
@@ -19,6 +19,7 @@ namespace Vulkan
 class Device
 {
 public:
+	Device();
 	~Device();
 	void set_context(const VulkanContext &context);
 	void init_swapchain(const std::vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format);
@@ -42,7 +43,7 @@ public:
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
-   ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
+	ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
 	SamplerHandle create_sampler(const SamplerCreateInfo &info);
 	const Sampler &get_stock_sampler(StockSampler sampler) const;
 
@@ -51,6 +52,7 @@ public:
 	void destroy_image_view(VkImageView view);
 	void destroy_pipeline(VkPipeline pipeline);
 	void destroy_sampler(VkSampler sampler);
+	void destroy_framebuffer(VkFramebuffer framebuffer);
 	void free_memory(const MaliSDK::DeviceAllocation &alloc);
 
 	VkSemaphore set_acquire(VkSemaphore acquire);
@@ -63,7 +65,8 @@ public:
 
 	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
 	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
-   Framebuffer *request_framebuffer(const RenderPassInfo &info);
+	const Framebuffer &request_framebuffer(const RenderPassInfo &info);
+	const RenderPass &request_render_pass(const RenderPassInfo &info);
 
 	uint64_t allocate_cookie()
 	{
@@ -80,7 +83,6 @@ private:
 
 	VkPhysicalDeviceMemoryProperties mem_props;
 	VkPhysicalDeviceProperties gpu_props;
-	SamplerHandle samplers[static_cast<unsigned>(StockSampler::Count)];
 	void init_stock_samplers();
 
 	struct PerFrame
@@ -99,6 +101,7 @@ private:
 		FenceManager fence_manager;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
+		std::vector<VkFramebuffer> destroyed_framebuffers;
 		std::vector<VkSampler> destroyed_samplers;
 		std::vector<VkPipeline> destroyed_pipelines;
 		std::vector<VkImageView> destroyed_image_views;
@@ -127,7 +130,10 @@ private:
 		return *per_frame[current_swapchain_index];
 	}
 
+	// The per frame structure must be destroyed after
+	// the hashmap data structures below, so it must be declared before.
 	std::vector<std::unique_ptr<PerFrame>> per_frame;
+
 	unsigned current_swapchain_index = 0;
 	uint32_t queue_family_index = 0;
 
@@ -136,10 +142,10 @@ private:
 	bool memory_type_is_device_optimal(uint32_t type) const;
 	bool memory_type_is_host_visible(uint32_t type) const;
 
-   const RenderPass &request_render_pass(const RenderPassInfo &info);
-
+	SamplerHandle samplers[static_cast<unsigned>(StockSampler::Count)];
 	HashMap<std::unique_ptr<PipelineLayout>> pipeline_layouts;
 	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
-   HashMap<std::unique_ptr<RenderPass>> render_passes;
+	FramebufferAllocator framebuffer_allocator;
+	HashMap<std::unique_ptr<RenderPass>> render_passes;
 };
 }

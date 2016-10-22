@@ -21,10 +21,16 @@ public:
 			h = (h * 0x100000001b3ull) ^ data[i];
 	}
 
-   inline void u32(uint32_t value)
-   {
-      h = (h * 0x100000001b3ull) ^ value;
-   }
+	inline void u32(uint32_t value)
+	{
+		h = (h * 0x100000001b3ull) ^ value;
+	}
+
+	inline void u64(uint64_t value)
+	{
+		u32(value & 0xffffffffu);
+		u32(value >> 32);
+	}
 
 	inline Hash get() const
 	{

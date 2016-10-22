@@ -6,6 +6,10 @@ using namespace std;
 
 namespace Vulkan
 {
+Device::Device()
+    : framebuffer_allocator(this)
+{
+}
 
 ShaderHandle Device::create_shader(ShaderStage stage, const uint32_t *data, size_t size)
 {
@@ -274,9 +278,6 @@ bool Device::swapchain_touched() const
 
 Device::~Device()
 {
-	for (auto &sampler : samplers)
-		sampler.reset();
-
 	for (auto &frame : per_frame)
 		frame->cleanup();
 }
@@ -353,6 +354,11 @@ void Device::destroy_sampler(VkSampler sampler)
 	frame().destroyed_samplers.push_back(sampler);
 }
 
+void Device::destroy_framebuffer(VkFramebuffer framebuffer)
+{
+	frame().destroyed_framebuffers.push_back(framebuffer);
+}
+
 void Device::wait_idle()
 {
 	if (!per_frame.empty())
@@ -376,6 +382,8 @@ void Device::PerFrame::begin()
 	fence_manager.begin();
 	cmd_pool.begin();
 
+	for (auto &framebuffer : destroyed_framebuffers)
+		vkDestroyFramebuffer(device, framebuffer, nullptr);
 	for (auto &sampler : destroyed_samplers)
 		vkDestroySampler(device, sampler, nullptr);
 	for (auto &pipeline : destroyed_pipelines)
@@ -389,6 +397,7 @@ void Device::PerFrame::begin()
 	for (auto &alloc : allocations)
 		alloc.freeImmediate();
 
+	destroyed_framebuffers.clear();
 	destroyed_samplers.clear();
 	destroyed_pipelines.clear();
 	destroyed_image_views.clear();
@@ -495,15 +504,15 @@ uint32_t Device::find_memory_type(ImageDomain domain, uint32_t mask)
 
 static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_info, const ImageViewCreateInfo *view)
 {
-   unsigned layers = view ? view->layers : create_info.layers;
-   unsigned levels = view ? view->levels : create_info.levels;
-   unsigned base_level = view ? view->base_level : 0;
-   unsigned base_layer = view ? view->base_layer : 0;
+	unsigned layers = view ? view->layers : create_info.layers;
+	unsigned levels = view ? view->levels : create_info.levels;
+	unsigned base_level = view ? view->base_level : 0;
+	unsigned base_layer = view ? view->base_layer : 0;
 
-   if (layers == VK_REMAINING_ARRAY_LAYERS)
-      layers = create_info.layers - base_layer;
-   if (levels == VK_REMAINING_MIP_LEVELS)
-      levels = create_info.levels - base_level;
+	if (layers == VK_REMAINING_ARRAY_LAYERS)
+		layers = create_info.layers - base_layer;
+	if (levels == VK_REMAINING_MIP_LEVELS)
+		levels = create_info.levels - base_level;
 
 	switch (create_info.type)
 	{
@@ -548,35 +557,34 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 
 	default:
 		VK_ASSERT(0 && "bogus");
-      return VK_IMAGE_VIEW_TYPE_RANGE_SIZE;
+		return VK_IMAGE_VIEW_TYPE_RANGE_SIZE;
 	}
 }
 
 ImageViewHandle Device::create_image_view(const ImageViewCreateInfo &create_info)
 {
-   auto &image_create_info = create_info.image->get_create_info();
+	auto &image_create_info = create_info.image->get_create_info();
 
-	VkFormat format =
-	    create_info.format != VK_FORMAT_UNDEFINED ? create_info.format : image_create_info.format;
+	VkFormat format = create_info.format != VK_FORMAT_UNDEFINED ? create_info.format : image_create_info.format;
 
 	VkImageViewCreateInfo view_info = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	view_info.image = create_info.image->get_image();
 	view_info.format = format;
-   view_info.components = create_info.swizzle;
+	view_info.components = create_info.swizzle;
 	view_info.subresourceRange.aspectMask = format_to_aspect_mask(format);
 	view_info.subresourceRange.baseMipLevel = create_info.base_level;
 	view_info.subresourceRange.baseArrayLayer = create_info.base_layer;
 	view_info.subresourceRange.levelCount = create_info.levels;
 	view_info.subresourceRange.layerCount = create_info.layers;
-   view_info.viewType = get_image_view_type(image_create_info, &create_info);
+	view_info.viewType = get_image_view_type(image_create_info, &create_info);
 
-   VkImageView image_view;
+	VkImageView image_view;
 	if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 		return nullptr;
 
-   ImageViewCreateInfo tmp = create_info;
-   tmp.format = format;
-   return make_handle<ImageView>(this, image_view, tmp);
+	ImageViewCreateInfo tmp = create_info;
+	tmp.format = format;
+	return make_handle<ImageView>(this, image_view, tmp);
 }
 
 ImageHandle Device::create_image(const ImageCreateInfo &create_info, const ImageInitialData *initial)
@@ -650,7 +658,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		view_info.subresourceRange.baseArrayLayer = 0;
 		view_info.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 		view_info.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-      view_info.viewType = get_image_view_type(create_info, nullptr);
+		view_info.viewType = get_image_view_type(create_info, nullptr);
 
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 		{
@@ -857,31 +865,35 @@ VkFormat Device::get_default_depth_format() const
 
 const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 {
-   Hasher h;
-   VkFormat formats[VULKAN_NUM_ATTACHMENTS];
-   VkFormat depth_stencil;
+	Hasher h;
+	VkFormat formats[VULKAN_NUM_ATTACHMENTS];
+	VkFormat depth_stencil;
 
-   for (unsigned i = 0; i < info.num_color_attachments; i++)
-   {
-	   formats[i] =
-		   info.color_attachments[i] ? info.color_attachments[i]->get_format() : VK_FORMAT_UNDEFINED;
-   }
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+	{
+		formats[i] = info.color_attachments[i] ? info.color_attachments[i]->get_format() : VK_FORMAT_UNDEFINED;
+	}
 
-   depth_stencil = info.depth_stencil ? info.depth_stencil->get_format() : VK_FORMAT_UNDEFINED;
-   h.data(formats, info.num_color_attachments * sizeof(VkFormat));
-   h.u32(info.num_color_attachments);
-   h.u32(depth_stencil);
-   h.u32(info.op_flags);
+	depth_stencil = info.depth_stencil ? info.depth_stencil->get_format() : VK_FORMAT_UNDEFINED;
+	h.data(formats, info.num_color_attachments * sizeof(VkFormat));
+	h.u32(info.num_color_attachments);
+	h.u32(depth_stencil);
+	h.u32(info.op_flags);
 
-   auto hash = h.get();
-   auto itr = render_passes.find(hash);
-   if (itr != end(render_passes))
-      return *itr->second.get();
-   else
-   {
-      RenderPass *pass = new RenderPass(this, info);
-      render_passes.emplace(hash, pass);
-      return *pass;
-   }
+	auto hash = h.get();
+	auto itr = render_passes.find(hash);
+	if (itr != end(render_passes))
+		return *itr->second.get();
+	else
+	{
+		RenderPass *pass = new RenderPass(this, info);
+		render_passes.emplace(hash, pass);
+		return *pass;
+	}
+}
+
+const Framebuffer &Device::request_framebuffer(const RenderPassInfo &info)
+{
+	return framebuffer_allocator.request_framebuffer(info);
 }
 }

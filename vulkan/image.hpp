@@ -102,12 +102,9 @@ struct ImageViewCreateInfo
 	unsigned levels = VK_REMAINING_MIP_LEVELS;
 	unsigned base_layer = 0;
 	unsigned layers = VK_REMAINING_ARRAY_LAYERS;
-   VkComponentMapping swizzle = {
-      VK_COMPONENT_SWIZZLE_R,
-      VK_COMPONENT_SWIZZLE_G,
-      VK_COMPONENT_SWIZZLE_B,
-      VK_COMPONENT_SWIZZLE_A,
-   };
+	VkComponentMapping swizzle = {
+		VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A,
+	};
 };
 
 class ImageView : public IntrusivePtrEnabled<ImageView>, public Cookie
@@ -116,20 +113,20 @@ public:
 	ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info);
 	~ImageView();
 
-   VkImageView get_view() const
-   {
-      return view;
-   }
+	VkImageView get_view() const
+	{
+		return view;
+	}
 
-   VkFormat get_format() const
-   {
-      return info.format;
-   }
+	VkFormat get_format() const
+	{
+		return info.format;
+	}
 
-   const Image &get_image() const
-   {
-      return *info.image;
-   }
+	const Image &get_image() const
+	{
+		return *info.image;
+	}
 
 private:
 	Device *device;
@@ -205,10 +202,25 @@ public:
 		return image;
 	}
 
-   VkFormat get_format() const
-   {
-      return create_info.format;
-   }
+	VkFormat get_format() const
+	{
+		return create_info.format;
+	}
+
+	uint32_t get_width() const
+	{
+		return create_info.width;
+	}
+
+	uint32_t get_height() const
+	{
+		return create_info.height;
+	}
+
+	uint32_t get_depth() const
+	{
+		return create_info.depth;
+	}
 
 	const ImageCreateInfo &get_create_info() const
 	{
