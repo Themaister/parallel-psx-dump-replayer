@@ -10,6 +10,7 @@
 #include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
+#include "render_pass.hpp"
 #include <memory>
 #include <vector>
 
@@ -41,6 +42,7 @@ public:
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
+   ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
 	SamplerHandle create_sampler(const SamplerCreateInfo &info);
 	const Sampler &get_stock_sampler(StockSampler sampler) const;
 
@@ -61,6 +63,7 @@ public:
 
 	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
 	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
+   Framebuffer *request_framebuffer(const RenderPassInfo &info);
 
 	uint64_t allocate_cookie()
 	{
@@ -133,7 +136,10 @@ private:
 	bool memory_type_is_device_optimal(uint32_t type) const;
 	bool memory_type_is_host_visible(uint32_t type) const;
 
+   const RenderPass &request_render_pass(const RenderPassInfo &info);
+
 	HashMap<std::unique_ptr<PipelineLayout>> pipeline_layouts;
 	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
+   HashMap<std::unique_ptr<RenderPass>> render_passes;
 };
 }

@@ -16,6 +16,7 @@ add_library(vulkan
    semaphore_manager.cpp
    command_buffer.cpp
    shader.cpp
+   render_pass.cpp
    buffer.cpp
    wsi.cpp)
 

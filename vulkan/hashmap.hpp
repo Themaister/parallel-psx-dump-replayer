@@ -13,7 +13,7 @@ class Hasher
 {
 public:
 	template <typename T>
-	void data(const T *data, size_t size)
+	inline void data(const T *data, size_t size)
 	{
 		using arith_type = decltype(data[int()]);
 		size /= sizeof(arith_type);
@@ -21,7 +21,12 @@ public:
 			h = (h * 0x100000001b3ull) ^ data[i];
 	}
 
-	Hash get() const
+   inline void u32(uint32_t value)
+   {
+      h = (h * 0x100000001b3ull) ^ value;
+   }
+
+	inline Hash get() const
 	{
 		return h;
 	}

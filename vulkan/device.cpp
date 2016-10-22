@@ -493,6 +493,92 @@ uint32_t Device::find_memory_type(ImageDomain domain, uint32_t mask)
 	throw runtime_error("Couldn't find memory type.");
 }
 
+static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_info, const ImageViewCreateInfo *view)
+{
+   unsigned layers = view ? view->layers : create_info.layers;
+   unsigned levels = view ? view->levels : create_info.levels;
+   unsigned base_level = view ? view->base_level : 0;
+   unsigned base_layer = view ? view->base_layer : 0;
+
+   if (layers == VK_REMAINING_ARRAY_LAYERS)
+      layers = create_info.layers - base_layer;
+   if (levels == VK_REMAINING_MIP_LEVELS)
+      levels = create_info.levels - base_level;
+
+	switch (create_info.type)
+	{
+	case VK_IMAGE_TYPE_1D:
+		VK_ASSERT(create_info.width >= 1);
+		VK_ASSERT(create_info.height == 1);
+		VK_ASSERT(create_info.depth == 1);
+		VK_ASSERT(create_info.samples == VK_SAMPLE_COUNT_1_BIT);
+
+		if (layers > 1)
+			return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+		else
+			return VK_IMAGE_VIEW_TYPE_1D;
+
+	case VK_IMAGE_TYPE_2D:
+		VK_ASSERT(create_info.width >= 1);
+		VK_ASSERT(create_info.height >= 1);
+		VK_ASSERT(create_info.depth == 1);
+
+		if ((create_info.flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) && (layers % 6) == 0)
+		{
+			VK_ASSERT(create_info.width == create_info.height);
+
+			if (layers > 6)
+				return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+			else
+				return VK_IMAGE_VIEW_TYPE_CUBE;
+		}
+		else
+		{
+			if (layers > 6)
+				return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+			else
+				return VK_IMAGE_VIEW_TYPE_2D;
+		}
+
+	case VK_IMAGE_TYPE_3D:
+		VK_ASSERT(create_info.width >= 1);
+		VK_ASSERT(create_info.height >= 1);
+		VK_ASSERT(create_info.depth >= 1);
+		return VK_IMAGE_VIEW_TYPE_3D;
+
+	default:
+		VK_ASSERT(0 && "bogus");
+      return VK_IMAGE_VIEW_TYPE_RANGE_SIZE;
+	}
+}
+
+ImageViewHandle Device::create_image_view(const ImageViewCreateInfo &create_info)
+{
+   auto &image_create_info = create_info.image->get_create_info();
+
+	VkFormat format =
+	    create_info.format != VK_FORMAT_UNDEFINED ? create_info.format : image_create_info.format;
+
+	VkImageViewCreateInfo view_info = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	view_info.image = create_info.image->get_image();
+	view_info.format = format;
+   view_info.components = create_info.swizzle;
+	view_info.subresourceRange.aspectMask = format_to_aspect_mask(format);
+	view_info.subresourceRange.baseMipLevel = create_info.base_level;
+	view_info.subresourceRange.baseArrayLayer = create_info.base_layer;
+	view_info.subresourceRange.levelCount = create_info.levels;
+	view_info.subresourceRange.layerCount = create_info.layers;
+   view_info.viewType = get_image_view_type(image_create_info, &create_info);
+
+   VkImageView image_view;
+	if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
+		return nullptr;
+
+   ImageViewCreateInfo tmp = create_info;
+   tmp.format = format;
+   return make_handle<ImageView>(this, image_view, tmp);
+}
+
 ImageHandle Device::create_image(const ImageCreateInfo &create_info, const ImageInitialData *initial)
 {
 	VkImage image;
@@ -564,55 +650,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		view_info.subresourceRange.baseArrayLayer = 0;
 		view_info.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 		view_info.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-		switch (info.imageType)
-		{
-		case VK_IMAGE_TYPE_1D:
-			VK_ASSERT(create_info.width >= 1);
-			VK_ASSERT(create_info.height == 1);
-			VK_ASSERT(create_info.depth == 1);
-			VK_ASSERT(create_info.samples == VK_SAMPLE_COUNT_1_BIT);
-
-			if (create_info.layers > 1)
-				view_info.viewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-			else
-				view_info.viewType = VK_IMAGE_VIEW_TYPE_1D;
-			break;
-
-		case VK_IMAGE_TYPE_2D:
-			VK_ASSERT(create_info.width >= 1);
-			VK_ASSERT(create_info.height >= 1);
-			VK_ASSERT(create_info.depth == 1);
-
-			if (create_info.flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT)
-			{
-				VK_ASSERT(create_info.layers % 6 == 0);
-				VK_ASSERT(create_info.width == create_info.height);
-
-				if (create_info.layers > 6)
-					view_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-				else
-					view_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-			}
-			else
-			{
-				if (create_info.layers > 6)
-					view_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-				else
-					view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			}
-			break;
-
-		case VK_IMAGE_TYPE_3D:
-			VK_ASSERT(create_info.width >= 1);
-			VK_ASSERT(create_info.height >= 1);
-			VK_ASSERT(create_info.depth >= 1);
-			view_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
-			break;
-
-		default:
-			VK_ASSERT(0 && "bogus");
-		}
+      view_info.viewType = get_image_view_type(create_info, nullptr);
 
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 		{
@@ -815,5 +853,35 @@ VkFormat Device::get_default_depth_format() const
 		return VK_FORMAT_D16_UNORM;
 
 	return VK_FORMAT_UNDEFINED;
+}
+
+const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
+{
+   Hasher h;
+   VkFormat formats[VULKAN_NUM_ATTACHMENTS];
+   VkFormat depth_stencil;
+
+   for (unsigned i = 0; i < info.num_color_attachments; i++)
+   {
+	   formats[i] =
+		   info.color_attachments[i] ? info.color_attachments[i]->get_format() : VK_FORMAT_UNDEFINED;
+   }
+
+   depth_stencil = info.depth_stencil ? info.depth_stencil->get_format() : VK_FORMAT_UNDEFINED;
+   h.data(formats, info.num_color_attachments * sizeof(VkFormat));
+   h.u32(info.num_color_attachments);
+   h.u32(depth_stencil);
+   h.u32(info.op_flags);
+
+   auto hash = h.get();
+   auto itr = render_passes.find(hash);
+   if (itr != end(render_passes))
+      return *itr->second.get();
+   else
+   {
+      RenderPass *pass = new RenderPass(this, info);
+      render_passes.emplace(hash, pass);
+      return *pass;
+   }
 }
 }

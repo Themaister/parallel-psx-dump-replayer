@@ -96,12 +96,18 @@ using ImageMiscFlags = uint32_t;
 class Image;
 struct ImageViewCreateInfo
 {
-	Image *image;
-	VkFormat format;
-	unsigned base_level;
-	unsigned levels;
-	unsigned base_layer;
-	unsigned layers;
+	Image *image = nullptr;
+	VkFormat format = VK_FORMAT_UNDEFINED;
+	unsigned base_level = 0;
+	unsigned levels = VK_REMAINING_MIP_LEVELS;
+	unsigned base_layer = 0;
+	unsigned layers = VK_REMAINING_ARRAY_LAYERS;
+   VkComponentMapping swizzle = {
+      VK_COMPONENT_SWIZZLE_R,
+      VK_COMPONENT_SWIZZLE_G,
+      VK_COMPONENT_SWIZZLE_B,
+      VK_COMPONENT_SWIZZLE_A,
+   };
 };
 
 class ImageView : public IntrusivePtrEnabled<ImageView>, public Cookie
@@ -109,6 +115,21 @@ class ImageView : public IntrusivePtrEnabled<ImageView>, public Cookie
 public:
 	ImageView(Device *device, VkImageView view, const ImageViewCreateInfo &info);
 	~ImageView();
+
+   VkImageView get_view() const
+   {
+      return view;
+   }
+
+   VkFormat get_format() const
+   {
+      return info.format;
+   }
+
+   const Image &get_image() const
+   {
+      return *info.image;
+   }
 
 private:
 	Device *device;
@@ -183,6 +204,11 @@ public:
 	{
 		return image;
 	}
+
+   VkFormat get_format() const
+   {
+      return create_info.format;
+   }
 
 	const ImageCreateInfo &get_create_info() const
 	{
