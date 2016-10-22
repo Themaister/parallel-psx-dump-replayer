@@ -340,11 +340,13 @@ void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
 	frame().allocations.push_back(alloc);
 }
 
+#ifdef VULKAN_DEBUG
 template <typename T, typename U>
 static inline bool exists(const T &container, const U &value)
 {
 	return find(begin(container), end(container), value) != end(container);
 }
+#endif
 
 void Device::destroy_pipeline(VkPipeline pipeline)
 {
@@ -354,21 +356,25 @@ void Device::destroy_pipeline(VkPipeline pipeline)
 
 void Device::destroy_image_view(VkImageView view)
 {
+	VK_ASSERT(!exists(frame().destroyed_image_views, view));
 	frame().destroyed_image_views.push_back(view);
 }
 
 void Device::destroy_image(VkImage image)
 {
+	VK_ASSERT(!exists(frame().destroyed_images, image));
 	frame().destroyed_images.push_back(image);
 }
 
 void Device::destroy_buffer(VkBuffer buffer)
 {
+	VK_ASSERT(!exists(frame().destroyed_buffers, buffer));
 	frame().destroyed_buffers.push_back(buffer);
 }
 
 void Device::destroy_sampler(VkSampler sampler)
 {
+	VK_ASSERT(!exists(frame().destroyed_samplers, sampler));
 	frame().destroyed_samplers.push_back(sampler);
 }
 

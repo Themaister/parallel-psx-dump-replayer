@@ -74,8 +74,10 @@ public:
 
 	void reset()
 	{
+		// Static up-cast here to avoid potential issues with multiple intrusive inheritance.
+		// Also makes sure that the pointer type actually inherits from this type.
 		if (data)
-			data->release_reference();
+			static_cast<IntrusivePtrEnabled<T> *>(data)->release_reference();
 		data = nullptr;
 	}
 
@@ -85,8 +87,11 @@ public:
 		{
 			reset();
 			data = other.data;
+
+			// Static up-cast here to avoid potential issues with multiple intrusive inheritance.
+			// Also makes sure that the pointer type actually inherits from this type.
 			if (data)
-				data->add_reference();
+				static_cast<IntrusivePtrEnabled<T> *>(data)->add_reference();
 		}
 		return *this;
 	}

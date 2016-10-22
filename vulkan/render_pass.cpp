@@ -206,7 +206,7 @@ void FramebufferAllocator::clear()
 {
 	for (auto &ring : rings)
 	{
-		for (auto node : ring)
+		for (auto &node : ring)
 			object_pool.free(&node);
 		ring.clear();
 	}

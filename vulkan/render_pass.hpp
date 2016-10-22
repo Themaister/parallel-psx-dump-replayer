@@ -45,7 +45,7 @@ struct RenderPassInfo
 	VkClearDepthStencilValue clear_depth_stencil = { 1.0f, 0 };
 };
 
-class RenderPass : public Cookie
+class RenderPass : public Cookie, public NoCopyNoMove
 {
 public:
 	RenderPass(Device *device, const RenderPassInfo &info);
@@ -65,7 +65,7 @@ private:
 	unsigned num_color_attachments;
 };
 
-class Framebuffer : public Cookie
+class Framebuffer : public Cookie, public NoCopyNoMove
 {
 public:
 	Framebuffer(Device *device, const RenderPass &rp, const RenderPassInfo &info);

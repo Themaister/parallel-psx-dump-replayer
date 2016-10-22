@@ -36,6 +36,16 @@
 
 namespace Vulkan
 {
+struct NoCopyNoMove
+{
+	NoCopyNoMove() = default;
+	NoCopyNoMove(const NoCopyNoMove &) = delete;
+	void operator=(const NoCopyNoMove &) = delete;
+};
+}
+
+namespace Vulkan
+{
 class VulkanContext
 {
 public:

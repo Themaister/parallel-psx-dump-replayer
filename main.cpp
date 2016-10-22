@@ -235,6 +235,7 @@ int main()
 	    ;
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
 
+	unsigned frame = 0;
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
@@ -252,7 +253,11 @@ int main()
 		auto cmd = device.request_command_buffer();
 
 		auto rp = device.get_swapchain_render_pass(SwapchainRenderPass::DepthStencil);
-		rp.clear_color[0].float32[0] = 1.0f;
+
+		frame++;
+		rp.clear_color[0].float32[0] = float(frame & 255) / 255.0f;
+		rp.clear_color[0].float32[1] = float(frame & 255) / 255.0f;
+		rp.clear_color[0].float32[2] = float(frame & 255) / 255.0f;
 		cmd->begin_render_pass(rp);
 		cmd->end_render_pass();
 
