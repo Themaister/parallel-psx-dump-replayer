@@ -232,6 +232,8 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 			}
 			else
 				barrier.newLayout = image.get_layout();
+
+			barrier.dstAccessMask &= image_layout_to_possible_access(barrier.newLayout);
 		}
 	}
 
@@ -254,6 +256,7 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 		barrier.subresourceRange.layerCount = view->get_create_info().layers;
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstAccessMask &= image_layout_to_possible_access(barrier.newLayout);
 
 		dst_stages |= depth_stencil_access_stages & image.get_stage_flags();
 	}
