@@ -74,6 +74,7 @@ public:
 	bool format_is_supported(VkFormat format, VkFormatFeatureFlags required) const;
 	VkFormat get_default_depth_stencil_format() const;
 	VkFormat get_default_depth_format() const;
+	ImageView &get_transient_attachment(unsigned width, unsigned height, VkFormat format, unsigned index = 0);
 
 	PipelineLayout *request_pipeline_layout(const CombinedResourceLayout &layout);
 	DescriptorSetAllocator *request_descriptor_set_allocator(const DescriptorSetLayout &layout);
@@ -162,8 +163,6 @@ private:
 	// The per frame structure must be destroyed after
 	// the hashmap data structures below, so it must be declared before.
 	std::vector<std::unique_ptr<PerFrame>> per_frame;
-	ImageHandle backbuffer_depth;
-	ImageHandle backbuffer_depth_stencil;
 
 	unsigned current_swapchain_index = 0;
 	uint32_t queue_family_index = 0;
@@ -177,6 +176,7 @@ private:
 	HashMap<std::unique_ptr<PipelineLayout>> pipeline_layouts;
 	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
 	FramebufferAllocator framebuffer_allocator;
+	TransientAllocator transient_allocator;
 	HashMap<std::unique_ptr<RenderPass>> render_passes;
 	VkPipelineCache pipeline_cache = VK_NULL_HANDLE;
 };

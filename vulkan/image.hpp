@@ -231,6 +231,15 @@ struct ImageCreateInfo
 			                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 			     VK_SAMPLE_COUNT_1_BIT, 0, 0, VK_IMAGE_LAYOUT_GENERAL };
 	}
+
+	static ImageCreateInfo transient_render_target(unsigned width, unsigned height, VkFormat format)
+	{
+		bool depth_stencil = format_is_depth_stencil(format);
+		return { ImageDomain::Transient, width, height, 1, 1, format, VK_IMAGE_TYPE_2D, 1,
+		         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VkImageUsageFlags(depth_stencil ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+		                                                                               : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+		         VK_SAMPLE_COUNT_1_BIT, 0, 0, depth_stencil ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+	}
 };
 
 class Image : public IntrusivePtrEnabled<Image>, public Cookie

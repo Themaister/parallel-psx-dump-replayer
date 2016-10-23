@@ -8,7 +8,8 @@ using namespace std;
 namespace Vulkan
 {
 Device::Device()
-    : framebuffer_allocator(this)
+	: framebuffer_allocator(this),
+	  transient_allocator(this)
 {
 }
 
@@ -332,6 +333,7 @@ Device::~Device()
 		vkDestroyPipelineCache(device, pipeline_cache, nullptr);
 
 	framebuffer_allocator.clear();
+	transient_allocator.clear();
 	for (auto &sampler : samplers)
 		sampler.reset();
 
@@ -344,9 +346,8 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 	wait_idle();
 
 	// Clear out caches which might contain stale data from now on.
-	backbuffer_depth.reset();
-	backbuffer_depth_stencil.reset();
 	framebuffer_allocator.clear();
+	transient_allocator.clear();
 
 	for (auto &frame : per_frame)
 		frame->cleanup();
@@ -460,6 +461,7 @@ void Device::begin_frame(unsigned index)
 
 	frame().begin();
 	framebuffer_allocator.begin_frame();
+	transient_allocator.begin_frame();
 	for (auto &allocator : descriptor_set_allocators)
 		allocator.second->begin_frame();
 }
@@ -712,9 +714,11 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	info.samples = create_info.samples;
 	info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	info.tiling = VK_IMAGE_TILING_OPTIMAL;
-	info.usage = create_info.usage | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	info.usage = create_info.usage;
 	if (create_info.domain == ImageDomain::Transient)
 		info.usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+	if (initial)
+		info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 	if (create_info.usage & VK_IMAGE_USAGE_STORAGE_BIT)
 		info.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
@@ -744,10 +748,8 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	}
 
 	auto tmpinfo = create_info;
-	tmpinfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	tmpinfo.usage = info.usage;
 	tmpinfo.levels = info.mipLevels;
-	if (tmpinfo.domain == ImageDomain::Transient)
-		tmpinfo.usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
 	// Create a default image view.
 	VkImageView image_view = VK_NULL_HANDLE;
@@ -787,6 +789,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	// Copy initial data to texture.
 	if (initial)
 	{
+		VK_ASSERT(create_info.domain != ImageDomain::Transient);
 		bool generate_mips = (create_info.misc & IMAGE_MISC_GENERATE_MIPS_BIT) != 0;
 		unsigned copy_levels = generate_mips ? 1u : info.mipLevels;
 
@@ -1020,6 +1023,12 @@ const Framebuffer &Device::request_framebuffer(const RenderPassInfo &info)
 	return framebuffer_allocator.request_framebuffer(info);
 }
 
+ImageView &Device::get_transient_attachment(unsigned width, unsigned height, VkFormat format,
+                                                    unsigned int index)
+{
+	return transient_allocator.request_attachment(width, height, format, index);
+}
+
 RenderPassInfo Device::get_swapchain_render_pass(SwapchainRenderPass style)
 {
 	RenderPassInfo info;
@@ -1032,32 +1041,18 @@ RenderPassInfo Device::get_swapchain_render_pass(SwapchainRenderPass style)
 	case SwapchainRenderPass::Depth:
 	{
 		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
-		if (!backbuffer_depth)
-		{
-			auto info = ImageCreateInfo::render_target(frame().backbuffer->get_create_info().width,
+		info.depth_stencil = &get_transient_attachment(frame().backbuffer->get_create_info().width,
 			                                           frame().backbuffer->get_create_info().height,
 			                                           get_default_depth_format());
-			info.initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			info.domain = ImageDomain::Transient;
-			backbuffer_depth = create_image(info, nullptr);
-		}
-		info.depth_stencil = &backbuffer_depth->get_view();
 		break;
 	}
 
 	case SwapchainRenderPass::DepthStencil:
 	{
 		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
-		if (!backbuffer_depth_stencil)
-		{
-			auto info = ImageCreateInfo::render_target(frame().backbuffer->get_create_info().width,
-			                                           frame().backbuffer->get_create_info().height,
-			                                           get_default_depth_stencil_format());
-			info.initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			info.domain = ImageDomain::Transient;
-			backbuffer_depth_stencil = create_image(info, nullptr);
-		}
-		info.depth_stencil = &backbuffer_depth_stencil->get_view();
+		info.depth_stencil = &get_transient_attachment(frame().backbuffer->get_create_info().width,
+		                                               frame().backbuffer->get_create_info().height,
+		                                               get_default_depth_stencil_format());
 		break;
 	}
 

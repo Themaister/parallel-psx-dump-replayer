@@ -265,4 +265,70 @@ Framebuffer &FramebufferAllocator::request_framebuffer(const RenderPassInfo &inf
 		return *node;
 	}
 }
+TransientAllocator::TransientAllocator(Device *device)
+    : device(device)
+{
+}
+
+void TransientAllocator::clear()
+{
+	for (auto &ring : rings)
+	{
+		for (auto &node : ring)
+			object_pool.free(&node);
+		ring.clear();
+	}
+	attachments.clear();
+}
+
+TransientAllocator::~TransientAllocator()
+{
+	clear();
+}
+
+void TransientAllocator::begin_frame()
+{
+	index = (index + 1) & (VULKAN_FRAMEBUFFER_RING_SIZE - 1);
+	for (auto &node : rings[index])
+	{
+		attachments.erase(node.hash);
+		object_pool.free(&node);
+	}
+	rings[index].clear();
+}
+
+ImageView &TransientAllocator::request_attachment(unsigned width, unsigned height, VkFormat format, unsigned index)
+{
+	Hasher h;
+	h.u32(width);
+	h.u32(height);
+	h.u32(format);
+	h.u32(index);
+
+	auto hash = h.get();
+	auto itr = attachments.find(hash);
+	if (itr != end(attachments))
+	{
+		auto i = itr->second;
+		if (i->index != index)
+		{
+			rings[index].move_to_front(rings[i->index], i);
+			i->index = index;
+		}
+
+		return i->handle->get_view();
+	}
+	else
+	{
+		auto image_info = ImageCreateInfo::transient_render_target(width, height, format);
+
+		auto handle = device->create_image(image_info, nullptr);
+		auto *node = object_pool.allocate(handle);
+		node->index = index;
+		node->hash = hash;
+		attachments[hash] = node;
+		rings[index].insert_front(node);
+		return handle->get_view();
+	}
+}
 }

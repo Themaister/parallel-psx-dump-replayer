@@ -6,6 +6,7 @@
 #include "limits.hpp"
 #include "object_pool.hpp"
 #include "vulkan.hpp"
+#include "image.hpp"
 
 namespace Vulkan
 {
@@ -128,5 +129,35 @@ private:
 	ObjectPool<FramebufferNode> object_pool;
 	unsigned index = 0;
 	HashMap<WeakList<FramebufferNode>::Iterator> framebuffers;
+};
+
+class TransientAllocator
+{
+public:
+	TransientAllocator(Device *device);
+	~TransientAllocator();
+	ImageView &request_attachment(unsigned width, unsigned height, VkFormat format, unsigned index = 0);
+
+	void begin_frame();
+	void clear();
+
+private:
+	struct TransientNode : public IntrusiveListEnabled<TransientNode>
+	{
+		TransientNode(ImageHandle handle)
+			: handle(handle)
+		{
+		}
+
+		ImageHandle handle;
+		Hash hash = 0;
+		unsigned index = 0;
+	};
+
+	Device *device;
+	WeakList<TransientNode> rings[VULKAN_FRAMEBUFFER_RING_SIZE];
+	ObjectPool<TransientNode> object_pool;
+	unsigned index = 0;
+	HashMap<WeakList<TransientNode>::Iterator> attachments;
 };
 }
