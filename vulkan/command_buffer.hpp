@@ -72,16 +72,7 @@ public:
 	                VkFilter filter = VK_FILTER_LINEAR);
 
 	void begin_render_pass(const RenderPassInfo &info);
-	void end_render_pass(VkPipelineStageFlags color_access_stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-	                                                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-	                     VkAccessFlags color_access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	                                                  VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-	                     VkPipelineStageFlags depth_stencil_access_stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-	                                                                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-	                                                                        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-	                     VkAccessFlags depth_stencil_access = VK_ACCESS_SHADER_READ_BIT |
-	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+	void end_render_pass();
 
 	void bind_program(Program &program);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view);
