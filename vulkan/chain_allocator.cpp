@@ -52,14 +52,21 @@ ChainDataAllocation ChainAllocator::allocate(VkDeviceSize size)
 
 void ChainAllocator::discard()
 {
-	for (unsigned i = 0; i < chain_index; i++)
-		device->unmap_host_buffer(*buffers[i]);
 	chain_index = 0;
 	offset = 0;
+	start_flush_index = 0;
 }
 
 void ChainAllocator::flush()
 {
+	for (unsigned i = start_flush_index; i <= chain_index; i++)
+	{
+		// FIXME: Add explicit flush.
+		device->unmap_host_buffer(*buffers[i]);
+		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
+	}
+	start_flush_index = chain_index;
+
 	// FIXME: Implement
 }
 }

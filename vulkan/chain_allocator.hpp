@@ -33,6 +33,7 @@ private:
 
 	std::vector<BufferHandle> buffers;
 	unsigned chain_index = 0;
+	unsigned start_flush_index = 0;
 	VkDeviceSize offset = 0;
 	VkDeviceSize size = 0;
 	uint8_t *host = nullptr;
