@@ -119,14 +119,27 @@ public:
 		return layout;
 	}
 
-	VkPipeline get_pipeline(Hash hash) const;
-	void add_pipeline(Hash hash, VkPipeline pipeline);
+	VkPipeline get_graphics_pipeline(Hash hash) const;
+	void add_graphics_pipeline(Hash hash, VkPipeline pipeline);
+
+	VkPipeline get_compute_pipeline() const
+	{
+		VK_ASSERT(compute_pipeline != VK_NULL_HANDLE);
+		return compute_pipeline;
+	}
+
+	void set_compute_pipeline(VkPipeline pipeline)
+	{
+		VK_ASSERT(compute_pipeline == VK_NULL_HANDLE);
+		compute_pipeline = pipeline;
+	}
 
 private:
 	Device *device;
 	ShaderHandle shaders[static_cast<unsigned>(ShaderStage::Count)];
 	PipelineLayout *layout = nullptr;
-	HashMap<VkPipeline> pipelines;
+	VkPipeline compute_pipeline = VK_NULL_HANDLE;
+	HashMap<VkPipeline> graphics_pipelines;
 };
 using ProgramHandle = IntrusivePtr<Program>;
 }

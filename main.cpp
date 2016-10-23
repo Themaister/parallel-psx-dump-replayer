@@ -234,7 +234,13 @@ int main()
 	static const uint32_t triangle_frag[] =
 #include "triangle.frag.inc"
 	    ;
+
+	static const uint32_t test_comp[] =
+#include "test.comp.inc"
+	;
+
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
+	auto compute_program = device.create_program(test_comp, sizeof(test_comp));
 
 	static const float buffer_data[6 * 4] = {
 		-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f,

@@ -170,24 +170,27 @@ Program::Program(Device *device)
 {
 }
 
-VkPipeline Program::get_pipeline(Hash hash) const
+VkPipeline Program::get_graphics_pipeline(Hash hash) const
 {
-	auto itr = pipelines.find(hash);
-	if (itr != end(pipelines))
+	auto itr = graphics_pipelines.find(hash);
+	if (itr != end(graphics_pipelines))
 		return itr->second;
 	else
 		return VK_NULL_HANDLE;
 }
 
-void Program::add_pipeline(Hash hash, VkPipeline pipeline)
+void Program::add_graphics_pipeline(Hash hash, VkPipeline pipeline)
 {
-	VK_ASSERT(pipelines[hash] == VK_NULL_HANDLE);
-	pipelines[hash] = pipeline;
+	VK_ASSERT(graphics_pipelines[hash] == VK_NULL_HANDLE);
+	graphics_pipelines[hash] = pipeline;
 }
 
 Program::~Program()
 {
-	for (auto &pipe : pipelines)
+	if (compute_pipeline != VK_NULL_HANDLE)
+		device->destroy_pipeline(compute_pipeline);
+
+	for (auto &pipe : graphics_pipelines)
 		device->destroy_pipeline(pipe.second);
 }
 }

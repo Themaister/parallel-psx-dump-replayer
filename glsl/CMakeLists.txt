@@ -15,4 +15,5 @@ endfunction(add_shader)
 
 add_shader(triangle.vert triangle.vert)
 add_shader(triangle.frag triangle.frag)
+add_shader(test.comp test.comp)
 

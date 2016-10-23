@@ -107,6 +107,22 @@ void Device::bake_program(Program &program)
 	layout.push_constant_layout_hash = h.get();
 
 	program.set_pipeline_layout(request_pipeline_layout(layout));
+
+	if (program.get_shader(ShaderStage::Compute))
+	{
+		auto &shader = *program.get_shader(ShaderStage::Compute);
+		VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+		info.layout = program.get_pipeline_layout()->get_layout();
+		info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		info.stage.module = shader.get_module();
+		info.stage.pName = "main";
+		info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		VkPipeline compute_pipeline;
+		if (vkCreateComputePipelines(device, pipeline_cache, 1, &info, nullptr, &compute_pipeline) != VK_SUCCESS)
+			LOG("Failed to create compute pipeline!\n");
+		program.set_compute_pipeline(compute_pipeline);
+	}
 }
 
 void Device::set_context(const VulkanContext &context)

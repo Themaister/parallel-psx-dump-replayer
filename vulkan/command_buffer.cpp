@@ -400,7 +400,7 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	if (res != VK_SUCCESS)
 		LOG("Failed to create graphics pipeline!\n");
 
-	current_program->add_pipeline(hash, current_pipeline);
+	current_program->add_graphics_pipeline(hash, current_pipeline);
 	return current_pipeline;
 }
 
@@ -427,7 +427,7 @@ void CommandBuffer::flush_graphics_pipeline()
 	h.u64(static_state.words);
 
 	auto hash = h.get();
-	current_pipeline = current_program->get_pipeline(hash);
+	current_pipeline = current_program->get_graphics_pipeline(hash);
 	if (current_pipeline == VK_NULL_HANDLE)
 		current_pipeline = build_graphics_pipeline(hash);
 }
