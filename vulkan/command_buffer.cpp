@@ -603,7 +603,26 @@ void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView 
 	if (view.get_cookie() == cookies[set][binding])
 		return;
 
+	bindings[set][binding].image.imageLayout = view.get_image().get_layout();
+	bindings[set][binding].image.imageView = view.get_view();
 	dirty_sets |= 1u << set;
+}
+
+void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view, const Sampler &sampler)
+{
+	if (view.get_cookie() == cookies[set][binding] && sampler.get_cookie() == secondary_cookies[set][binding])
+		return;
+
+	bindings[set][binding].image.imageLayout = view.get_image().get_layout();
+	bindings[set][binding].image.imageView = view.get_view();
+	bindings[set][binding].image.sampler = sampler.get_sampler();
+	dirty_sets |= 1u << set;
+}
+
+void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view, StockSampler stock)
+{
+	const auto &sampler = device->get_stock_sampler(stock);
+	set_texture(set, binding, view, sampler);
 }
 
 void CommandBuffer::flush_descriptor_set(uint32_t set)

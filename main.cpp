@@ -236,11 +236,11 @@ int main()
 	    ;
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
 
-	static const float buffer_data[4 * 4] = {
-		-0.5f, 0.5f, 0.0f, 1.0f,
-		+0.5f, 0.5f, 0.0f, 1.0f,
-		-0.5f, -0.5f, 0.0f, 1.0f,
-		+0.5f, -0.5f, 0.0f, 1.0f,
+	static const float buffer_data[6 * 4] = {
+		-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+		+0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
+		-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
+		+0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
 	};
 	const BufferCreateInfo buffer_info = { BufferDomain::Device, sizeof(buffer_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT };
 	auto vbo = device.create_buffer(buffer_info, buffer_data);
@@ -250,6 +250,15 @@ int main()
 	};
 	const BufferCreateInfo index_info = { BufferDomain::Device, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT };
 	auto ibo = device.create_buffer(index_info, index_data);
+
+	uint32_t initial_image[4 * 4] = {
+		~0u, 0, ~0u, 0,
+		0, ~0u, 0, ~0u,
+		~0u, 0, ~0u, 0,
+		0, ~0u, 0, ~0u,
+	};
+	ImageInitialData initial = { initial_image, 0, 0 };
+	auto image = device.create_image(ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8G8B8A8_UNORM, false), &initial);
 
 	unsigned frame = 0;
 	while (!wsi.alive())
@@ -265,8 +274,9 @@ int main()
 		rp.clear_color[0].float32[2] = float(frame & 255) / 255.0f;
 		cmd->begin_render_pass(rp);
 
-		cmd->set_vertex_binding(0, *vbo, 0, 16);
+		cmd->set_vertex_binding(0, *vbo, 0, 6 * sizeof(float));
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+		cmd->set_vertex_attrib(1, 0, VK_FORMAT_R32G32_SFLOAT, 4 * sizeof(float));
 		cmd->bind_index_buffer(*ibo, 0, VK_INDEX_TYPE_UINT16);
 		cmd->bind_program(*program);
 
@@ -274,6 +284,8 @@ int main()
 		float colors[2] = { 0.8f, 0.2f };
 		cmd->push_constants(offset, 0, sizeof(offset));
 		cmd->push_constants(colors, 8, sizeof(colors));
+
+		cmd->set_texture(0, 0, image->get_view(), StockSampler::NearestClamp);
 
 		cmd->draw_indexed(6);
 
