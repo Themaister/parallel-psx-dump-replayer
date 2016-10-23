@@ -30,7 +30,7 @@ ChainDataAllocation ChainAllocator::allocate(VkDeviceSize size)
 	VK_ASSERT(size <= block_size);
 
 	offset = (offset + alignment - 1) & ~(alignment - 1);
-	if (offset + size < block_size)
+	if (offset + size > block_size)
 	{
 		chain_index++;
 		offset = 0;
