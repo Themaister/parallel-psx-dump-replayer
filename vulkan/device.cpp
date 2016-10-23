@@ -12,6 +12,17 @@ Device::Device()
 {
 }
 
+void *Device::map_host_buffer(Buffer &buffer, MaliSDK::MemoryAccessFlags access)
+{
+	void *host = allocator.mapMemory(&buffer.get_allocation(), access);
+	return host;
+}
+
+void Device::unmap_host_buffer(const Buffer &buffer)
+{
+	allocator.unmapMemory(buffer.get_allocation());
+}
+
 ShaderHandle Device::create_shader(ShaderStage stage, const uint32_t *data, size_t size)
 {
 	return make_handle<Shader>(device, stage, data, size);
@@ -202,6 +213,10 @@ void Device::submit(CommandBufferHandle cmd)
 
 void Device::submit_queue()
 {
+	frame().ubo_chain.flush();
+	frame().vbo_chain.flush();
+	frame().ibo_chain.flush();
+
 	vector<VkCommandBuffer> cmds;
 	cmds.reserve(frame().submissions.size());
 
@@ -341,7 +356,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 
 	for (auto &image : swapchain_images)
 	{
-		auto frame = unique_ptr<PerFrame>(new PerFrame(device, queue_family_index));
+		auto frame = unique_ptr<PerFrame>(new PerFrame(this, queue_family_index));
 
 		VkImageViewCreateInfo view_info = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		view_info.image = image;
@@ -365,10 +380,13 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 	}
 }
 
-Device::PerFrame::PerFrame(VkDevice device, uint32_t queue_family_index)
-    : device(device)
-    , cmd_pool(device, queue_family_index)
-    , fence_manager(device)
+Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
+    : device(device->get_device())
+    , cmd_pool(device->get_device(), queue_family_index)
+    , fence_manager(device->get_device())
+	, vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
+	, ibo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+	, ubo_chain(device, 1024 * 1024, device->get_gpu_properties().limits.minUniformBufferOffsetAlignment, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
 {
 }
 
@@ -448,6 +466,9 @@ void Device::begin_frame(unsigned index)
 
 void Device::PerFrame::begin()
 {
+	ubo_chain.discard();
+	vbo_chain.discard();
+	ibo_chain.discard();
 	fence_manager.begin();
 	cmd_pool.begin();
 
@@ -480,12 +501,30 @@ void Device::PerFrame::begin()
 void Device::PerFrame::cleanup()
 {
 	backbuffer.reset();
+	vbo_chain.reset();
+	ibo_chain.reset();
+	ubo_chain.reset();
 }
 
 Device::PerFrame::~PerFrame()
 {
 	cleanup();
 	begin();
+}
+
+ChainDataAllocation Device::allocate_constant_data(VkDeviceSize size)
+{
+	return frame().ubo_chain.allocate(size);
+}
+
+ChainDataAllocation Device::allocate_vertex_data(VkDeviceSize size)
+{
+	return frame().vbo_chain.allocate(size);
+}
+
+ChainDataAllocation Device::allocate_index_data(VkDeviceSize size)
+{
+	return frame().ibo_chain.allocate(size);
 }
 
 uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)

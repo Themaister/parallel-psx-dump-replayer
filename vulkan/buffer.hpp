@@ -76,6 +76,16 @@ public:
 		return info;
 	}
 
+	MaliSDK::DeviceAllocation &get_allocation()
+	{
+		return alloc;
+	}
+
+	const MaliSDK::DeviceAllocation &get_allocation() const
+	{
+		return alloc;
+	}
+
 private:
 	Device *device;
 	VkBuffer buffer;

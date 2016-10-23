@@ -17,18 +17,24 @@ struct ChainDataAllocation
 class ChainAllocator
 {
 public:
-	ChainAllocator(Device *device, VkDeviceSize block_size, VkBufferUsageFlags usage);
+	ChainAllocator(Device *device, VkDeviceSize block_size, VkDeviceSize alignment, VkBufferUsageFlags usage);
 	~ChainAllocator();
 
 	ChainDataAllocation allocate(VkDeviceSize size);
+	void discard();
+	void reset();
 	void flush();
 
 private:
+	Device *device;
+	VkDeviceSize block_size;
+	VkDeviceSize alignment;
+	VkBufferUsageFlags usage;
+
 	std::vector<BufferHandle> buffers;
 	unsigned chain_index = 0;
 	VkDeviceSize offset = 0;
 	VkDeviceSize size = 0;
-	VkDeviceSize block_size;
 	uint8_t *host = nullptr;
 };
 

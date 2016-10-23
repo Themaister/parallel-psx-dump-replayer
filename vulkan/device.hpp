@@ -50,6 +50,9 @@ public:
 	ProgramHandle create_program(const uint32_t *compute_data, size_t compute_size);
 	void bake_program(Program &program);
 
+	void *map_host_buffer(Buffer &buffer, MaliSDK::MemoryAccessFlags access);
+	void unmap_host_buffer(const Buffer &buffer);
+
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
 	ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
@@ -84,6 +87,18 @@ public:
 
 	RenderPassInfo get_swapchain_render_pass(SwapchainRenderPass style);
 	ChainDataAllocation allocate_constant_data(VkDeviceSize size);
+	ChainDataAllocation allocate_vertex_data(VkDeviceSize size);
+	ChainDataAllocation allocate_index_data(VkDeviceSize size);
+
+	const VkPhysicalDeviceMemoryProperties &get_memory_properties() const
+	{
+		return mem_props;
+	}
+
+	const VkPhysicalDeviceProperties &get_gpu_properties() const
+	{
+		return gpu_props;
+	}
 
 private:
 	VkInstance instance = VK_NULL_HANDLE;
@@ -99,7 +114,7 @@ private:
 
 	struct PerFrame
 	{
-		PerFrame(VkDevice device, uint32_t queue_family_index);
+		PerFrame(Device *device, uint32_t queue_family_index);
 		~PerFrame();
 		void operator=(const PerFrame &) = delete;
 		PerFrame(const PerFrame &) = delete;
@@ -112,7 +127,7 @@ private:
 		ImageHandle backbuffer;
 		FenceManager fence_manager;
 
-		ChainAllocator ubo_chain, vbo_chain, ibo_chain;
+		ChainAllocator vbo_chain, ibo_chain, ubo_chain;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
 		std::vector<VkFramebuffer> destroyed_framebuffers;
