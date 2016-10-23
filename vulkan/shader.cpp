@@ -26,8 +26,28 @@ PipelineLayout::PipelineLayout(Device *device, const CombinedResourceLayout &lay
 	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)];
 
 	for (auto &range : layout.ranges)
+	{
 		if (range.size != 0)
-			ranges[num_ranges++] = range;
+		{
+			bool unique = true;
+			for (unsigned i = 0; i < num_ranges; i++)
+			{
+				// Try to merge equivalent ranges for multiple stages.
+				if (ranges[i].offset == range.offset && ranges[i].size == range.size)
+				{
+					unique = false;
+					ranges[i].stageFlags |= range.stageFlags;
+					break;
+				}
+			}
+
+			if (unique)
+				ranges[num_ranges++] = range;
+		}
+	}
+
+	memcpy(this->layout.ranges, ranges, num_ranges * sizeof(ranges[0]));
+	this->layout.num_ranges = num_ranges;
 
 	VkPipelineLayoutCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	if (num_sets)
@@ -110,6 +130,12 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 
 	if (!resources.push_constant_buffers.empty())
 	{
+#ifdef VULKAN_DEBUG
+		// The validation layers are too conservative here, but this is just a performance pessimization.
+		size_t size = compiler.get_declared_struct_size(compiler.get_type(resources.push_constant_buffers.front().base_type_id));
+		layout.push_constant_offset = 0;
+		layout.push_constant_range = size;
+#else
 		auto ranges = compiler.get_active_buffer_ranges(resources.push_constant_buffers.front().id);
 		size_t minimum = ~0u;
 		size_t maximum = 0;
@@ -123,6 +149,7 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 			layout.push_constant_offset = minimum;
 			layout.push_constant_range = maximum - minimum;
 		}
+#endif
 	}
 }
 

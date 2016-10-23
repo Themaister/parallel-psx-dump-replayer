@@ -3,6 +3,7 @@
 layout(push_constant, std430) uniform UBO
 {
     vec2 offset;
+    vec2 dummy;
 } registers;
 
 layout(location = 0) in vec4 Position;

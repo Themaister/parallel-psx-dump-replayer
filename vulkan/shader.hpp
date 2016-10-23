@@ -35,6 +35,7 @@ struct CombinedResourceLayout
 	uint32_t attribute_mask = 0;
 	DescriptorSetLayout sets[VULKAN_NUM_DESCRIPTOR_SETS];
 	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)] = {};
+	uint32_t num_ranges = 0;
 	uint32_t descriptor_set_mask = 0;
 	Hash push_constant_layout_hash;
 };

@@ -281,7 +281,7 @@ int main()
 		cmd->bind_program(*program);
 
 		float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
-		float colors[2] = { 0.8f, 0.2f };
+		float colors[2] = { 0.8f, 0.7f };
 		cmd->push_constants(offset, 0, sizeof(offset));
 		cmd->push_constants(colors, 8, sizeof(colors));
 
