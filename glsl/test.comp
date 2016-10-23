@@ -1,12 +1,10 @@
 #version 310 es
-layout(local_size_x = 1) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0, std430) buffer SSBO0
-{
-    vec4 data[];
-};
+layout(rgba8, set = 0, binding = 0) uniform writeonly mediump image2D uImage;
 
 void main()
 {
-    data[gl_GlobalInvocationID.x] += 1.0;
+    vec4 color = ((gl_GlobalInvocationID.x + gl_GlobalInvocationID.y) & 1u) != 0u ? vec4(1.0) : vec4(0.0, 0.0, 1.0, 0.0);
+    imageStore(uImage, ivec2(gl_GlobalInvocationID.xy), color);
 }

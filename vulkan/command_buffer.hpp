@@ -108,6 +108,8 @@ public:
 	void draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
 	void draw_indexed(uint32_t index_count, uint32_t instance_count = 1, uint32_t first_index = 0, int32_t vertex_offset = 0, uint32_t first_instance = 0);
 
+	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z);
+
 private:
 	Device *device;
 	VkCommandBuffer cmd;
@@ -194,6 +196,8 @@ private:
 	void flush_descriptor_set(uint32_t set);
 	void begin_compute();
 	void begin_context();
+
+	void flush_compute_state();
 };
 
 using CommandBufferHandle = IntrusivePtr<CommandBuffer>;

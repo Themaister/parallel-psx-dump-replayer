@@ -257,15 +257,6 @@ int main()
 	const BufferCreateInfo index_info = { BufferDomain::Device, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT };
 	auto ibo = device.create_buffer(index_info, index_data);
 
-	uint32_t initial_image[4 * 4] = {
-		~0u, 0, ~0u, 0,
-		0, ~0u, 0, ~0u,
-		~0u, 0, ~0u, 0,
-		0, ~0u, 0, ~0u,
-	};
-	ImageInitialData initial = { initial_image, 0, 0 };
-	auto image = device.create_image(ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8G8B8A8_UNORM, false), &initial);
-
 	unsigned frame = 0;
 	while (!wsi.alive())
 	{
@@ -273,6 +264,17 @@ int main()
 
 		auto cmd = device.request_command_buffer();
 		auto rp = device.get_swapchain_render_pass(SwapchainRenderPass::DepthStencil);
+
+		auto image_info = ImageCreateInfo::immutable_2d_image(8, 8, VK_FORMAT_R8G8B8A8_UNORM);
+		image_info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
+		image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+		auto image = device.create_image(image_info, nullptr);
+		cmd->bind_program(*compute_program);
+		cmd->set_storage_texture(0, 0, image->get_view());
+		cmd->dispatch(1, 1, 1);
+
+		cmd->image_barrier(*image, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 		frame++;
 		rp.clear_color[0].float32[0] = float(frame & 255) / 255.0f;
@@ -291,8 +293,7 @@ int main()
 		cmd->push_constants(offset, 0, sizeof(offset));
 		cmd->push_constants(colors, 8, sizeof(colors));
 
-		cmd->set_texture(0, 0, image->get_view(), StockSampler::NearestClamp);
-
+		cmd->set_texture(0, 0, image->get_view(), StockSampler::LinearClamp);
 		cmd->draw_indexed(6);
 
 		cmd->end_render_pass();

@@ -432,6 +432,33 @@ void CommandBuffer::flush_graphics_pipeline()
 		current_pipeline = build_graphics_pipeline(hash);
 }
 
+void CommandBuffer::flush_compute_state()
+{
+	VK_ASSERT(current_layout);
+	VK_ASSERT(current_program);
+
+	if (get_and_clear(COMMAND_BUFFER_DIRTY_PIPELINE_BIT))
+	{
+		VkPipeline old_pipe = current_pipeline;
+		current_pipeline = current_program->get_compute_pipeline();
+		if (old_pipe != current_pipeline)
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, current_pipeline);
+	}
+
+	flush_descriptor_sets();
+
+	if (get_and_clear(COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT))
+	{
+		uint32_t num_ranges = current_layout->get_resource_layout().num_ranges;
+		for (unsigned i = 0; i < num_ranges; i++)
+		{
+			auto &range = current_layout->get_resource_layout().ranges[i];
+			vkCmdPushConstants(cmd, current_pipeline_layout, range.stageFlags, range.offset, range.size,
+			                   push_constant_data + range.offset);
+		}
+	}
+}
+
 void CommandBuffer::flush_render_state()
 {
 	VK_ASSERT(current_layout);
@@ -609,6 +636,7 @@ void CommandBuffer::set_uniform_buffer(unsigned set, unsigned binding, const Buf
 		return;
 
 	b.buffer = { buffer.get_buffer(), offset, range };
+	cookies[set][binding] = buffer.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
@@ -624,6 +652,7 @@ void CommandBuffer::set_storage_buffer(unsigned set, unsigned binding, const Buf
 		return;
 
 	b.buffer = { buffer.get_buffer(), offset, range };
+	cookies[set][binding] = buffer.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
@@ -647,6 +676,7 @@ void CommandBuffer::set_sampler(unsigned set, unsigned binding, const Sampler &s
 	auto &b = bindings[set][binding];
 	b.image.sampler = sampler.get_sampler();
 	dirty_sets |= 1u << set;
+	secondary_cookies[set][binding] = sampler.get_cookie();
 }
 
 void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view)
@@ -660,6 +690,7 @@ void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView 
 	auto &b = bindings[set][binding];
 	b.image.imageLayout = view.get_image().get_layout();
 	b.image.imageView = view.get_view();
+	cookies[set][binding] = view.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
@@ -675,6 +706,7 @@ void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView 
 	b.image.imageLayout = view.get_image().get_layout();
 	b.image.imageView = view.get_view();
 	b.image.sampler = sampler.get_sampler();
+	cookies[set][binding] = view.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
@@ -695,6 +727,7 @@ void CommandBuffer::set_storage_texture(unsigned set, unsigned binding, const Im
 	auto &b = bindings[set][binding];
 	b.image.imageLayout = view.get_image().get_layout();
 	b.image.imageView = view.get_view();
+	cookies[set][binding] = view.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
@@ -702,10 +735,8 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 {
 	auto &layout = current_layout->get_resource_layout();
 	auto &set_layout = layout.sets[set];
-	Hash hash = 0;
 	uint32_t num_dynamic_offsets = 0;
 	uint32_t dynamic_offsets[VULKAN_NUM_BINDINGS];
-
 	Hasher h;
 
 	// UBOs
@@ -739,6 +770,7 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 		VK_ASSERT(bindings[set][binding].image.imageView != VK_NULL_HANDLE);
 	});
 
+	Hash hash = h.get();
 	auto allocated = current_layout->get_allocator(set)->find(hash);
 
 	// The descriptor set was not successfully cached, rebuild.
@@ -834,4 +866,14 @@ void CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instance_count, 
 	flush_render_state();
 	vkCmdDrawIndexed(cmd, index_count, instance_count, first_index, vertex_offset, first_instance);
 }
+
+void CommandBuffer::dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z)
+{
+	VK_ASSERT(current_program);
+	VK_ASSERT(is_compute);
+	flush_compute_state();
+	vkCmdDispatch(cmd, groups_x, groups_y, groups_z);
+}
+
+
 }
