@@ -88,6 +88,8 @@ public:
 	                        VkDeviceSize range);
 	void push_constants(const void *data, VkDeviceSize offset, VkDeviceSize range);
 
+	void *allocate_constant_data(unsigned set, unsigned binding, VkDeviceSize size);
+
 	void set_viewport(const VkViewport &viewport);
 	void set_scissor(const VkRect2D &rect);
 

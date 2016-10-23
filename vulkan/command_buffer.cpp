@@ -614,6 +614,13 @@ void CommandBuffer::bind_program(Program &program)
 	}
 }
 
+void *CommandBuffer::allocate_constant_data(unsigned set, unsigned binding, VkDeviceSize size)
+{
+	auto data = device->allocate_constant_data(size);
+	set_uniform_buffer(set, binding, *data.buffer, data.offset, size);
+	return data.data;
+}
+
 void CommandBuffer::set_uniform_buffer(unsigned set, unsigned binding, const Buffer &buffer, VkDeviceSize offset,
                                        VkDeviceSize range)
 {

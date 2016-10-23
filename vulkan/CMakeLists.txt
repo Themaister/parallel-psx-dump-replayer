@@ -5,20 +5,21 @@ target_link_libraries(vulkan-symbols)
 target_include_directories(vulkan-symbols PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(vulkan
-   vulkan.cpp
-   device.cpp
-   image.cpp
-   cookie.cpp
-   sampler.cpp
-   command_pool.cpp
-   fence_manager.cpp
-   descriptor_set.cpp
-   semaphore_manager.cpp
-   command_buffer.cpp
-   shader.cpp
-   render_pass.cpp
-   buffer.cpp
-   wsi.cpp)
+        vulkan.cpp
+        device.cpp
+        image.cpp
+        cookie.cpp
+        sampler.cpp
+        command_pool.cpp
+        fence_manager.cpp
+        descriptor_set.cpp
+        semaphore_manager.cpp
+        command_buffer.cpp
+        shader.cpp
+        render_pass.cpp
+        buffer.cpp
+        chain_allocator.cpp
+        wsi.cpp)
 
 add_subdirectory(external)
 

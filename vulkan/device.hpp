@@ -8,6 +8,7 @@
 #include "image.hpp"
 #include "memory_allocator.hpp"
 #include "render_pass.hpp"
+#include "chain_allocator.hpp"
 #include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
@@ -22,6 +23,7 @@ enum class SwapchainRenderPass
 	Depth,
 	DepthStencil
 };
+
 
 class Device
 {
@@ -81,6 +83,7 @@ public:
 	}
 
 	RenderPassInfo get_swapchain_render_pass(SwapchainRenderPass style);
+	ChainDataAllocation allocate_constant_data(VkDeviceSize size);
 
 private:
 	VkInstance instance = VK_NULL_HANDLE;
@@ -108,6 +111,8 @@ private:
 		CommandPool cmd_pool;
 		ImageHandle backbuffer;
 		FenceManager fence_manager;
+
+		ChainAllocator ubo_chain, vbo_chain, ibo_chain;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
 		std::vector<VkFramebuffer> destroyed_framebuffers;
