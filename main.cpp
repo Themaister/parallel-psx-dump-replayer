@@ -293,7 +293,7 @@ int main()
 		cmd->push_constants(offset, 0, sizeof(offset));
 		cmd->push_constants(colors, 8, sizeof(colors));
 
-		cmd->set_texture(0, 0, image->get_view(), StockSampler::LinearClamp);
+		cmd->set_texture(1, 0, image->get_view(), StockSampler::LinearClamp);
 		cmd->draw_indexed(6);
 
 		cmd->end_render_pass();
