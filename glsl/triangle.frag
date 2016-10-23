@@ -1,7 +1,7 @@
 #version 310 es
 precision mediump float;
 
-layout(push_constant, std430) uniform Register
+layout(set = 0, binding = 0, std140) uniform Register
 {
     vec2 dummy;
     vec2 rg;

@@ -89,6 +89,8 @@ public:
 	void push_constants(const void *data, VkDeviceSize offset, VkDeviceSize range);
 
 	void *allocate_constant_data(unsigned set, unsigned binding, VkDeviceSize size);
+	void *allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride, VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
+	void *allocate_index_data(VkDeviceSize size, VkIndexType index_type);
 
 	void set_viewport(const VkViewport &viewport);
 	void set_scissor(const VkRect2D &rect);

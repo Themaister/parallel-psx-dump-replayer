@@ -2,6 +2,7 @@
 #include "device.hpp"
 #include "wsi.hpp"
 #include <stdio.h>
+#include <string.h>
 #include <vector>
 #include <cmath>
 
@@ -242,20 +243,23 @@ int main()
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
 	auto compute_program = device.create_program(test_comp, sizeof(test_comp));
 
-	static const float buffer_data[6 * 4] = {
+	static const float vertex_data[6 * 4] = {
 		-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
 		+0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
 		-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
 		+0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
 	};
-	const BufferCreateInfo buffer_info = { BufferDomain::Device, sizeof(buffer_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT };
-	auto vbo = device.create_buffer(buffer_info, buffer_data);
+
+	static const float vertex_data2[6 * 4] = {
+		-0.2f, 0.2f, 0.0f, 1.0f, 0.0f, 0.0f,
+		+0.2f, 0.2f, 0.0f, 1.0f, 1.0f, 0.0f,
+		-0.2f, -0.2f, 0.0f, 1.0f, 0.0f, 1.0f,
+		+0.2f, -0.2f, 0.0f, 1.0f, 1.0f, 1.0f,
+	};
 
 	static const uint16_t index_data[6] = {
 		0, 1, 2, 3, 2, 1,
 	};
-	const BufferCreateInfo index_info = { BufferDomain::Device, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT };
-	auto ibo = device.create_buffer(index_info, index_data);
 
 	unsigned frame = 0;
 	while (!wsi.alive())
@@ -282,19 +286,37 @@ int main()
 		rp.clear_color[0].float32[2] = float(frame & 255) / 255.0f;
 		cmd->begin_render_pass(rp);
 
-		cmd->set_vertex_binding(0, *vbo, 0, 6 * sizeof(float));
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 		cmd->set_vertex_attrib(1, 0, VK_FORMAT_R32G32_SFLOAT, 4 * sizeof(float));
-		cmd->bind_index_buffer(*ibo, 0, VK_INDEX_TYPE_UINT16);
 		cmd->bind_program(*program);
-
-		float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
-		float colors[2] = { 0.8f, 0.7f };
-		cmd->push_constants(offset, 0, sizeof(offset));
-		cmd->push_constants(colors, 8, sizeof(colors));
-
 		cmd->set_texture(1, 0, image->get_view(), StockSampler::LinearClamp);
+
+		{
+			float offset[2] = {0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f)};
+			float colors[2] = {0.8f, 0.7f};
+			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
+			memcpy(data, offset, sizeof(offset));
+			memcpy(data + 2, colors, sizeof(colors));
+
+			memcpy(cmd->allocate_vertex_data(0, sizeof(vertex_data), 6 * sizeof(float)), vertex_data,
+			       sizeof(vertex_data));
+			memcpy(cmd->allocate_index_data(sizeof(index_data), VK_INDEX_TYPE_UINT16), index_data, sizeof(index_data));
+		}
 		cmd->draw_indexed(6);
+
+		cmd->set_texture(1, 0, image->get_view(), StockSampler::NearestClamp);
+		{
+			float offset[2] = {0.2f * cos(frame * 0.01f) - 0.5f, 0.2f * sin(frame * 0.01f) - 0.3f};
+			float colors[2] = {0.2f, 0.7f};
+			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
+			memcpy(data, offset, sizeof(offset));
+			memcpy(data + 2, colors, sizeof(colors));
+
+			memcpy(cmd->allocate_vertex_data(0, sizeof(vertex_data2), 6 * sizeof(float)), vertex_data2,
+			       sizeof(vertex_data2));
+			memcpy(cmd->allocate_index_data(3 * sizeof(float), VK_INDEX_TYPE_UINT16), index_data + 3, 3 * sizeof(float));
+		}
+		cmd->draw_indexed(3);
 
 		cmd->end_render_pass();
 

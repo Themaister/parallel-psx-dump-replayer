@@ -1,6 +1,6 @@
 #version 310 es
 
-layout(push_constant, std430) uniform UBO
+layout(set = 0, binding = 0, std140) uniform UBO
 {
     vec2 offset;
     vec2 dummy;

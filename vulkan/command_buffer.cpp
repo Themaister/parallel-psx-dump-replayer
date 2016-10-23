@@ -621,6 +621,20 @@ void *CommandBuffer::allocate_constant_data(unsigned set, unsigned binding, VkDe
 	return data.data;
 }
 
+void *CommandBuffer::allocate_index_data(VkDeviceSize size, VkIndexType index_type)
+{
+	auto data = device->allocate_index_data(size);
+	bind_index_buffer(*data.buffer, data.offset, index_type);
+	return data.data;
+}
+
+void *CommandBuffer::allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride, VkVertexInputRate step_rate)
+{
+	auto data = device->allocate_vertex_data(size);
+	set_vertex_binding(binding, *data.buffer, data.offset, stride, step_rate);
+	return data.data;
+}
+
 void CommandBuffer::set_uniform_buffer(unsigned set, unsigned binding, const Buffer &buffer, VkDeviceSize offset,
                                        VkDeviceSize range)
 {
@@ -704,6 +718,7 @@ void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView 
 	b.image.imageView = view.get_view();
 	b.image.sampler = sampler.get_sampler();
 	cookies[set][binding] = view.get_cookie();
+	secondary_cookies[set][binding] = sampler.get_cookie();
 	dirty_sets |= 1u << set;
 }
 
