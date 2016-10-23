@@ -3,6 +3,7 @@
 #include "wsi.hpp"
 #include <stdio.h>
 #include <vector>
+#include <cmath>
 
 using namespace PSX;
 using namespace std;
@@ -268,7 +269,14 @@ int main()
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 		cmd->bind_index_buffer(*ibo, 0, VK_INDEX_TYPE_UINT16);
 		cmd->bind_program(*program);
+
+		float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
+		float colors[2] = { 0.8f, 0.2f };
+		cmd->push_constants(offset, 0, sizeof(offset));
+		cmd->push_constants(colors, 8, sizeof(colors));
+
 		cmd->draw_indexed(6);
+
 		cmd->end_render_pass();
 
 		device.submit(cmd);
