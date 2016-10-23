@@ -83,6 +83,11 @@ public:
 		return stage;
 	}
 
+	VkShaderModule get_module() const
+	{
+		return module;
+	}
+
 private:
 	VkDevice device;
 	ShaderStage stage;

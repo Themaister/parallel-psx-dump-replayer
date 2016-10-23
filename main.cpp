@@ -235,23 +235,27 @@ int main()
 	    ;
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
 
+	static const float buffer_data[4 * 4] = {
+		-0.5f, 0.5f, 0.0f, 1.0f,
+		+0.5f, 0.5f, 0.0f, 1.0f,
+		-0.5f, -0.5f, 0.0f, 1.0f,
+		+0.5f, -0.5f, 0.0f, 1.0f,
+	};
+	const BufferCreateInfo buffer_info = { BufferDomain::Device, sizeof(buffer_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT };
+	auto vbo = device.create_buffer(buffer_info, buffer_data);
+
+	static const uint16_t index_data[6] = {
+		0, 1, 2, 3, 2, 1,
+	};
+	const BufferCreateInfo index_info = { BufferDomain::Device, sizeof(index_data), VK_BUFFER_USAGE_INDEX_BUFFER_BIT };
+	auto ibo = device.create_buffer(index_info, index_data);
+
 	unsigned frame = 0;
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
 
-		float dummy[16] = {};
-
-		const BufferCreateInfo info = { BufferDomain::Device, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT };
-
-		auto buffer = device.create_buffer(info, dummy);
-
-		ImageCreateInfo imageinfo = ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8G8B8A8_UNORM, true);
-		ImageInitialData initial_image = { dummy, 0, 0 };
-		auto image = device.create_image(imageinfo, &initial_image);
-
 		auto cmd = device.request_command_buffer();
-
 		auto rp = device.get_swapchain_render_pass(SwapchainRenderPass::DepthStencil);
 
 		frame++;
@@ -259,6 +263,12 @@ int main()
 		rp.clear_color[0].float32[1] = float(frame & 255) / 255.0f;
 		rp.clear_color[0].float32[2] = float(frame & 255) / 255.0f;
 		cmd->begin_render_pass(rp);
+
+		cmd->set_vertex_binding(0, *vbo, 0, 16);
+		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+		cmd->bind_index_buffer(*ibo, 0, VK_INDEX_TYPE_UINT16);
+		cmd->bind_program(*program);
+		cmd->draw_indexed(6);
 		cmd->end_render_pass();
 
 		device.submit(cmd);

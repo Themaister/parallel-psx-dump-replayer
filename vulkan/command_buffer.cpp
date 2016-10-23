@@ -12,6 +12,7 @@ CommandBuffer::CommandBuffer(Device *device, VkCommandBuffer cmd, VkPipelineCach
     , cmd(cmd)
     , cache(cache)
 {
+	begin_compute();
 }
 
 void CommandBuffer::copy_buffer(const Buffer &dst, VkDeviceSize dst_offset, const Buffer &src, VkDeviceSize src_offset,
@@ -115,15 +116,30 @@ void CommandBuffer::blit_image(const Image &dst, const Image &src, const VkOffse
 	vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(), 1, &blit, filter);
 }
 
-void CommandBuffer::begin_graphics()
+void CommandBuffer::begin_context()
 {
 	dirty = ~0u;
 	dirty_sets = ~0u;
-	is_compute = false;
+	dirty_vbos = ~0u;
 	current_pipeline = VK_NULL_HANDLE;
+	current_pipeline_layout = VK_NULL_HANDLE;
 	current_layout = nullptr;
-	memset(current_sets, 0, sizeof(current_sets));
 	current_program = nullptr;
+	memset(cookies, 0, sizeof(cookies));
+	memset(secondary_cookies, 0, sizeof(secondary_cookies));
+	memset(&index, 0, sizeof(index));
+}
+
+void CommandBuffer::begin_compute()
+{
+	is_compute = true;
+	begin_context();
+}
+
+void CommandBuffer::begin_graphics()
+{
+	is_compute = false;
+	begin_context();
 }
 
 void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
@@ -267,6 +283,8 @@ void CommandBuffer::end_render_pass(VkPipelineStageFlags color_access_stages, Vk
 
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, dst_stages, 0, 0, nullptr, 0, nullptr, num_barriers,
 	                     barriers);
+
+	begin_compute();
 }
 
 VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
@@ -328,6 +346,40 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 		bind.stride = vbo_strides[bit];
 	});
 
+	// Input assembly
+	VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+	ia.primitiveRestartEnable = false;
+	ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+	// Multisample
+	VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+	// TODO: Support more
+	ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	// Raster
+	VkPipelineRasterizationStateCreateInfo raster = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+	raster.cullMode = VK_CULL_MODE_NONE;
+	raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	raster.lineWidth = 1.0f;
+	raster.polygonMode = VK_POLYGON_MODE_FILL;
+
+	// Stages
+	VkPipelineShaderStageCreateInfo stages[static_cast<unsigned>(ShaderStage::Count)];
+	unsigned num_stages = 0;
+
+	for (unsigned i = 0; i < static_cast<unsigned>(ShaderStage::Count); i++)
+	{
+		auto stage = static_cast<ShaderStage>(i);
+		if (current_program->get_shader(stage))
+		{
+			auto &s = stages[num_stages++];
+			s = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+			s.module = current_program->get_shader(stage)->get_module();
+			s.pName = "main";
+			s.stage = static_cast<VkShaderStageFlagBits>(1u << i);
+		}
+	}
+
 	VkGraphicsPipelineCreateInfo pipe = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 	pipe.layout = current_pipeline_layout;
 	pipe.renderPass = render_pass->get_render_pass();
@@ -338,6 +390,11 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	pipe.pColorBlendState = &blend;
 	pipe.pDepthStencilState = &ds;
 	pipe.pVertexInputState = &vi;
+	pipe.pInputAssemblyState = &ia;
+	pipe.pMultisampleState = &ms;
+	pipe.pRasterizationState = &raster;
+	pipe.pStages = stages;
+	pipe.stageCount = num_stages;
 
 	VkResult res = vkCreateGraphicsPipelines(device->get_device(), cache, 1, &pipe, nullptr, &current_pipeline);
 	if (res != VK_SUCCESS)
@@ -440,6 +497,17 @@ void CommandBuffer::set_vertex_attrib(uint32_t attrib, uint32_t binding, VkForma
 	attr.offset = offset;
 }
 
+void CommandBuffer::bind_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type)
+{
+	if (index.buffer == buffer.get_buffer() && index.offset == offset && index.index_type == index_type)
+		return;
+
+	index.buffer = buffer.get_buffer();
+	index.offset = offset;
+	index.index_type = index_type;
+	vkCmdBindIndexBuffer(cmd, buffer.get_buffer(), offset, index_type);
+}
+
 void CommandBuffer::set_vertex_binding(uint32_t binding, const Buffer &buffer, VkDeviceSize offset, VkDeviceSize stride,
                                        VkVertexInputRate step_rate)
 {
@@ -481,7 +549,7 @@ void CommandBuffer::push_constants(const void *data, VkDeviceSize offset, VkDevi
 
 void CommandBuffer::bind_program(Program &program)
 {
-	if (current_program->get_cookie() == program.get_cookie())
+	if (current_program && current_program->get_cookie() == program.get_cookie())
 		return;
 
 	current_program = &program;
@@ -492,7 +560,15 @@ void CommandBuffer::bind_program(Program &program)
 
 	set_dirty(COMMAND_BUFFER_DIRTY_PIPELINE_BIT | COMMAND_BUFFER_DYNAMIC_BITS);
 
-	if (program.get_pipeline_layout()->get_cookie() != current_layout->get_cookie())
+	if (!current_layout)
+	{
+		dirty_sets = ~0u;
+		set_dirty(COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT);
+
+		current_layout = program.get_pipeline_layout();
+		current_pipeline_layout = current_layout->get_layout();
+	}
+	else if (program.get_pipeline_layout()->get_cookie() != current_layout->get_cookie())
 	{
 		auto &new_layout = program.get_pipeline_layout()->get_resource_layout();
 		auto &old_layout = current_layout->get_resource_layout();
@@ -520,6 +596,14 @@ void CommandBuffer::bind_program(Program &program)
 		current_layout = program.get_pipeline_layout();
 		current_pipeline_layout = current_layout->get_layout();
 	}
+}
+
+void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view)
+{
+	if (view.get_cookie() == cookies[set][binding])
+		return;
+
+	dirty_sets |= 1u << set;
 }
 
 void CommandBuffer::flush_descriptor_set(uint32_t set)
@@ -639,5 +723,23 @@ void CommandBuffer::flush_descriptor_sets()
 	uint32_t set_update = layout.descriptor_set_mask & dirty_sets;
 	for_each_bit(set_update, [&](uint32_t set) { flush_descriptor_set(set); });
 	dirty_sets &= ~set_update;
+}
+
+void CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance)
+{
+	VK_ASSERT(current_program);
+	VK_ASSERT(!is_compute);
+	flush_render_state();
+	vkCmdDraw(cmd, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index,
+                                 int32_t vertex_offset, uint32_t first_instance)
+{
+	VK_ASSERT(current_program);
+	VK_ASSERT(!is_compute);
+	VK_ASSERT(index.buffer != VK_NULL_HANDLE);
+	flush_render_state();
+	vkCmdDrawIndexed(cmd, index_count, instance_count, first_index, vertex_offset, first_instance);
 }
 }

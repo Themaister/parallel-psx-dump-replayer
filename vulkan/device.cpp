@@ -248,8 +248,11 @@ void Device::submit_queue()
 void Device::flush_frame()
 {
 	if (staging_cmd)
+	{
+		vkEndCommandBuffer(staging_cmd->get_command_buffer());
 		frame().submissions.push_back(staging_cmd);
-	staging_cmd.reset();
+		staging_cmd.reset();
+	}
 
 	submit_queue();
 }
@@ -417,6 +420,10 @@ void Device::wait_idle()
 void Device::begin_frame(unsigned index)
 {
 	current_swapchain_index = index;
+
+	// Flush the frame here as we might have pending staging command buffers from init stage.
+	flush_frame();
+
 	frame().begin();
 	framebuffer_allocator.begin_frame();
 	for (auto &allocator : descriptor_set_allocators)

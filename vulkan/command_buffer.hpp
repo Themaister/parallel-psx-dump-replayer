@@ -103,6 +103,10 @@ public:
 	void set_vertex_attrib(uint32_t attrib, uint32_t binding, VkFormat format, VkDeviceSize offset);
 	void set_vertex_binding(uint32_t binding, const Buffer &buffer, VkDeviceSize offset, VkDeviceSize stride,
 	                        VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
+	void bind_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type);
+
+	void draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
+	void draw_indexed(uint32_t index_count, uint32_t instance_count = 1, uint32_t first_index = 0, int32_t vertex_offset = 0, uint32_t first_instance = 0);
 
 private:
 	Device *device;
@@ -138,10 +142,17 @@ private:
 	uint64_t secondary_cookies[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
 	uint8_t push_constant_data[VULKAN_PUSH_CONSTANT_SIZE] = {};
 
+	struct IndexState
+	{
+		VkBuffer buffer;
+		VkDeviceSize offset;
+		VkIndexType index_type;
+	};
+	IndexState index = {};
+
 	VkPipeline current_pipeline = VK_NULL_HANDLE;
 	VkPipelineLayout current_pipeline_layout = VK_NULL_HANDLE;
 	PipelineLayout *current_layout = nullptr;
-	VkDescriptorSet current_sets[VULKAN_NUM_DESCRIPTOR_SETS] = {};
 	Program *current_program = nullptr;
 
 	VkViewport viewport = {};
@@ -152,7 +163,7 @@ private:
 	uint32_t dirty_vbos = 0;
 	uint32_t active_vbos = 0;
 	bool uses_swapchain = false;
-	bool is_compute = false;
+	bool is_compute = true;
 
 	void set_dirty(CommandBufferDirtyFlags flags)
 	{
@@ -178,12 +189,11 @@ private:
 	void flush_render_state();
 	VkPipeline build_graphics_pipeline(Hash hash);
 	void flush_graphics_pipeline();
-
 	void flush_descriptor_sets();
-
 	void begin_graphics();
-
 	void flush_descriptor_set(uint32_t set);
+	void begin_compute();
+	void begin_context();
 };
 
 using CommandBufferHandle = IntrusivePtr<CommandBuffer>;
