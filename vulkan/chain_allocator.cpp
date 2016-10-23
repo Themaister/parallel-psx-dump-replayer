@@ -36,7 +36,7 @@ ChainDataAllocation ChainAllocator::allocate(VkDeviceSize size)
 		offset = 0;
 	}
 
-	if (chain_index < buffers.size())
+	if (chain_index >= buffers.size())
 	{
 		buffers.push_back(device->create_buffer({ BufferDomain::Host, block_size, usage }, nullptr));
 		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
