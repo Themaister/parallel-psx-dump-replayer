@@ -158,5 +158,6 @@ private:
 	HashMap<std::unique_ptr<DescriptorSetAllocator>> descriptor_set_allocators;
 	FramebufferAllocator framebuffer_allocator;
 	HashMap<std::unique_ptr<RenderPass>> render_passes;
+	VkPipelineCache pipeline_cache = VK_NULL_HANDLE;
 };
 }

@@ -35,6 +35,8 @@ struct CombinedResourceLayout
 	uint32_t attribute_mask = 0;
 	DescriptorSetLayout sets[VULKAN_NUM_DESCRIPTOR_SETS];
 	VkPushConstantRange ranges[static_cast<unsigned>(ShaderStage::Count)] = {};
+	uint32_t descriptor_set_mask = 0;
+	Hash push_constant_layout_hash;
 };
 
 class PipelineLayout : public Cookie
@@ -111,7 +113,7 @@ public:
 		return layout;
 	}
 
-	VkPipeline get_pipeline(Hash hash);
+	VkPipeline get_pipeline(Hash hash) const;
 	void add_pipeline(Hash hash, VkPipeline pipeline);
 
 private:

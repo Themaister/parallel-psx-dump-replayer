@@ -14,14 +14,14 @@ namespace Vulkan
 enum CommandBufferDirtyBits
 {
 	COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT = 1 << 0,
-	COMMAND_BUFFER_DIRTY_PIPELINE_LAYOUT_BIT = 1 << 1,
-	COMMAND_BUFFER_DIRTY_PIPELINE_BIT = 1 << 2,
+	COMMAND_BUFFER_DIRTY_PIPELINE_BIT = 1 << 1,
 
-	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT = 1 << 3,
-	COMMAND_BUFFER_DIRTY_SCISSOR_BIT = 1 << 4,
+	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT = 1 << 2,
+	COMMAND_BUFFER_DIRTY_SCISSOR_BIT = 1 << 3,
 
-	COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT = 1 << 5,
-	COMMAND_BUFFER_DIRTY_DYNAMIC_VERTEX_BIT = 1 << 6,
+	COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT = 1 << 4,
+
+	COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT = 1 << 6,
 
 	COMMAND_BUFFER_DYNAMIC_BITS = COMMAND_BUFFER_DIRTY_VIEWPORT_BIT | COMMAND_BUFFER_DIRTY_SCISSOR_BIT
 };
@@ -31,7 +31,7 @@ class Device;
 class CommandBuffer : public IntrusivePtrEnabled<CommandBuffer>
 {
 public:
-	CommandBuffer(Device *device, VkCommandBuffer cmd);
+	CommandBuffer(Device *device, VkCommandBuffer cmd, VkPipelineCache cache);
 	VkCommandBuffer get_command_buffer()
 	{
 		return cmd;
@@ -83,7 +83,7 @@ public:
 	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
 	                                                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
-	void bind_program(const Program &program);
+	void bind_program(Program &program);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, const Sampler &sampler);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, StockSampler sampler);
@@ -95,6 +95,7 @@ public:
 	void set_storage_buffer(unsigned set, unsigned binding, const Buffer &buffer);
 	void set_storage_buffer(unsigned set, unsigned binding, const Buffer &buffer, VkDeviceSize offset,
 	                        VkDeviceSize range);
+	void push_constants(const void *data, VkDeviceSize offset, VkDeviceSize range);
 
 	void set_viewport(const VkViewport &viewport);
 	void set_scissor(const VkRect2D &rect);
@@ -106,6 +107,7 @@ public:
 private:
 	Device *device;
 	VkCommandBuffer cmd;
+	VkPipelineCache cache;
 
 	const Framebuffer *framebuffer = nullptr;
 	const RenderPass *render_pass = nullptr;
@@ -127,38 +129,30 @@ private:
 	struct Binding
 	{
 		union {
-			struct
-			{
-				VkImageView view;
-				VkSampler sampler;
-				uint64_t sampler_cookie;
-			} image;
-
-			struct
-			{
-				VkBuffer buffer;
-				VkDeviceSize offset;
-				VkDeviceSize range;
-			} buffer;
+			VkDescriptorBufferInfo buffer;
+			VkDescriptorImageInfo image;
 		};
 	};
 	Binding bindings[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
 	uint64_t cookies[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
+	uint64_t secondary_cookies[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
+	uint8_t push_constant_data[VULKAN_PUSH_CONSTANT_SIZE] = {};
 
 	VkPipeline current_pipeline = VK_NULL_HANDLE;
+	VkPipelineLayout current_pipeline_layout = VK_NULL_HANDLE;
 	PipelineLayout *current_layout = nullptr;
 	VkDescriptorSet current_sets[VULKAN_NUM_DESCRIPTOR_SETS] = {};
-	const Program *current_program = nullptr;
+	Program *current_program = nullptr;
 
 	VkViewport viewport = {};
 	VkRect2D scissor = {};
 
 	CommandBufferDirtyFlags dirty = ~0u;
 	uint32_t dirty_sets = 0;
+	uint32_t dirty_vbos = 0;
+	uint32_t active_vbos = 0;
 	bool uses_swapchain = false;
 	bool is_compute = false;
-
-	void invalidate_all();
 
 	void set_dirty(CommandBufferDirtyFlags flags)
 	{
@@ -182,6 +176,14 @@ private:
 	PipelineState static_state = {};
 
 	void flush_render_state();
+	VkPipeline build_graphics_pipeline(Hash hash);
+	void flush_graphics_pipeline();
+
+	void flush_descriptor_sets();
+
+	void begin_graphics();
+
+	void flush_descriptor_set(uint32_t set);
 };
 
 using CommandBufferHandle = IntrusivePtr<CommandBuffer>;

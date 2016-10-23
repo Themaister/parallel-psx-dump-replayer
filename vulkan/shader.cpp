@@ -18,7 +18,7 @@ PipelineLayout::PipelineLayout(Device *device, const CombinedResourceLayout &lay
 	{
 		set_allocators[i] = device->request_descriptor_set_allocator(layout.sets[i]);
 		layouts[i] = set_allocators[i]->get_layout();
-		if (layouts[i])
+		if (layout.descriptor_set_mask & (1u << i))
 			num_sets = i + 1;
 	}
 
@@ -143,7 +143,7 @@ Program::Program(Device *device)
 {
 }
 
-VkPipeline Program::get_pipeline(Hash hash)
+VkPipeline Program::get_pipeline(Hash hash) const
 {
 	auto itr = pipelines.find(hash);
 	if (itr != end(pipelines))

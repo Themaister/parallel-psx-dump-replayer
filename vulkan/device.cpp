@@ -73,6 +73,8 @@ void Device::bake_program(Program &program)
 	if (program.get_shader(ShaderStage::Vertex))
 		layout.attribute_mask = program.get_shader(ShaderStage::Vertex)->get_layout().attribute_mask;
 
+	layout.descriptor_set_mask = 0;
+
 	for (unsigned i = 0; i < static_cast<unsigned>(ShaderStage::Count); i++)
 	{
 		auto *shader = program.get_shader(static_cast<ShaderStage>(i));
@@ -94,6 +96,16 @@ void Device::bake_program(Program &program)
 		layout.ranges[i].size = shader_layout.push_constant_range;
 	}
 
+	for (unsigned i = 0; i < VULKAN_NUM_DESCRIPTOR_SETS; i++)
+	{
+		if (layout.sets[i].stages != 0)
+			layout.descriptor_set_mask |= 1u << i;
+	}
+
+	Hasher h;
+	h.data(reinterpret_cast<uint32_t *>(layout.ranges), sizeof(layout.ranges));
+	layout.push_constant_layout_hash = h.get();
+
 	program.set_pipeline_layout(request_pipeline_layout(layout));
 }
 
@@ -110,6 +122,9 @@ void Device::set_context(const VulkanContext &context)
 
 	allocator.init(gpu, device);
 	init_stock_samplers();
+
+	VkPipelineCacheCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+	vkCreatePipelineCache(device, &info, nullptr, &pipeline_cache);
 }
 
 void Device::init_stock_samplers()
@@ -252,7 +267,7 @@ CommandBufferHandle Device::request_command_buffer()
 	VkCommandBufferBeginInfo info = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 	info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vkBeginCommandBuffer(cmd, &info);
-	return make_handle<CommandBuffer>(this, cmd);
+	return make_handle<CommandBuffer>(this, cmd, pipeline_cache);
 }
 
 VkSemaphore Device::set_acquire(VkSemaphore acquire)
@@ -279,6 +294,9 @@ bool Device::swapchain_touched() const
 
 Device::~Device()
 {
+	if (pipeline_cache != VK_NULL_HANDLE)
+		vkDestroyPipelineCache(device, pipeline_cache, nullptr);
+
 	framebuffer_allocator.clear();
 	for (auto &sampler : samplers)
 		sampler.reset();
@@ -341,11 +359,13 @@ void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
 }
 
 #ifdef VULKAN_DEBUG
+
 template <typename T, typename U>
 static inline bool exists(const T &container, const U &value)
 {
 	return find(begin(container), end(container), value) != end(container);
 }
+
 #endif
 
 void Device::destroy_pipeline(VkPipeline pipeline)
