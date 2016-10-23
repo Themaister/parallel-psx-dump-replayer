@@ -1,0 +1,12 @@
+#version 310 es
+layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0, std430) buffer SSBO0
+{
+    vec4 data[];
+};
+
+void main()
+{
+    data[gl_GlobalInvocationID.x] += 1.0;
+}
