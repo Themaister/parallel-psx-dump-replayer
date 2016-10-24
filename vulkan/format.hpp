@@ -5,7 +5,7 @@
 namespace Vulkan
 {
 
-static inline bool format_is_depth_stencil(VkFormat format)
+static inline bool format_is_depth(VkFormat format)
 {
 	switch (format)
 	{
@@ -15,12 +15,28 @@ static inline bool format_is_depth_stencil(VkFormat format)
 	case VK_FORMAT_D32_SFLOAT:
 	case VK_FORMAT_X8_D24_UNORM_PACK32:
 	case VK_FORMAT_D32_SFLOAT_S8_UINT:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+static inline bool format_is_stencil(VkFormat format)
+{
+	switch (format)
+	{
 	case VK_FORMAT_S8_UINT:
 		return true;
 
 	default:
 		return false;
 	}
+}
+
+static inline bool format_is_depth_stencil(VkFormat format)
+{
+	return format_is_depth(format) || format_is_stencil(format);
 }
 
 static inline VkImageAspectFlags format_to_aspect_mask(VkFormat format)

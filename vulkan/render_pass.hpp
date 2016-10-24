@@ -58,6 +58,21 @@ public:
 		return render_pass;
 	}
 
+	uint32_t get_sample_count() const
+	{
+		return 1;
+	}
+
+	bool has_depth() const
+	{
+		return format_is_depth(depth_stencil);
+	}
+
+	bool has_stencil() const
+	{
+		return format_is_stencil(depth_stencil);
+	}
+
 private:
 	Device *device;
 	VkRenderPass render_pass = VK_NULL_HANDLE;

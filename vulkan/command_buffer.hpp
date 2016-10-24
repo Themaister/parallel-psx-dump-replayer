@@ -116,6 +116,8 @@ public:
 
 	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z);
 
+	void set_opaque_state();
+
 private:
 	Device *device;
 	VkCommandBuffer cmd;
@@ -214,6 +216,10 @@ private:
 			unsigned stencil_back_pass : STENCIL_OP_BITS;
 			unsigned stencil_back_depth_fail : STENCIL_OP_BITS;
 			unsigned stencil_back_compare_op : COMPARE_OP_BITS;
+
+			unsigned alpha_to_coverage : 1;
+			unsigned alpha_to_one : 1;
+			unsigned sample_shading : 1;
 
 			unsigned src_color_blend : BLEND_FACTOR_BITS;
 			unsigned dst_color_blend : BLEND_FACTOR_BITS;

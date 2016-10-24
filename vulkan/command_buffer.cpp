@@ -13,6 +13,7 @@ CommandBuffer::CommandBuffer(Device *device, VkCommandBuffer cmd, VkPipelineCach
     , cache(cache)
 {
 	begin_compute();
+	set_opaque_state();
 }
 
 void CommandBuffer::copy_buffer(const Buffer &dst, VkDeviceSize dst_offset, const Buffer &src, VkDeviceSize src_offset,
@@ -250,16 +251,37 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	{
 		auto &att = blend_attachments[i];
 		att = {};
-		att.colorWriteMask =
-		    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		att.blendEnable = false;
+		att.colorWriteMask = (static_state.state.write_mask >> (4 * i)) & 0xf;
+		att.blendEnable = static_state.state.blend_enable;
+		if (att.blendEnable)
+		{
+			att.alphaBlendOp = static_cast<VkBlendOp>(static_state.state.alpha_blend_op);
+			att.colorBlendOp = static_cast<VkBlendOp>(static_state.state.color_blend_op);
+			att.dstAlphaBlendFactor = static_cast<VkBlendFactor>(static_state.state.dst_alpha_blend);
+			att.srcAlphaBlendFactor = static_cast<VkBlendFactor>(static_state.state.src_alpha_blend);
+			att.dstColorBlendFactor = static_cast<VkBlendFactor>(static_state.state.dst_color_blend);
+			att.srcColorBlendFactor = static_cast<VkBlendFactor>(static_state.state.src_color_blend);
+		}
 	}
 
 	// Depth state
 	VkPipelineDepthStencilStateCreateInfo ds = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
-	ds.stencilTestEnable = false;
-	ds.depthTestEnable = false;
-	ds.depthWriteEnable = false;
+	ds.stencilTestEnable = render_pass->has_stencil() && static_state.state.stencil_test;
+	ds.depthTestEnable = render_pass->has_depth() && static_state.state.depth_test;
+	ds.depthWriteEnable = render_pass->has_depth() && static_state.state.depth_write;
+	if (ds.depthTestEnable)
+		ds.depthCompareOp = static_cast<VkCompareOp>(static_state.state.depth_compare);
+
+	if (ds.stencilTestEnable)
+	{
+		ds.front.compareOp = static_cast<VkCompareOp>(static_state.state.stencil_front_compare_op);
+		ds.front.passOp = static_cast<VkStencilOp>(static_state.state.stencil_front_pass);
+		ds.front.failOp = static_cast<VkStencilOp>(static_state.state.stencil_front_fail);
+		ds.front.depthFailOp = static_cast<VkStencilOp>(static_state.state.stencil_front_depth_fail);
+		ds.back.passOp = static_cast<VkStencilOp>(static_state.state.stencil_back_pass);
+		ds.back.failOp = static_cast<VkStencilOp>(static_state.state.stencil_back_fail);
+		ds.back.depthFailOp = static_cast<VkStencilOp>(static_state.state.stencil_back_depth_fail);
+	}
 
 	// Vertex input
 	VkPipelineVertexInputStateCreateInfo vi = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
@@ -287,18 +309,22 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 
 	// Input assembly
 	VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
-	ia.primitiveRestartEnable = false;
-	ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ia.primitiveRestartEnable = static_state.state.primitive_restart;
+	ia.topology = static_cast<VkPrimitiveTopology>(static_state.state.topology);
 
 	// Multisample
 	VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
 	// TODO: Support more
-	ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ms.rasterizationSamples = static_cast<VkSampleCountFlagBits>(render_pass->get_sample_count());
+	ms.alphaToCoverageEnable = static_state.state.alpha_to_coverage;
+	ms.alphaToOneEnable = static_state.state.alpha_to_one;
+	ms.sampleShadingEnable = static_state.state.sample_shading;
+	ms.minSampleShading = 1.0f;
 
 	// Raster
 	VkPipelineRasterizationStateCreateInfo raster = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
-	raster.cullMode = VK_CULL_MODE_NONE;
-	raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	raster.cullMode = static_cast<VkCullModeFlags>(static_state.state.cull_mode);
+	raster.frontFace = static_cast<VkFrontFace>(static_state.state.front_face);
 	raster.lineWidth = 1.0f;
 	raster.polygonMode = VK_POLYGON_MODE_FILL;
 
@@ -848,5 +874,22 @@ void CommandBuffer::dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t grou
 	VK_ASSERT(is_compute);
 	flush_compute_state();
 	vkCmdDispatch(cmd, groups_x, groups_y, groups_z);
+}
+
+void CommandBuffer::set_opaque_state()
+{
+	auto &state = static_state.state;
+	state = {};
+	state.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	state.cull_mode = VK_CULL_MODE_BACK_BIT;
+	state.blend_enable = false;
+	state.depth_test = true;
+	state.depth_compare = VK_COMPARE_OP_LESS_OR_EQUAL;
+	state.depth_write = true;
+	state.depth_bias_enable = false;
+	state.primitive_restart = false;
+	state.stencil_test = false;
+	state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	state.write_mask = ~0u;
 }
 }
