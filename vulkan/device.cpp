@@ -989,12 +989,15 @@ const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 	VkFormat formats[VULKAN_NUM_ATTACHMENTS];
 	VkFormat depth_stencil;
 	uint32_t lazy = 0;
+	uint32_t swapchain = 0;
 
 	for (unsigned i = 0; i < info.num_color_attachments; i++)
 	{
 		formats[i] = info.color_attachments[i] ? info.color_attachments[i]->get_format() : VK_FORMAT_UNDEFINED;
 		if (info.color_attachments[i]->get_image().get_create_info().domain == ImageDomain::Transient)
 			lazy |= 1u << i;
+		if (info.color_attachments[i]->get_image().is_swapchain_image())
+			swapchain |= 1u << i;
 	}
 
 	if (info.depth_stencil && info.depth_stencil->get_image().get_create_info().domain == ImageDomain::Transient)
@@ -1006,6 +1009,7 @@ const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 	h.u32(depth_stencil);
 	h.u32(info.op_flags);
 	h.u32(lazy);
+	h.u32(swapchain);
 
 	auto hash = h.get();
 	auto itr = render_passes.find(hash);

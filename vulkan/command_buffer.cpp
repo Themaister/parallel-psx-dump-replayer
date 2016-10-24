@@ -165,17 +165,7 @@ void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
 		{
 			clear_values[num_clear_values++].color = info.clear_color[i];
 			if (info.color_attachments[i]->get_image().is_swapchain_image())
-			{
-				auto &image = info.color_attachments[i]->get_image();
 				uses_swapchain = true;
-				VkImageLayout layout = info.op_flags & RENDER_PASS_OP_COLOR_OPTIMAL_BIT ?
-				                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL :
-				                           VK_IMAGE_LAYOUT_GENERAL;
-				image_barrier(image, VK_IMAGE_LAYOUT_UNDEFINED, layout, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				              0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
-				image.set_layout(layout);
-			}
 		}
 	}
 
@@ -207,73 +197,6 @@ void CommandBuffer::end_render_pass()
 
 	framebuffer = nullptr;
 	render_pass = nullptr;
-
-	VkImageMemoryBarrier barriers[2];
-	unsigned num_barriers = 0;
-
-	// If we're rendering to swapchain, inject a barrier.
-	// If we have a depth buffer, do a trivial synchronization for it as well.
-	for (unsigned i = 0; i < render_pass_info.num_color_attachments; i++)
-	{
-		ImageView *view = render_pass_info.color_attachments[i];
-		if (view)
-		{
-			auto &image = view->get_image();
-			if (image.is_swapchain_image())
-			{
-				auto &barrier = barriers[num_barriers++];
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.pNext = nullptr;
-				barrier.image = image.get_image();
-				barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-				// Technically redundant, but validation layers want it.
-				barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-				barrier.oldLayout = image.get_layout();
-				barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-				barrier.subresourceRange.aspectMask = format_to_aspect_mask(view->get_format());
-				barrier.subresourceRange.baseMipLevel = view->get_create_info().base_level;
-				barrier.subresourceRange.baseArrayLayer = view->get_create_info().base_layer;
-				barrier.subresourceRange.levelCount = view->get_create_info().levels;
-				barrier.subresourceRange.layerCount = view->get_create_info().layers;
-				barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-				barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-				image.set_layout(barrier.newLayout);
-
-				VkPipelineStageFlags dst_stages =
-				    render_pass_info.depth_stencil ?
-				        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT :
-				        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-
-				if (render_pass_info.depth_stencil)
-				{
-					auto &barrier = barriers[num_barriers++];
-					auto &image = render_pass_info.depth_stencil->get_image();
-					auto *view = render_pass_info.depth_stencil;
-
-					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-					barrier.pNext = nullptr;
-					barrier.image = image.get_image();
-					barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-					barrier.dstAccessMask =
-					    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-					barrier.oldLayout = image.get_layout();
-					barrier.newLayout = image.get_layout();
-					barrier.subresourceRange.aspectMask = format_to_aspect_mask(view->get_format());
-					barrier.subresourceRange.baseMipLevel = view->get_create_info().base_level;
-					barrier.subresourceRange.baseArrayLayer = view->get_create_info().base_layer;
-					barrier.subresourceRange.levelCount = view->get_create_info().levels;
-					barrier.subresourceRange.layerCount = view->get_create_info().layers;
-					barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-					barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-				}
-
-				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, dst_stages, 0, 0, nullptr, 0, nullptr,
-				                     num_barriers, barriers);
-				break;
-			}
-		}
-	}
-
 	begin_compute();
 }
 
