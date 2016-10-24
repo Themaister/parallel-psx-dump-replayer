@@ -210,10 +210,36 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	// Dynamic state
 	VkPipelineDynamicStateCreateInfo dyn = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
 	dyn.dynamicStateCount = 2;
-	static const VkDynamicState states[] = {
+	VkDynamicState states[7] = {
 		VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT,
 	};
 	dyn.pDynamicStates = states;
+
+	if (static_state.state.depth_bias_enable)
+		states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_DEPTH_BIAS;
+	if (static_state.state.stencil_test)
+	{
+		states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+		states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+		states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+	}
+
+	dynamic_state.depth_bias_enable = static_state.state.depth_bias_enable != 0;
+	dynamic_state.stencil_enable = static_state.state.stencil_test != 0;
+
+	if (static_state.state.blend_enable)
+	{
+		if (static_state.state.src_color_blend == VK_BLEND_FACTOR_CONSTANT_COLOR ||
+	        static_state.state.src_alpha_blend == VK_BLEND_FACTOR_CONSTANT_ALPHA ||
+			static_state.state.dst_color_blend == VK_BLEND_FACTOR_CONSTANT_COLOR ||
+			static_state.state.dst_alpha_blend == VK_BLEND_FACTOR_CONSTANT_ALPHA)
+		{
+			states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+		}
+		dynamic_state.blend_constant_enable = true;
+	}
+	else
+		dynamic_state.blend_constant_enable = false;
 
 	// Blend state
 	VkPipelineColorBlendAttachmentState blend_attachments[VULKAN_NUM_ATTACHMENTS];
@@ -337,7 +363,7 @@ void CommandBuffer::flush_graphics_pipeline()
 
 	h.u64(render_pass->get_cookie());
 	h.u64(current_program->get_cookie());
-	h.u64(static_state.words);
+	h.data(static_state.words, sizeof(static_state.words));
 
 	auto hash = h.get();
 	current_pipeline = current_program->get_graphics_pipeline(hash);
@@ -407,6 +433,19 @@ void CommandBuffer::flush_render_state()
 		vkCmdSetViewport(cmd, 0, 1, &viewport);
 	if (get_and_clear(COMMAND_BUFFER_DIRTY_SCISSOR_BIT))
 		vkCmdSetScissor(cmd, 0, 1, &scissor);
+	if (dynamic_state.depth_bias_enable && get_and_clear(COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT))
+		vkCmdSetDepthBias(cmd, dynamic_state.depth_bias_constant, 0.0f, dynamic_state.depth_bias_slope);
+	if (dynamic_state.blend_constant_enable && get_and_clear(COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT))
+		vkCmdSetBlendConstants(cmd, dynamic_state.blend_constants);
+	if (dynamic_state.stencil_enable && get_and_clear(COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT))
+	{
+		vkCmdSetStencilCompareMask(cmd, VK_STENCIL_FACE_FRONT_BIT, dynamic_state.front.compare_mask);
+		vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_FRONT_BIT, dynamic_state.front.reference);
+		vkCmdSetStencilWriteMask(cmd, VK_STENCIL_FACE_FRONT_BIT, dynamic_state.front.write_mask);
+		vkCmdSetStencilCompareMask(cmd, VK_STENCIL_FACE_BACK_BIT, dynamic_state.back.compare_mask);
+		vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_BACK_BIT, dynamic_state.back.reference);
+		vkCmdSetStencilWriteMask(cmd, VK_STENCIL_FACE_BACK_BIT, dynamic_state.back.write_mask);
+	}
 
 	uint32_t update_vbo_mask = dirty_vbos & active_vbos;
 	for_each_bit_range(update_vbo_mask, [&](uint32_t binding, uint32_t binding_count) {

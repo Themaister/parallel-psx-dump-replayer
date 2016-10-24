@@ -18,12 +18,20 @@ enum CommandBufferDirtyBits
 
 	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT = 1 << 2,
 	COMMAND_BUFFER_DIRTY_SCISSOR_BIT = 1 << 3,
+	COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT = 1 << 4,
+	COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT = 1 << 5,
+	COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT = 1 << 6,
 
-	COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT = 1 << 4,
+	COMMAND_BUFFER_DIRTY_STATIC_VERTEX_BIT = 1 << 7,
 
-	COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT = 1 << 6,
+	COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT = 1 << 8,
 
-	COMMAND_BUFFER_DYNAMIC_BITS = COMMAND_BUFFER_DIRTY_VIEWPORT_BIT | COMMAND_BUFFER_DIRTY_SCISSOR_BIT
+	COMMAND_BUFFER_DYNAMIC_BITS =
+	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT |
+	COMMAND_BUFFER_DIRTY_SCISSOR_BIT |
+	COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT |
+	COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT |
+	COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT
 };
 using CommandBufferDirtyFlags = uint32_t;
 
@@ -177,14 +185,66 @@ private:
 		return mask;
 	}
 
+#define COMPARE_OP_BITS 3
+#define STENCIL_OP_BITS 3
+#define BLEND_FACTOR_BITS 5
+#define BLEND_OP_BITS 3
+#define CULL_MODE_BITS 2
+#define FRONT_FACE_BITS 1
 	union PipelineState {
 		struct
 		{
-			uint32_t state;
+			// Depth state.
+			unsigned depth_write : 1;
+			unsigned depth_test : 1;
+			unsigned blend_enable : 1;
+
+			unsigned cull_mode : CULL_MODE_BITS;
+			unsigned front_face : FRONT_FACE_BITS;
+			unsigned depth_bias_enable : 1;
+
+			unsigned depth_compare : COMPARE_OP_BITS;
+
+			unsigned stencil_test : 1;
+			unsigned stencil_front_fail : STENCIL_OP_BITS;
+			unsigned stencil_front_pass : STENCIL_OP_BITS;
+			unsigned stencil_front_depth_fail : STENCIL_OP_BITS;
+			unsigned stencil_front_compare_op : COMPARE_OP_BITS;
+			unsigned stencil_back_fail : STENCIL_OP_BITS;
+			unsigned stencil_back_pass : STENCIL_OP_BITS;
+			unsigned stencil_back_depth_fail : STENCIL_OP_BITS;
+			unsigned stencil_back_compare_op : COMPARE_OP_BITS;
+
+			unsigned src_color_blend : BLEND_FACTOR_BITS;
+			unsigned dst_color_blend : BLEND_FACTOR_BITS;
+			unsigned color_blend_op : BLEND_OP_BITS;
+			unsigned src_alpha_blend : BLEND_FACTOR_BITS;
+			unsigned dst_alpha_blend : BLEND_FACTOR_BITS;
+			unsigned alpha_blend_op : BLEND_OP_BITS;
+			unsigned primitive_restart : 1;
+			unsigned topology : 4;
+
+			uint32_t write_mask;
 		} state;
-		uint64_t words = 0;
-	};
-	PipelineState static_state = {};
+		uint32_t words[4];
+	} static_state = {};
+	static_assert(sizeof(static_state.words) >= sizeof(static_state.state), "Hashable pipeline state is not large enough!");
+
+	struct DynamicState
+	{
+		float depth_bias_constant = 0.0f;
+		float depth_bias_slope = 0.0f;
+		float blend_constants[4] = {};
+		struct
+		{
+			uint8_t compare_mask = 0;
+			uint8_t write_mask = 0;
+			uint8_t reference = 0;
+		} front, back;
+		bool depth_bias_enable = false;
+		bool blend_constant_enable = false;
+		bool stencil_enable = false;
+	} dynamic_state;
 
 	void flush_render_state();
 	VkPipeline build_graphics_pipeline(Hash hash);
