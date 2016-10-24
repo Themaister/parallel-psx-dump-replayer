@@ -791,6 +791,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	if (initial)
 	{
 		VK_ASSERT(create_info.domain != ImageDomain::Transient);
+		VK_ASSERT(create_info.initial_layout != VK_IMAGE_LAYOUT_UNDEFINED);
 		bool generate_mips = (create_info.misc & IMAGE_MISC_GENERATE_MIPS_BIT) != 0;
 		unsigned copy_levels = generate_mips ? 1u : info.mipLevels;
 
@@ -849,16 +850,16 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		    *handle, VK_IMAGE_LAYOUT_GENERAL, create_info.initial_layout, VK_PIPELINE_STAGE_TRANSFER_BIT,
 		    VK_ACCESS_TRANSFER_WRITE_BIT, handle->get_stage_flags(),
 		    handle->get_access_flags() & image_layout_to_possible_access(create_info.initial_layout));
-		handle->set_layout(create_info.initial_layout);
 	}
-	else
+	else if (create_info.initial_layout != VK_IMAGE_LAYOUT_UNDEFINED)
 	{
+		VK_ASSERT(create_info.domain != ImageDomain::Transient);
 		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, create_info.initial_layout,
 		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, handle->get_stage_flags(),
 		                           handle->get_access_flags() &
 		                               image_layout_to_possible_access(create_info.initial_layout));
-		handle->set_layout(create_info.initial_layout);
 	}
+	handle->set_layout(create_info.initial_layout);
 
 	return handle;
 }

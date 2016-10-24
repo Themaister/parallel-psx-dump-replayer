@@ -239,8 +239,7 @@ struct ImageCreateInfo
 			     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
 			         VkImageUsageFlags(depth_stencil ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
 			                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-			     VK_SAMPLE_COUNT_1_BIT, 0, 0, depth_stencil ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-			                                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			     VK_SAMPLE_COUNT_1_BIT, 0, 0, VK_IMAGE_LAYOUT_UNDEFINED };
 	}
 };
 
