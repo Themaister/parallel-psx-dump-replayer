@@ -9,3 +9,4 @@ add_subdirectory(vulkan)
 add_subdirectory(glsl)
 add_dependencies(atlas shaders)
 target_link_libraries(atlas vulkan)
+

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buffer.hpp"
+#include "chain_allocator.hpp"
 #include "command_buffer.hpp"
 #include "command_pool.hpp"
 #include "fence_manager.hpp"
@@ -8,7 +9,6 @@
 #include "image.hpp"
 #include "memory_allocator.hpp"
 #include "render_pass.hpp"
-#include "chain_allocator.hpp"
 #include "sampler.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
@@ -23,7 +23,6 @@ enum class SwapchainRenderPass
 	Depth,
 	DepthStencil
 };
-
 
 class Device
 {

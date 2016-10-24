@@ -2,11 +2,12 @@
 
 #include "cookie.hpp"
 #include "hashmap.hpp"
+#include "image.hpp"
 #include "intrusive.hpp"
 #include "limits.hpp"
 #include "object_pool.hpp"
+#include "temporary_hashmap.hpp"
 #include "vulkan.hpp"
-#include "image.hpp"
 
 namespace Vulkan
 {
@@ -106,58 +107,47 @@ class FramebufferAllocator
 {
 public:
 	FramebufferAllocator(Device *device);
-	~FramebufferAllocator();
 	Framebuffer &request_framebuffer(const RenderPassInfo &info);
 
 	void begin_frame();
 	void clear();
 
 private:
-	struct FramebufferNode : public IntrusiveListEnabled<FramebufferNode>, public Framebuffer
+	struct FramebufferNode : TemporaryHashmapEnabled<FramebufferNode>,
+	                         IntrusiveListEnabled<FramebufferNode>,
+	                         Framebuffer
 	{
 		FramebufferNode(Device *device, const RenderPass &rp, const RenderPassInfo &info)
 		    : Framebuffer(device, rp, info)
 		{
 		}
-
-		Hash hash = 0;
-		unsigned index = 0;
 	};
 
 	Device *device;
-	WeakList<FramebufferNode> rings[VULKAN_FRAMEBUFFER_RING_SIZE];
-	ObjectPool<FramebufferNode> object_pool;
-	unsigned index = 0;
-	HashMap<WeakList<FramebufferNode>::Iterator> framebuffers;
+	TemporaryHashmap<FramebufferNode, VULKAN_FRAMEBUFFER_RING_SIZE, false> framebuffers;
 };
 
 class TransientAllocator
 {
 public:
 	TransientAllocator(Device *device);
-	~TransientAllocator();
 	ImageView &request_attachment(unsigned width, unsigned height, VkFormat format, unsigned index = 0);
 
 	void begin_frame();
 	void clear();
 
 private:
-	struct TransientNode : public IntrusiveListEnabled<TransientNode>
+	struct TransientNode : TemporaryHashmapEnabled<TransientNode>, IntrusiveListEnabled<TransientNode>
 	{
 		TransientNode(ImageHandle handle)
-			: handle(handle)
+		    : handle(handle)
 		{
 		}
 
 		ImageHandle handle;
-		Hash hash = 0;
-		unsigned index = 0;
 	};
 
 	Device *device;
-	WeakList<TransientNode> rings[VULKAN_FRAMEBUFFER_RING_SIZE];
-	ObjectPool<TransientNode> object_pool;
-	unsigned index = 0;
-	HashMap<WeakList<TransientNode>::Iterator> attachments;
+	TemporaryHashmap<TransientNode, VULKAN_FRAMEBUFFER_RING_SIZE, false> transients;
 };
 }

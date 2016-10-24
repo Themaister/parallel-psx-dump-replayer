@@ -8,8 +8,8 @@ using namespace std;
 namespace Vulkan
 {
 Device::Device()
-	: framebuffer_allocator(this),
-	  transient_allocator(this)
+    : framebuffer_allocator(this)
+    , transient_allocator(this)
 {
 }
 
@@ -385,9 +385,10 @@ Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
     : device(device->get_device())
     , cmd_pool(device->get_device(), queue_family_index)
     , fence_manager(device->get_device())
-	, vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
-	, ibo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
-	, ubo_chain(device, 1024 * 1024, device->get_gpu_properties().limits.minUniformBufferOffsetAlignment, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+    , vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
+    , ibo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+    , ubo_chain(device, 1024 * 1024, device->get_gpu_properties().limits.minUniformBufferOffsetAlignment,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
 {
 }
 
@@ -1023,8 +1024,7 @@ const Framebuffer &Device::request_framebuffer(const RenderPassInfo &info)
 	return framebuffer_allocator.request_framebuffer(info);
 }
 
-ImageView &Device::get_transient_attachment(unsigned width, unsigned height, VkFormat format,
-                                                    unsigned int index)
+ImageView &Device::get_transient_attachment(unsigned width, unsigned height, VkFormat format, unsigned int index)
 {
 	return transient_allocator.request_attachment(width, height, format, index);
 }
@@ -1041,18 +1041,18 @@ RenderPassInfo Device::get_swapchain_render_pass(SwapchainRenderPass style)
 	case SwapchainRenderPass::Depth:
 	{
 		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
-		info.depth_stencil = &get_transient_attachment(frame().backbuffer->get_create_info().width,
-			                                           frame().backbuffer->get_create_info().height,
-			                                           get_default_depth_format());
+		info.depth_stencil =
+		    &get_transient_attachment(frame().backbuffer->get_create_info().width,
+		                              frame().backbuffer->get_create_info().height, get_default_depth_format());
 		break;
 	}
 
 	case SwapchainRenderPass::DepthStencil:
 	{
 		info.op_flags |= RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
-		info.depth_stencil = &get_transient_attachment(frame().backbuffer->get_create_info().width,
-		                                               frame().backbuffer->get_create_info().height,
-		                                               get_default_depth_stencil_format());
+		info.depth_stencil =
+		    &get_transient_attachment(frame().backbuffer->get_create_info().width,
+		                              frame().backbuffer->get_create_info().height, get_default_depth_stencil_format());
 		break;
 	}
 

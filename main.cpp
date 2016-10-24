@@ -1,10 +1,10 @@
 #include "atlas.hpp"
 #include "device.hpp"
 #include "wsi.hpp"
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
-#include <cmath>
 
 using namespace PSX;
 using namespace std;
@@ -238,23 +238,19 @@ int main()
 
 	static const uint32_t test_comp[] =
 #include "test.comp.inc"
-	;
+	    ;
 
 	auto program = device.create_program(triangle_vert, sizeof(triangle_vert), triangle_frag, sizeof(triangle_frag));
 	auto compute_program = device.create_program(test_comp, sizeof(test_comp));
 
 	static const float vertex_data[6 * 4] = {
-		-0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-		+0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
-		-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-		+0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
+		-0.5f, 0.5f,  0.0f, 1.0f, 0.0f, 0.0f, +0.5f, 0.5f,  0.0f, 1.0f, 1.0f, 0.0f,
+		-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, +0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
 	};
 
 	static const float vertex_data2[6 * 4] = {
-		-0.2f, 0.2f, 0.0f, 1.0f, 0.0f, 0.0f,
-		+0.2f, 0.2f, 0.0f, 1.0f, 1.0f, 0.0f,
-		-0.2f, -0.2f, 0.0f, 1.0f, 0.0f, 1.0f,
-		+0.2f, -0.2f, 0.0f, 1.0f, 1.0f, 1.0f,
+		-0.2f, 0.2f,  0.0f, 1.0f, 0.0f, 0.0f, +0.2f, 0.2f,  0.0f, 1.0f, 1.0f, 0.0f,
+		-0.2f, -0.2f, 0.0f, 1.0f, 0.0f, 1.0f, +0.2f, -0.2f, 0.0f, 1.0f, 1.0f, 1.0f,
 	};
 
 	static const uint16_t index_data[6] = {
@@ -292,8 +288,8 @@ int main()
 		cmd->set_texture(1, 0, image->get_view(), StockSampler::LinearClamp);
 
 		{
-			float offset[2] = {0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f)};
-			float colors[2] = {0.8f, 0.7f};
+			float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
+			float colors[2] = { 0.8f, 0.7f };
 			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
 			memcpy(data, offset, sizeof(offset));
 			memcpy(data + 2, colors, sizeof(colors));
@@ -306,15 +302,16 @@ int main()
 
 		cmd->set_texture(1, 0, image->get_view(), StockSampler::NearestClamp);
 		{
-			float offset[2] = {0.2f * cos(frame * 0.01f) - 0.5f, 0.2f * sin(frame * 0.01f) - 0.3f};
-			float colors[2] = {0.2f, 0.7f};
+			float offset[2] = { 0.2f * cos(frame * 0.01f) - 0.5f, 0.2f * sin(frame * 0.01f) - 0.3f };
+			float colors[2] = { 0.2f, 0.7f };
 			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
 			memcpy(data, offset, sizeof(offset));
 			memcpy(data + 2, colors, sizeof(colors));
 
 			memcpy(cmd->allocate_vertex_data(0, sizeof(vertex_data2), 6 * sizeof(float)), vertex_data2,
 			       sizeof(vertex_data2));
-			memcpy(cmd->allocate_index_data(3 * sizeof(float), VK_INDEX_TYPE_UINT16), index_data + 3, 3 * sizeof(float));
+			memcpy(cmd->allocate_index_data(3 * sizeof(float), VK_INDEX_TYPE_UINT16), index_data + 3,
+			       3 * sizeof(float));
 		}
 		cmd->draw_indexed(3);
 

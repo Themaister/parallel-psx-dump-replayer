@@ -89,7 +89,8 @@ public:
 	void push_constants(const void *data, VkDeviceSize offset, VkDeviceSize range);
 
 	void *allocate_constant_data(unsigned set, unsigned binding, VkDeviceSize size);
-	void *allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride, VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
+	void *allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride,
+	                           VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
 	void *allocate_index_data(VkDeviceSize size, VkIndexType index_type);
 
 	void set_viewport(const VkViewport &viewport);
@@ -100,8 +101,10 @@ public:
 	                        VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
 	void bind_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type);
 
-	void draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
-	void draw_indexed(uint32_t index_count, uint32_t instance_count = 1, uint32_t first_index = 0, int32_t vertex_offset = 0, uint32_t first_instance = 0);
+	void draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0,
+	          uint32_t first_instance = 0);
+	void draw_indexed(uint32_t index_count, uint32_t instance_count = 1, uint32_t first_index = 0,
+	                  int32_t vertex_offset = 0, uint32_t first_instance = 0);
 
 	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z);
 

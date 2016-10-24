@@ -2,6 +2,7 @@
 
 #include "hashmap.hpp"
 #include "object_pool.hpp"
+#include "temporary_hashmap.hpp"
 #include "vulkan.hpp"
 #include <utility>
 #include <vector>
@@ -38,7 +39,7 @@ public:
 	}
 
 private:
-	struct DescriptorSetNode : IntrusiveListEnabled<DescriptorSetNode>
+	struct DescriptorSetNode : TemporaryHashmapEnabled<DescriptorSetNode>, IntrusiveListEnabled<DescriptorSetNode>
 	{
 		DescriptorSetNode(VkDescriptorSet set)
 		    : set(set)
@@ -46,20 +47,12 @@ private:
 		}
 
 		VkDescriptorSet set;
-		Hash hash = 0;
-		unsigned index = 0;
 	};
 
 	Device *device;
 	VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
-
-	WeakList<DescriptorSetNode> rings[VULKAN_DESCRIPTOR_RING_SIZE];
-	ObjectPool<DescriptorSetNode> object_pool;
-	unsigned index = 0;
-
-	std::vector<WeakList<DescriptorSetNode>::Iterator> vacant;
+	TemporaryHashmap<DescriptorSetNode, VULKAN_DESCRIPTOR_RING_SIZE, true> set_nodes;
 	std::vector<VkDescriptorPoolSize> pool_size;
 	std::vector<VkDescriptorPool> pools;
-	HashMap<WeakList<DescriptorSetNode>::Iterator> set_nodes;
 };
 }

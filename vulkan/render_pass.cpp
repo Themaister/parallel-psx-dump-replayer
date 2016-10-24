@@ -204,29 +204,12 @@ FramebufferAllocator::FramebufferAllocator(Device *device)
 
 void FramebufferAllocator::clear()
 {
-	for (auto &ring : rings)
-	{
-		for (auto &node : ring)
-			object_pool.free(&node);
-		ring.clear();
-	}
 	framebuffers.clear();
-}
-
-FramebufferAllocator::~FramebufferAllocator()
-{
-	clear();
 }
 
 void FramebufferAllocator::begin_frame()
 {
-	index = (index + 1) & (VULKAN_FRAMEBUFFER_RING_SIZE - 1);
-	for (auto &node : rings[index])
-	{
-		framebuffers.erase(node.hash);
-		object_pool.free(&node);
-	}
-	rings[index].clear();
+	framebuffers.begin_frame();
 }
 
 Framebuffer &FramebufferAllocator::request_framebuffer(const RenderPassInfo &info)
@@ -243,28 +226,12 @@ Framebuffer &FramebufferAllocator::request_framebuffer(const RenderPassInfo &inf
 		h.u64(info.depth_stencil->get_cookie());
 
 	auto hash = h.get();
-	auto itr = framebuffers.find(hash);
-	if (itr != end(framebuffers))
-	{
-		auto i = itr->second;
-		if (i->index != index)
-		{
-			rings[index].move_to_front(rings[i->index], i);
-			i->index = index;
-		}
-
-		return *i;
-	}
-	else
-	{
-		auto *node = object_pool.allocate(device, rp, info);
-		node->index = index;
-		node->hash = hash;
-		framebuffers[hash] = node;
-		rings[index].insert_front(node);
+	auto *node = framebuffers.request(hash);
+	if (node)
 		return *node;
-	}
+	return *framebuffers.emplace(hash, device, rp, info);
 }
+
 TransientAllocator::TransientAllocator(Device *device)
     : device(device)
 {
@@ -272,29 +239,12 @@ TransientAllocator::TransientAllocator(Device *device)
 
 void TransientAllocator::clear()
 {
-	for (auto &ring : rings)
-	{
-		for (auto &node : ring)
-			object_pool.free(&node);
-		ring.clear();
-	}
-	attachments.clear();
-}
-
-TransientAllocator::~TransientAllocator()
-{
-	clear();
+	transients.clear();
 }
 
 void TransientAllocator::begin_frame()
 {
-	index = (index + 1) & (VULKAN_FRAMEBUFFER_RING_SIZE - 1);
-	for (auto &node : rings[index])
-	{
-		attachments.erase(node.hash);
-		object_pool.free(&node);
-	}
-	rings[index].clear();
+	transients.begin_frame();
 }
 
 ImageView &TransientAllocator::request_attachment(unsigned width, unsigned height, VkFormat format, unsigned index)
@@ -306,29 +256,12 @@ ImageView &TransientAllocator::request_attachment(unsigned width, unsigned heigh
 	h.u32(index);
 
 	auto hash = h.get();
-	auto itr = attachments.find(hash);
-	if (itr != end(attachments))
-	{
-		auto i = itr->second;
-		if (i->index != index)
-		{
-			rings[index].move_to_front(rings[i->index], i);
-			i->index = index;
-		}
+	auto *node = transients.request(hash);
+	if (node)
+		return node->handle->get_view();
 
-		return i->handle->get_view();
-	}
-	else
-	{
-		auto image_info = ImageCreateInfo::transient_render_target(width, height, format);
-
-		auto handle = device->create_image(image_info, nullptr);
-		auto *node = object_pool.allocate(handle);
-		node->index = index;
-		node->hash = hash;
-		attachments[hash] = node;
-		rings[index].insert_front(node);
-		return handle->get_view();
-	}
+	auto image_info = ImageCreateInfo::transient_render_target(width, height, format);
+	node = transients.emplace(hash, device->create_image(image_info, nullptr));
+	return node->handle->get_view();
 }
 }

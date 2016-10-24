@@ -132,7 +132,8 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 	{
 #ifdef VULKAN_DEBUG
 		// The validation layers are too conservative here, but this is just a performance pessimization.
-		size_t size = compiler.get_declared_struct_size(compiler.get_type(resources.push_constant_buffers.front().base_type_id));
+		size_t size =
+		    compiler.get_declared_struct_size(compiler.get_type(resources.push_constant_buffers.front().base_type_id));
 		layout.push_constant_offset = 0;
 		layout.push_constant_range = size;
 #else

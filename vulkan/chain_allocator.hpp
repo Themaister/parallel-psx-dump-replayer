@@ -1,7 +1,7 @@
 #pragma once
 
-#include "vulkan.hpp"
 #include "buffer.hpp"
+#include "vulkan.hpp"
 #include <vector>
 
 namespace Vulkan
@@ -38,5 +38,4 @@ private:
 	VkDeviceSize size = 0;
 	uint8_t *host = nullptr;
 };
-
 }

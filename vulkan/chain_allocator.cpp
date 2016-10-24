@@ -3,11 +3,12 @@
 
 namespace Vulkan
 {
-ChainAllocator::ChainAllocator(Device *device, VkDeviceSize block_size, VkDeviceSize alignment, VkBufferUsageFlags usage)
-	: device(device),
-	  block_size(block_size),
-	  alignment(alignment),
-	  usage(usage)
+ChainAllocator::ChainAllocator(Device *device, VkDeviceSize block_size, VkDeviceSize alignment,
+                               VkBufferUsageFlags usage)
+    : device(device)
+    , block_size(block_size)
+    , alignment(alignment)
+    , usage(usage)
 {
 	buffers.push_back(device->create_buffer({ BufferDomain::Host, block_size, usage }, nullptr));
 	host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
