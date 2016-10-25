@@ -6,6 +6,7 @@
 #include <string.h>
 #include <vector>
 #include <random>
+#include "renderer.hpp"
 
 using namespace PSX;
 using namespace std;
@@ -229,6 +230,7 @@ int main()
 	listener.flush();
 
 	auto &device = wsi.get_device();
+	Renderer renderer(device);
 
 	static const uint32_t triangle_vert[] =
 #include "triangle.vert.inc"
