@@ -12,5 +12,5 @@ layout(location = 0) in vec2 vUV;
 layout(set = 1, binding = 0) uniform sampler2D uSamp;
 void main()
 {
-   FragColor = textureLod(uSamp, vUV, 1.0);
+   FragColor = textureLod(uSamp, vUV, 0.0);
 }

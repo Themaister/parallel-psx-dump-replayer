@@ -855,8 +855,9 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 			                    array_height;
 
 			subresource.mipLevel = i;
-			memcpy(staging_cmd->update_image(*handle, { 0, 0, 0 }, extent, row_length, array_height, subresource),
-			       initial[i].data, size);
+			auto *ptr = staging_cmd->update_image(*handle, { 0, 0, 0 }, extent, row_length, array_height, subresource);
+			VK_ASSERT(ptr);
+			memcpy(ptr, initial[i].data, size);
 
 			extent.width = max(extent.width >> 1u, 1u);
 			extent.height = max(extent.height >> 1u, 1u);
@@ -950,9 +951,10 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 	if (create_info.domain == BufferDomain::Device && initial && !memory_type_is_host_visible(memory_type))
 	{
 		begin_staging();
-		const BufferCreateInfo staging_info = { BufferDomain::Host, create_info.size, 0 };
-		auto tmp = create_buffer(staging_info, initial);
-		staging_cmd->copy_buffer(*handle, *tmp);
+
+		auto *ptr = staging_cmd->update_buffer(*handle, 0, create_info.size);
+		VK_ASSERT(ptr);
+		memcpy(ptr, initial, create_info.size);
 		staging_cmd->buffer_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 		                            buffer_usage_to_possible_stages(info.usage),
 		                            buffer_usage_to_possible_access(info.usage));
