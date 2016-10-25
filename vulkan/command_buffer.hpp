@@ -118,6 +118,139 @@ public:
 
 	void set_opaque_state();
 
+#define SET_STATIC_STATE(value) do { \
+    if (static_state.state.value != value) { static_state.state.value = value; set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT); } \
+} while(0)
+
+	inline void set_depth_test(bool depth_test, bool depth_write)
+	{
+		SET_STATIC_STATE(depth_test);
+		SET_STATIC_STATE(depth_write);
+	}
+
+	inline void set_depth_compare(VkCompareOp depth_compare)
+	{
+		SET_STATIC_STATE(depth_compare);
+	}
+
+	inline void set_blend_enable(bool blend_enable)
+	{
+		SET_STATIC_STATE(blend_enable);
+	}
+
+	inline void
+	set_blend_factors(VkBlendFactor src_color_blend, VkBlendFactor src_alpha_blend, VkBlendFactor dst_color_blend,
+	                  VkBlendFactor dst_alpha_blend)
+	{
+		SET_STATIC_STATE(src_color_blend);
+		SET_STATIC_STATE(dst_color_blend);
+		SET_STATIC_STATE(src_alpha_blend);
+		SET_STATIC_STATE(dst_alpha_blend);
+	}
+
+	inline void set_blend_op(VkBlendOp color_blend_op, VkBlendOp alpha_blend_op)
+	{
+		SET_STATIC_STATE(color_blend_op);
+		SET_STATIC_STATE(alpha_blend_op);
+	}
+
+	inline void set_depth_bias(bool depth_bias_enable)
+	{
+		SET_STATIC_STATE(depth_bias_enable);
+	}
+
+	inline void set_stencil_test(bool stencil_test)
+	{
+		SET_STATIC_STATE(stencil_test);
+	}
+
+	inline void set_stencil_front_ops(VkCompareOp stencil_front_compare_op, VkStencilOp stencil_front_pass, VkStencilOp stencil_front_fail, VkStencilOp stencil_front_depth_fail)
+	{
+		SET_STATIC_STATE(stencil_front_compare_op);
+		SET_STATIC_STATE(stencil_front_pass);
+		SET_STATIC_STATE(stencil_front_fail);
+		SET_STATIC_STATE(stencil_front_depth_fail);
+	}
+
+	inline void set_stencil_back_ops(VkCompareOp stencil_back_compare_op, VkStencilOp stencil_back_pass, VkStencilOp stencil_back_fail, VkStencilOp stencil_back_depth_fail)
+	{
+		SET_STATIC_STATE(stencil_back_compare_op);
+		SET_STATIC_STATE(stencil_back_pass);
+		SET_STATIC_STATE(stencil_back_fail);
+		SET_STATIC_STATE(stencil_back_depth_fail);
+	}
+
+	inline void set_stencil_ops(VkCompareOp stencil_compare_op, VkStencilOp stencil_pass, VkStencilOp stencil_fail, VkStencilOp stencil_depth_fail)
+	{
+		set_stencil_front_ops(stencil_compare_op, stencil_pass, stencil_fail, stencil_depth_fail);
+		set_stencil_back_ops(stencil_compare_op, stencil_pass, stencil_fail, stencil_depth_fail);
+	}
+
+	inline void set_primitive_topology(VkPrimitiveTopology topology)
+	{
+		SET_STATIC_STATE(topology);
+	}
+
+	inline void set_primitive_restart(bool primitive_restart)
+	{
+		SET_STATIC_STATE(primitive_restart);
+	}
+
+	inline void set_multisample_state(bool alpha_to_coverage, bool alpha_to_one = false, bool sample_shading = false)
+	{
+		SET_STATIC_STATE(alpha_to_coverage);
+		SET_STATIC_STATE(alpha_to_one);
+		SET_STATIC_STATE(sample_shading);
+	}
+
+	inline void set_front_face(VkFrontFace front_face)
+	{
+		SET_STATIC_STATE(front_face);
+	}
+
+	inline void set_cull_mode(VkCullModeFlags cull_mode)
+	{
+		SET_STATIC_STATE(cull_mode);
+	}
+
+#define SET_DYNAMIC_STATE(state, flags) do { \
+    if (dynamic_state.state != state) { dynamic_state.state = state; set_dirty(flags); } \
+} while(0)
+
+	inline void set_depth_bias(float depth_bias_constant, float depth_bias_slope)
+	{
+		SET_DYNAMIC_STATE(depth_bias_constant, COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT);
+		SET_DYNAMIC_STATE(depth_bias_slope, COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT);
+	}
+
+	inline void set_blend_constants(const float blend_constants[4])
+	{
+		SET_DYNAMIC_STATE(blend_constants[0], COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT);
+		SET_DYNAMIC_STATE(blend_constants[1], COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT);
+		SET_DYNAMIC_STATE(blend_constants[2], COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT);
+		SET_DYNAMIC_STATE(blend_constants[3], COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT);
+	}
+
+	inline void set_stencil_front_reference(uint8_t front_compare_mask, uint8_t front_write_mask, uint8_t front_reference)
+	{
+		SET_DYNAMIC_STATE(front_compare_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+		SET_DYNAMIC_STATE(front_write_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+		SET_DYNAMIC_STATE(front_reference, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+	}
+
+	inline void set_stencil_back_reference(uint8_t back_compare_mask, uint8_t back_write_mask, uint8_t back_reference)
+	{
+		SET_DYNAMIC_STATE(back_compare_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+		SET_DYNAMIC_STATE(back_write_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+		SET_DYNAMIC_STATE(back_reference, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
+	}
+
+	inline void set_stencil_reference(uint8_t compare_mask, uint8_t write_mask, uint8_t reference)
+	{
+		set_stencil_front_reference(compare_mask, write_mask, reference);
+		set_stencil_back_reference(compare_mask, write_mask, reference);
+	}
+
 private:
 	Device *device;
 	VkCommandBuffer cmd;
@@ -241,12 +374,12 @@ private:
 		float depth_bias_constant = 0.0f;
 		float depth_bias_slope = 0.0f;
 		float blend_constants[4] = {};
-		struct
-		{
-			uint8_t compare_mask = 0;
-			uint8_t write_mask = 0;
-			uint8_t reference = 0;
-		} front, back;
+		uint8_t front_compare_mask = 0;
+		uint8_t front_write_mask = 0;
+		uint8_t front_reference = 0;
+		uint8_t back_compare_mask = 0;
+		uint8_t back_write_mask = 0;
+		uint8_t back_reference = 0;
 		bool depth_bias_enable = false;
 		bool blend_constant_enable = false;
 		bool stencil_enable = false;
