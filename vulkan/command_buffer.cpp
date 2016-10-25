@@ -642,6 +642,45 @@ void *CommandBuffer::allocate_index_data(VkDeviceSize size, VkIndexType index_ty
 	return data.data;
 }
 
+void *CommandBuffer::update_buffer(const Buffer &buffer, VkDeviceSize offset, VkDeviceSize size)
+{
+	auto data = device->allocate_staging_data(size);
+	copy_buffer(buffer, offset, *data.buffer, data.offset, size);
+	return data.data;
+}
+
+void *CommandBuffer::update_image(const Image &image, const VkOffset3D &offset, const VkExtent3D &extent,
+                                  uint32_t row_length, uint32_t image_height,
+                                  const VkImageSubresourceLayers &subresource)
+{
+	auto &create_info = image.get_create_info();
+	uint32_t width = max(image.get_width() >> subresource.mipLevel, 1u);
+	uint32_t height = max(image.get_height() >> subresource.mipLevel, 1u);
+	uint32_t depth = max(image.get_depth() >> subresource.mipLevel, 1u);
+
+	if (!row_length)
+		row_length = width;
+	if (!image_height)
+		image_height = height;
+
+	VkDeviceSize size = format_pixel_size(create_info.format) * subresource.layerCount * depth * row_length *
+	                    image_height;
+
+	auto data = device->allocate_staging_data(size);
+	copy_buffer_to_image(image, *data.buffer, data.offset, offset, extent, row_length, image_height, subresource);
+	return data.data;
+}
+
+void *CommandBuffer::update_image(const Image &image, uint32_t row_length, uint32_t image_height)
+{
+	const VkImageSubresourceLayers subresource = {
+		format_to_aspect_mask(image.get_format()),
+	    0, 0, 1,
+	};
+	return update_image(image, { 0, 0, 0 }, { image.get_width(), image.get_height(), image.get_depth() },
+	   row_length, image_height, subresource);
+}
+
 void *CommandBuffer::allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride,
                                           VkVertexInputRate step_rate)
 {

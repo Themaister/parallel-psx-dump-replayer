@@ -249,6 +249,7 @@ void Device::submit_queue()
 	frame().ubo_chain.flush();
 	frame().vbo_chain.flush();
 	frame().ibo_chain.flush();
+	frame().staging_chain.flush();
 
 	vector<VkCommandBuffer> cmds;
 	cmds.reserve(frame().submissions.size());
@@ -421,6 +422,7 @@ Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
     , ibo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
     , ubo_chain(device, 1024 * 1024, device->get_gpu_properties().limits.minUniformBufferOffsetAlignment,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+	, staging_chain(device, 4 * 1024 * 1024, 64, VK_BUFFER_USAGE_TRANSFER_SRC_BIT)
 {
 }
 
@@ -502,6 +504,7 @@ void Device::begin_frame(unsigned index)
 void Device::PerFrame::begin()
 {
 	ubo_chain.discard();
+	staging_chain.discard();
 	vbo_chain.discard();
 	ibo_chain.discard();
 	fence_manager.begin();
@@ -539,6 +542,7 @@ void Device::PerFrame::cleanup()
 	vbo_chain.reset();
 	ibo_chain.reset();
 	ubo_chain.reset();
+	staging_chain.reset();
 }
 
 Device::PerFrame::~PerFrame()
@@ -560,6 +564,11 @@ ChainDataAllocation Device::allocate_vertex_data(VkDeviceSize size)
 ChainDataAllocation Device::allocate_index_data(VkDeviceSize size)
 {
 	return frame().ibo_chain.allocate(size);
+}
+
+ChainDataAllocation Device::allocate_staging_data(VkDeviceSize size)
+{
+	return frame().staging_chain.allocate(size);
 }
 
 uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)
@@ -840,18 +849,14 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 		for (unsigned i = 0; i < copy_levels; i++)
 		{
-			uint32_t row_length = initial[i].row_length ? initial[i].row_length : create_info.width;
-			uint32_t array_height = initial[i].array_height ? initial[i].array_height : create_info.height;
-
-			VkDeviceSize size = format_pixel_size(create_info.format) * create_info.layers * create_info.width *
-			                    (initial[i].array_height ? initial[i].array_height : create_info.height);
-
-			auto temp = create_buffer({ BufferDomain::Host, size, 0 }, initial[i].data);
+			uint32_t row_length = initial[i].row_length ? initial[i].row_length : extent.width;
+			uint32_t array_height = initial[i].array_height ? initial[i].array_height : extent.height;
+			VkDeviceSize size = format_pixel_size(create_info.format) * create_info.layers * extent.depth * row_length *
+			                    array_height;
 
 			subresource.mipLevel = i;
-
-			staging_cmd->copy_buffer_to_image(*handle, *temp, 0, { 0, 0, 0 }, extent, row_length, array_height,
-			                                  subresource);
+			memcpy(staging_cmd->update_image(*handle, { 0, 0, 0 }, extent, row_length, array_height, subresource),
+			       initial[i].data, size);
 
 			extent.width = max(extent.width >> 1u, 1u);
 			extent.height = max(extent.height >> 1u, 1u);

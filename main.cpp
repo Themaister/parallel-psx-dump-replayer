@@ -258,7 +258,6 @@ int main()
 		0, 1, 2, 3, 2, 1,
 	};
 
-
 	auto image_info = ImageCreateInfo::immutable_2d_image(16, 16, VK_FORMAT_R8G8B8A8_UNORM);
 	image_info.misc = IMAGE_MISC_GENERATE_MIPS_BIT;
 	image_info.levels = 0;

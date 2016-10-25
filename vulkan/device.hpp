@@ -89,6 +89,7 @@ public:
 	ChainDataAllocation allocate_constant_data(VkDeviceSize size);
 	ChainDataAllocation allocate_vertex_data(VkDeviceSize size);
 	ChainDataAllocation allocate_index_data(VkDeviceSize size);
+	ChainDataAllocation allocate_staging_data(VkDeviceSize size);
 
 	const VkPhysicalDeviceMemoryProperties &get_memory_properties() const
 	{
@@ -127,7 +128,7 @@ private:
 		ImageHandle backbuffer;
 		FenceManager fence_manager;
 
-		ChainAllocator vbo_chain, ibo_chain, ubo_chain;
+		ChainAllocator vbo_chain, ibo_chain, ubo_chain, staging_chain;
 
 		std::vector<MaliSDK::DeviceAllocation> allocations;
 		std::vector<VkFramebuffer> destroyed_framebuffers;
