@@ -51,6 +51,21 @@ void CommandBuffer::copy_image_to_buffer(const Buffer &buffer, const Image &imag
 	vkCmdCopyImageToBuffer(cmd, image.get_image(), image.get_layout(), buffer.get_buffer(), 1, &region);
 }
 
+void CommandBuffer::clear_image(const Image &image, const VkClearValue &value)
+{
+	auto aspect = format_to_aspect_mask(image.get_format());
+	VkImageSubresourceRange range = {};
+	range.aspectMask = aspect;
+	range.baseArrayLayer = 0;
+	range.baseMipLevel = 0;
+	range.levelCount = image.get_create_info().levels;
+	range.layerCount = image.get_create_info().layers;
+	if (aspect & VK_IMAGE_ASPECT_COLOR_BIT)
+		vkCmdClearColorImage(cmd, image.get_image(), image.get_layout(), &value.color, 1, &range);
+	else
+		vkCmdClearDepthStencilImage(cmd, image.get_image(), image.get_layout(), &value.depthStencil, 1, &range);
+}
+
 void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_access, VkPipelineStageFlags dst_stages,
                             VkAccessFlags dst_access)
 {
@@ -955,6 +970,19 @@ void CommandBuffer::set_opaque_state()
 	state.primitive_restart = false;
 	state.stencil_test = false;
 	state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	state.write_mask = ~0u;
+}
+
+void CommandBuffer::set_quad_state()
+{
+	auto &state = static_state.state;
+	state = {};
+	state.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	state.cull_mode = VK_CULL_MODE_NONE;
+	state.blend_enable = false;
+	state.depth_test = false;
+	state.depth_write = false;
+	state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 	state.write_mask = ~0u;
 }
 }

@@ -3,17 +3,52 @@
 #include "vulkan.hpp"
 #include "wsi.hpp"
 #include "device.hpp"
+#include "atlas.hpp"
 
 namespace PSX
 {
-class Renderer
+enum class TextureMode
+{
+	None,
+	Palette4bpp,
+	Palette8bpp,
+	ABGR1555
+};
+class Renderer : private HazardListener
 {
 public:
-	Renderer(Vulkan::Device &device);
+	Renderer(Vulkan::Device &device, unsigned scaling);
 	~Renderer();
+
+	void set_draw_rect(const Rect &rect);
+	void clear_rect(const Rect &rect);
+	void set_texture_window(const Rect &rect);
+
+	void scanout(const Rect &rect);
+
+	inline void set_texture_format(TextureMode mode) { texture_mode = mode; }
+	inline void enable_semi_transparent(bool enable) { semi_transparent = enable; }
 
 private:
 	Vulkan::Device &device;
+	unsigned scaling;
+	Vulkan::ImageHandle scaled_framebuffer;
+	Vulkan::ImageHandle framebuffer;
+	Vulkan::ImageHandle depth;
+	FBAtlas atlas;
+
+	Vulkan::CommandBufferHandle cmd;
+
+	void hazard(StatusFlags flags) override;
+	void resolve(Domain target_domain, const Rect &rect) override;
+	void flush_render_pass() override;
+	void discard_render_pass() override;
+	void upload_texture(Domain target_domain, const Rect &rect) override;
+
+	TextureMode texture_mode = TextureMode::None;
+	bool semi_transparent = false;
+
+	Vulkan::ProgramHandle quad_blitter;
 };
 
 }

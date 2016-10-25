@@ -230,7 +230,7 @@ int main()
 	listener.flush();
 
 	auto &device = wsi.get_device();
-	Renderer renderer(device);
+	Renderer renderer(device, 4);
 
 	static const uint32_t triangle_vert[] =
 #include "triangle.vert.inc"
@@ -276,67 +276,7 @@ int main()
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
-
-		auto cmd = device.request_command_buffer();
-		auto rp = device.get_swapchain_render_pass(SwapchainRenderPass::DepthStencil);
-
-		auto image_info = ImageCreateInfo::immutable_2d_image(8, 8, VK_FORMAT_R8G8B8A8_UNORM);
-		image_info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
-		image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		image_info.levels = 0;
-		auto image = device.create_image(image_info, nullptr);
-		cmd->bind_program(*compute_program);
-		cmd->set_storage_texture(0, 0, image->get_view());
-		cmd->dispatch(1, 1, 1);
-
-		cmd->image_barrier(*image, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
-		cmd->generate_mipmap(*image);
-		cmd->image_barrier(*image, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-		frame++;
-		rp.clear_color[0].float32[0] = float(frame & 255) / 255.0f;
-		rp.clear_color[0].float32[1] = float(frame & 255) / 255.0f;
-		rp.clear_color[0].float32[2] = float(frame & 255) / 255.0f;
-		cmd->begin_render_pass(rp);
-
-		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
-		cmd->set_vertex_attrib(1, 0, VK_FORMAT_R32G32_SFLOAT, 4 * sizeof(float));
-		cmd->bind_program(*program);
-		cmd->set_texture(1, 0, static_image->get_view(), StockSampler::TrilinearClamp);
-
-		{
-			float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
-			float colors[2] = { 0.8f, 0.7f };
-			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
-			memcpy(data, offset, sizeof(offset));
-			memcpy(data + 2, colors, sizeof(colors));
-
-			memcpy(cmd->allocate_vertex_data(0, sizeof(vertex_data), 6 * sizeof(float)), vertex_data,
-			       sizeof(vertex_data));
-			memcpy(cmd->allocate_index_data(sizeof(index_data), VK_INDEX_TYPE_UINT16), index_data, sizeof(index_data));
-		}
-		cmd->draw_indexed(6);
-
-		cmd->set_texture(1, 0, image->get_view(), StockSampler::NearestClamp);
-		{
-			float offset[2] = { 0.2f * cos(frame * 0.01f) - 0.5f, 0.2f * sin(frame * 0.01f) - 0.3f };
-			float colors[2] = { 0.2f, 0.7f };
-			float *data = static_cast<float *>(cmd->allocate_constant_data(0, 0, 4 * sizeof(float)));
-			memcpy(data, offset, sizeof(offset));
-			memcpy(data + 2, colors, sizeof(colors));
-
-			memcpy(cmd->allocate_vertex_data(0, sizeof(vertex_data2), 6 * sizeof(float)), vertex_data2,
-			       sizeof(vertex_data2));
-			memcpy(cmd->allocate_index_data(3 * sizeof(float), VK_INDEX_TYPE_UINT16), index_data + 3,
-			       3 * sizeof(float));
-		}
-		cmd->draw_indexed(3);
-
-		cmd->end_render_pass();
-
-		device.submit(cmd);
+		renderer.scanout({ 50, 200, 128, 128 });
 		wsi.end_frame();
 	}
 }

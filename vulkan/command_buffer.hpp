@@ -50,6 +50,8 @@ public:
 		return uses_swapchain;
 	}
 
+	void clear_image(const Image &image, const VkClearValue &value);
+
 	void copy_buffer(const Buffer &dst, VkDeviceSize dst_offset, const Buffer &src, VkDeviceSize src_offset,
 	                 VkDeviceSize size);
 	void copy_buffer(const Buffer &dst, const Buffer &src);
@@ -124,6 +126,7 @@ public:
 	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z);
 
 	void set_opaque_state();
+	void set_quad_state();
 
 #define SET_STATIC_STATE(value) do { \
     if (static_state.state.value != value) { static_state.state.value = value; set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT); } \

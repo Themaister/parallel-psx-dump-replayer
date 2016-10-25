@@ -13,6 +13,8 @@ function(add_shader OUTPUT INPUT)
    add_dependencies(shaders ${OUTPUT})
 endfunction(add_shader)
 
+add_shader(quad.vert quad.vert)
+add_shader(quad.frag quad.frag)
 add_shader(triangle.vert triangle.vert)
 add_shader(triangle.frag triangle.frag)
 add_shader(test.comp test.comp)

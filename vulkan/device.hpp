@@ -53,7 +53,7 @@ public:
 	void unmap_host_buffer(const Buffer &buffer);
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
-	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial);
+	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial = nullptr);
 	ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
 	SamplerHandle create_sampler(const SamplerCreateInfo &info);
 	const Sampler &get_stock_sampler(StockSampler sampler) const;
