@@ -10,8 +10,12 @@ enum class StockSampler
 {
 	NearestClamp,
 	LinearClamp,
+	TrilinearClamp,
 	NearestWrap,
 	LinearWrap,
+	TrilinearWrap,
+	NearestShadow,
+	LinearShadow,
 	Count
 };
 

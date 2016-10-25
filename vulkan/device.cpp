@@ -158,23 +158,51 @@ void Device::set_context(const VulkanContext &context)
 void Device::init_stock_samplers()
 {
 	SamplerCreateInfo info = {};
-	info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	info.maxLod = VK_LOD_CLAMP_NONE;
 
 	for (unsigned i = 0; i < static_cast<unsigned>(StockSampler::Count); i++)
 	{
 		auto mode = static_cast<StockSampler>(i);
+
 		switch (mode)
 		{
-		default:
-		case StockSampler::NearestClamp:
-		case StockSampler::NearestWrap:
-			info.magFilter = VK_FILTER_NEAREST;
+		case StockSampler::NearestShadow:
+		case StockSampler::LinearShadow:
+			info.compareEnable = true;
+			info.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 			break;
 
+		default:
+			info.compareEnable = false;
+			break;
+		}
+
+		switch (mode)
+		{
+		case StockSampler::TrilinearClamp:
+		case StockSampler::TrilinearWrap:
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			break;
+
+		default:
+			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			break;
+		}
+
+		switch (mode)
+		{
 		case StockSampler::LinearClamp:
 		case StockSampler::LinearWrap:
+		case StockSampler::TrilinearClamp:
+		case StockSampler::TrilinearWrap:
+		case StockSampler::LinearShadow:
 			info.magFilter = VK_FILTER_LINEAR;
+			info.minFilter = VK_FILTER_LINEAR;
+			break;
+
+		default:
+			info.magFilter = VK_FILTER_NEAREST;
+			info.minFilter = VK_FILTER_NEAREST;
 			break;
 		}
 
@@ -183,6 +211,7 @@ void Device::init_stock_samplers()
 		default:
 		case StockSampler::LinearWrap:
 		case StockSampler::NearestWrap:
+		case StockSampler::TrilinearWrap:
 			info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -190,6 +219,9 @@ void Device::init_stock_samplers()
 
 		case StockSampler::LinearClamp:
 		case StockSampler::NearestClamp:
+		case StockSampler::TrilinearClamp:
+		case StockSampler::NearestShadow:
+		case StockSampler::LinearShadow:
 			info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 			info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 			info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -828,22 +860,9 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 		if (generate_mips)
 		{
-			VkOffset3D size = { int(create_info.width), int(create_info.height), int(create_info.depth) };
-			const VkOffset3D origin = { 0, 0, 0 };
-
-			for (unsigned i = 1; i < tmpinfo.levels; i++)
-			{
-				staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-				                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
-
-				VkOffset3D src_size = size;
-				size.x = max(size.x >> 1, 1);
-				size.y = max(size.y >> 1, 1);
-				size.z = max(size.z >> 1, 1);
-
-				staging_cmd->blit_image(*handle, *handle, origin, size, origin, src_size, i, i - 1, 0, 0,
-				                        create_info.layers);
-			}
+			staging_cmd->image_barrier(*handle, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+			                           VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+			staging_cmd->generate_mipmap(*handle);
 		}
 
 		staging_cmd->image_barrier(

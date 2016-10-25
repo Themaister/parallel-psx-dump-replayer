@@ -79,6 +79,8 @@ public:
 	                unsigned dst_base_layer = 0, uint32_t src_base_layer = 0, unsigned num_layers = 1,
 	                VkFilter filter = VK_FILTER_LINEAR);
 
+	void generate_mipmap(const Image &image);
+
 	void begin_render_pass(const RenderPassInfo &info);
 	void end_render_pass();
 

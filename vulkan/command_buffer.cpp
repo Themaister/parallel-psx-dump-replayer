@@ -98,6 +98,30 @@ void CommandBuffer::image_barrier(const Image &image, VkPipelineStageFlags src_s
 	image_barrier(image, image.get_layout(), image.get_layout(), src_stages, src_access, dst_stages, dst_access);
 }
 
+void CommandBuffer::generate_mipmap(const Image &image)
+{
+	auto &create_info = image.get_create_info();
+	VkOffset3D size = { int(create_info.width), int(create_info.height), int(create_info.depth) };
+	const VkOffset3D origin = { 0, 0, 0 };
+
+	for (unsigned i = 1; i < create_info.levels; i++)
+	{
+		VkOffset3D src_size = size;
+		size.x = max(size.x >> 1, 1);
+		size.y = max(size.y >> 1, 1);
+		size.z = max(size.z >> 1, 1);
+
+		blit_image(image, image, origin, size, origin, src_size, i, i - 1, 0, 0,
+		           create_info.layers, VK_FILTER_LINEAR);
+
+		if (i + 1 < create_info.levels)
+		{
+			image_barrier(image, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+			              VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+		}
+	}
+}
+
 void CommandBuffer::blit_image(const Image &dst, const Image &src, const VkOffset3D &dst_offset,
                                const VkOffset3D &dst_extent, const VkOffset3D &src_offset, const VkOffset3D &src_extent,
                                unsigned dst_level, unsigned src_level, unsigned dst_base_layer, unsigned src_base_layer,

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <vector>
+#include <random>
 
 using namespace PSX;
 using namespace std;
@@ -257,6 +258,19 @@ int main()
 		0, 1, 2, 3, 2, 1,
 	};
 
+
+	auto image_info = ImageCreateInfo::immutable_2d_image(16, 16, VK_FORMAT_R8G8B8A8_UNORM);
+	image_info.misc = IMAGE_MISC_GENERATE_MIPS_BIT;
+	image_info.levels = 0;
+	uint32_t image_buffer[16 * 16];
+	std::mt19937 mt(0);
+	for (unsigned y = 0; y < 16; y++)
+		for (unsigned x = 0; x < 16; x++)
+			image_buffer[y * 16 + x] = mt();
+
+	ImageInitialData initial = { image_buffer, 0, 0 };
+	auto static_image = device.create_image(image_info, &initial);
+
 	unsigned frame = 0;
 	while (!wsi.alive())
 	{
@@ -267,13 +281,17 @@ int main()
 
 		auto image_info = ImageCreateInfo::immutable_2d_image(8, 8, VK_FORMAT_R8G8B8A8_UNORM);
 		image_info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
-		image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+		image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		image_info.levels = 0;
 		auto image = device.create_image(image_info, nullptr);
 		cmd->bind_program(*compute_program);
 		cmd->set_storage_texture(0, 0, image->get_view());
 		cmd->dispatch(1, 1, 1);
 
 		cmd->image_barrier(*image, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+		cmd->generate_mipmap(*image);
+		cmd->image_barrier(*image, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 		frame++;
@@ -285,7 +303,7 @@ int main()
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 		cmd->set_vertex_attrib(1, 0, VK_FORMAT_R32G32_SFLOAT, 4 * sizeof(float));
 		cmd->bind_program(*program);
-		cmd->set_texture(1, 0, image->get_view(), StockSampler::LinearClamp);
+		cmd->set_texture(1, 0, static_image->get_view(), StockSampler::TrilinearClamp);
 
 		{
 			float offset[2] = { 0.2f * cos(frame * 0.01f), 0.2f * sin(frame * 0.01f) };
