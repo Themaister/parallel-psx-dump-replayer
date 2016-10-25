@@ -1,8 +1,8 @@
 #pragma once
 
-#include "vulkan/vulkan.hpp"
-#include "vulkan/wsi.hpp"
-#include "vulkan/device.hpp"
+#include "vulkan.hpp"
+#include "wsi.hpp"
+#include "device.hpp"
 
 namespace PSX
 {

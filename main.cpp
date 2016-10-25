@@ -1,4 +1,4 @@
-#include "atlas.hpp"
+#include "atlas/atlas.hpp"
 #include "device.hpp"
 #include "wsi.hpp"
 #include <cmath>
@@ -6,7 +6,7 @@
 #include <string.h>
 #include <vector>
 #include <random>
-#include "renderer.hpp"
+#include "renderer/renderer.hpp"
 
 using namespace PSX;
 using namespace std;

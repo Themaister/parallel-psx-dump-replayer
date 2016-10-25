@@ -8,17 +8,9 @@ endif()
 
 add_subdirectory(vulkan)
 add_subdirectory(glsl)
+add_subdirectory(atlas)
+add_subdirectory(renderer)
 
-# Renderer
-add_library(renderer STATIC renderer.cpp)
-target_link_libraries(renderer vulkan atlas)
-target_include_directories(renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Atlas
-add_library(atlas STATIC atlas.cpp)
-target_include_directories(atlas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Toplevel
 add_executable(toplevel main.cpp)
 target_include_directories(toplevel PRIVATE ${CMAKE_BINARY_DIR}/glsl)
 
