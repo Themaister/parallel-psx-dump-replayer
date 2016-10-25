@@ -18,11 +18,27 @@ CommandPool::~CommandPool()
 	vkDestroyCommandPool(device, pool, nullptr);
 }
 
+#ifdef VULKAN_DEBUG
+#endif
+
+void CommandPool::signal_submitted(VkCommandBuffer cmd)
+{
+#ifdef VULKAN_DEBUG
+	VK_ASSERT(in_flight.find(cmd) != end(in_flight));
+	in_flight.erase(cmd);
+#endif
+}
+
 VkCommandBuffer CommandPool::request_command_buffer()
 {
 	if (index < buffers.size())
 	{
-		return buffers[index++];
+		auto ret = buffers[index++];
+#ifdef VULKAN_DEBUG
+		VK_ASSERT(in_flight.find(ret) == end(in_flight));
+		in_flight.insert(ret);
+#endif
+		return ret;
 	}
 	else
 	{
@@ -33,6 +49,10 @@ VkCommandBuffer CommandPool::request_command_buffer()
 		info.commandBufferCount = 1;
 
 		vkAllocateCommandBuffers(device, &info, &cmd);
+#ifdef VULKAN_DEBUG
+		VK_ASSERT(in_flight.find(cmd) == end(in_flight));
+		in_flight.insert(cmd);
+#endif
 		buffers.push_back(cmd);
 		index++;
 		return cmd;
@@ -41,6 +61,9 @@ VkCommandBuffer CommandPool::request_command_buffer()
 
 void CommandPool::begin()
 {
+#ifdef VULKAN_DEBUG
+	VK_ASSERT(in_flight.empty());
+#endif
 	vkResetCommandPool(device, pool, 0);
 	index = 0;
 }

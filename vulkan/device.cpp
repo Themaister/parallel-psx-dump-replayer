@@ -235,11 +235,13 @@ void Device::submit(CommandBufferHandle cmd)
 {
 	if (staging_cmd)
 	{
+		frame().cmd_pool.signal_submitted(staging_cmd->get_command_buffer());
 		vkEndCommandBuffer(staging_cmd->get_command_buffer());
 		frame().submissions.push_back(staging_cmd);
 		staging_cmd.reset();
 	}
 
+	frame().cmd_pool.signal_submitted(cmd->get_command_buffer());
 	vkEndCommandBuffer(cmd->get_command_buffer());
 	frame().submissions.push_back(move(cmd));
 }
@@ -314,6 +316,7 @@ void Device::flush_frame()
 {
 	if (staging_cmd)
 	{
+		frame().cmd_pool.signal_submitted(staging_cmd->get_command_buffer());
 		vkEndCommandBuffer(staging_cmd->get_command_buffer());
 		frame().submissions.push_back(staging_cmd);
 		staging_cmd.reset();

@@ -40,13 +40,14 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	;
 	quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), quad_frag, sizeof(quad_frag));
 
-	auto tmp = device.request_command_buffer();
+	cmd = device.request_command_buffer();
 	VkClearValue color = {};
 	color.color.float32[1] = 1.0f;
-	tmp->clear_image(*scaled_framebuffer, color);
-	tmp->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+	cmd->clear_image(*scaled_framebuffer, color);
+	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	device.submit(tmp);
+	device.submit(cmd);
+	cmd.reset();
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
