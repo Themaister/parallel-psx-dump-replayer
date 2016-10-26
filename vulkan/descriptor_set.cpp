@@ -22,6 +22,13 @@ DescriptorSetAllocator::DescriptorSetAllocator(Device *device, const DescriptorS
 			types++;
 		}
 
+		if (layout.sampled_buffer_mask & (1u << i))
+		{
+			bindings.push_back({ i, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1, layout.stages, nullptr });
+			pool_size.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, VULKAN_NUM_SETS_PER_POOL });
+			types++;
+		}
+
 		if (layout.storage_image_mask & (1u << i))
 		{
 			bindings.push_back({ i, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, layout.stages, nullptr });

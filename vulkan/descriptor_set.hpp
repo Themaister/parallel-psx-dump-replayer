@@ -16,6 +16,7 @@ struct DescriptorSetLayout
 	uint32_t storage_image_mask = 0;
 	uint32_t uniform_buffer_mask = 0;
 	uint32_t storage_buffer_mask = 0;
+	uint32_t sampled_buffer_mask = 0;
 	VkShaderStageFlags stages = 0;
 };
 

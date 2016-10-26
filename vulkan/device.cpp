@@ -100,6 +100,7 @@ void Device::bake_program(Program &program)
 			layout.sets[set].storage_image_mask |= shader_layout.sets[set].storage_image_mask;
 			layout.sets[set].uniform_buffer_mask |= shader_layout.sets[set].uniform_buffer_mask;
 			layout.sets[set].storage_buffer_mask |= shader_layout.sets[set].storage_buffer_mask;
+			layout.sets[set].sampled_buffer_mask |= shader_layout.sets[set].sampled_buffer_mask;
 			layout.sets[set].stages |= shader_layout.sets[set].stages;
 		}
 
@@ -456,6 +457,12 @@ void Device::destroy_image_view(VkImageView view)
 	frame().destroyed_image_views.push_back(view);
 }
 
+void Device::destroy_buffer_view(VkBufferView view)
+{
+	VK_ASSERT(!exists(frame().destroyed_buffer_views, view));
+	frame().destroyed_buffer_views.push_back(view);
+}
+
 void Device::destroy_image(VkImage image)
 {
 	VK_ASSERT(!exists(frame().destroyed_images, image));
@@ -521,6 +528,8 @@ void Device::PerFrame::begin()
 		vkDestroyPipeline(device, pipeline, nullptr);
 	for (auto &view : destroyed_image_views)
 		vkDestroyImageView(device, view, nullptr);
+	for (auto &view : destroyed_buffer_views)
+		vkDestroyBufferView(device, view, nullptr);
 	for (auto &image : destroyed_images)
 		vkDestroyImage(device, image, nullptr);
 	for (auto &buffer : destroyed_buffers)
@@ -532,6 +541,7 @@ void Device::PerFrame::begin()
 	destroyed_samplers.clear();
 	destroyed_pipelines.clear();
 	destroyed_image_views.clear();
+	destroyed_buffer_views.clear();
 	destroyed_images.clear();
 	destroyed_buffers.clear();
 	allocations.clear();
@@ -714,6 +724,22 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 		VK_ASSERT(0 && "bogus");
 		return VK_IMAGE_VIEW_TYPE_RANGE_SIZE;
 	}
+}
+
+BufferViewHandle Device::create_buffer_view(const BufferViewCreateInfo &view_info)
+{
+	VkBufferViewCreateInfo info = { VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
+	info.buffer = view_info.buffer->get_buffer();
+	info.format = view_info.format;
+	info.offset = view_info.offset;
+	info.range = view_info.range;
+
+	VkBufferView view;
+	auto res = vkCreateBufferView(device, &info, nullptr, &view);
+	if (res != VK_SUCCESS)
+		return nullptr;
+
+	return make_handle<BufferView>(this, view, view_info);
 }
 
 ImageViewHandle Device::create_image_view(const ImageViewCreateInfo &create_info)

@@ -23,6 +23,7 @@ public:
 	void set_draw_rect(const Rect &rect);
 	void clear_rect(const Rect &rect);
 	void set_texture_window(const Rect &rect);
+	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 
 	void scanout(const Rect &rect);
 
@@ -48,7 +49,13 @@ private:
 	TextureMode texture_mode = TextureMode::None;
 	bool semi_transparent = false;
 
-	Vulkan::ProgramHandle quad_blitter;
+	struct
+	{
+		Vulkan::ProgramHandle copy_to_vram;
+		Vulkan::ProgramHandle quad_blitter;
+	} pipelines;
+
+	void init_pipelines();
 };
 
 }

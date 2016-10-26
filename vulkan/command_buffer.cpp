@@ -592,7 +592,7 @@ void CommandBuffer::push_constants(const void *data, VkDeviceSize offset, VkDevi
 	set_dirty(COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT);
 }
 
-void CommandBuffer::bind_program(Program &program)
+void CommandBuffer::set_program(Program &program)
 {
 	if (current_program && current_program->get_cookie() == program.get_cookie())
 		return;
@@ -759,6 +759,19 @@ void CommandBuffer::set_sampler(unsigned set, unsigned binding, const Sampler &s
 	secondary_cookies[set][binding] = sampler.get_cookie();
 }
 
+void CommandBuffer::set_buffer_view(unsigned set, unsigned binding, const BufferView &view)
+{
+	VK_ASSERT(set < VULKAN_NUM_DESCRIPTOR_SETS);
+	VK_ASSERT(binding < VULKAN_NUM_BINDINGS);
+	VK_ASSERT(view.get_buffer().get_create_info().usage & VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT);
+	if (view.get_cookie() == cookies[set][binding])
+		return;
+	auto &b = bindings[set][binding];
+	b.buffer_view = view.get_view();
+	cookies[set][binding] = view.get_cookie();
+	dirty_sets |= 1u << set;
+}
+
 void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view)
 {
 	VK_ASSERT(set < VULKAN_NUM_DESCRIPTOR_SETS);
@@ -837,6 +850,12 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 		VK_ASSERT(bindings[set][binding].buffer.buffer != VK_NULL_HANDLE);
 	});
 
+	// Sampled buffers
+	for_each_bit(set_layout.sampled_buffer_mask, [&](uint32_t binding) {
+		h.u64(cookies[set][binding]);
+		VK_ASSERT(bindings[set][binding].buffer_view != VK_NULL_HANDLE);
+	});
+
 	// Sampled images
 	for_each_bit(set_layout.sampled_image_mask, [&](uint32_t binding) {
 		h.u64(cookies[set][binding]);
@@ -889,6 +908,18 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 			write.dstBinding = binding;
 			write.dstSet = allocated.first;
 			write.pBufferInfo = &bindings[set][binding].buffer;
+		});
+
+		for_each_bit(set_layout.sampled_buffer_mask, [&](uint32_t binding) {
+			auto &write = writes[write_count++];
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.pNext = nullptr;
+			write.descriptorCount = 1;
+			write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+			write.dstArrayElement = 0;
+			write.dstBinding = binding;
+			write.dstSet = allocated.first;
+			write.pTexelBufferView = &bindings[set][binding].buffer_view;
 		});
 
 		for_each_bit(set_layout.sampled_image_mask, [&](uint32_t binding) {

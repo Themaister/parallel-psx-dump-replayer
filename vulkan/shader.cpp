@@ -91,7 +91,11 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 	{
 		auto set = compiler.get_decoration(image.id, spv::DecorationDescriptorSet);
 		auto binding = compiler.get_decoration(image.id, spv::DecorationBinding);
-		layout.sets[set].sampled_image_mask |= 1u << binding;
+		auto &type = compiler.get_type(image.base_type_id);
+		if (type.image.dim == spv::DimBuffer)
+			layout.sets[set].sampled_buffer_mask |= 1u << binding;
+		else
+			layout.sets[set].sampled_image_mask |= 1u << binding;
 		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 

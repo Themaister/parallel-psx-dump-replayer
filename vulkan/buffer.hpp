@@ -93,4 +93,40 @@ private:
 	BufferCreateInfo info;
 };
 using BufferHandle = IntrusivePtr<Buffer>;
+
+struct BufferViewCreateInfo
+{
+	const Buffer *buffer;
+	VkFormat format;
+	VkDeviceSize offset;
+	VkDeviceSize range;
+};
+
+class BufferView : public IntrusivePtrEnabled<BufferView>, public Cookie
+{
+public:
+	BufferView(Device *device, VkBufferView view, const BufferViewCreateInfo &info);
+	~BufferView();
+
+	VkBufferView get_view() const
+	{
+		return view;
+	}
+
+	const BufferViewCreateInfo &get_create_info()
+	{
+		return info;
+	}
+
+	const Buffer &get_buffer() const
+	{
+		return *info.buffer;
+	}
+
+private:
+	Device *device;
+	VkBufferView view;
+	BufferViewCreateInfo info;
+};
+using BufferViewHandle = IntrusivePtr<BufferView>;
 }

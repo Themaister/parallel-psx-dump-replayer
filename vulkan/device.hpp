@@ -55,12 +55,14 @@ public:
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
 	ImageHandle create_image(const ImageCreateInfo &info, const ImageInitialData *initial = nullptr);
 	ImageViewHandle create_image_view(const ImageViewCreateInfo &view_info);
+	BufferViewHandle create_buffer_view(const BufferViewCreateInfo &view_info);
 	SamplerHandle create_sampler(const SamplerCreateInfo &info);
 	const Sampler &get_stock_sampler(StockSampler sampler) const;
 
 	void destroy_buffer(VkBuffer buffer);
 	void destroy_image(VkImage image);
 	void destroy_image_view(VkImageView view);
+	void destroy_buffer_view(VkBufferView view);
 	void destroy_pipeline(VkPipeline pipeline);
 	void destroy_sampler(VkSampler sampler);
 	void destroy_framebuffer(VkFramebuffer framebuffer);
@@ -135,6 +137,7 @@ private:
 		std::vector<VkSampler> destroyed_samplers;
 		std::vector<VkPipeline> destroyed_pipelines;
 		std::vector<VkImageView> destroyed_image_views;
+		std::vector<VkBufferView> destroyed_buffer_views;
 		std::vector<VkImage> destroyed_images;
 		std::vector<VkBuffer> destroyed_buffers;
 		std::vector<CommandBufferHandle> submissions;

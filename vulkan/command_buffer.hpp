@@ -86,7 +86,8 @@ public:
 	void begin_render_pass(const RenderPassInfo &info);
 	void end_render_pass();
 
-	void bind_program(Program &program);
+	void set_program(Program &program);
+	void set_buffer_view(unsigned set, unsigned binding, const BufferView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, const Sampler &sampler);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, StockSampler sampler);
@@ -288,6 +289,7 @@ private:
 		union {
 			VkDescriptorBufferInfo buffer;
 			VkDescriptorImageInfo image;
+			VkBufferView buffer_view;
 		};
 	};
 	Binding bindings[VULKAN_NUM_DESCRIPTOR_SETS][VULKAN_NUM_BINDINGS] = {};
