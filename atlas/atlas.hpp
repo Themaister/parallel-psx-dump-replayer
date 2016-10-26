@@ -101,6 +101,7 @@ public:
 	void write_compute(Domain domain, const Rect &rect);
 	void read_transfer(Domain domain, const Rect &rect);
 	void write_transfer(Domain domain, const Rect &rect);
+	void read_fragment(Domain domain, const Rect &rect);
 
 	void write_fragment(bool reads_window);
 	void clear_rect(const Rect &rect);

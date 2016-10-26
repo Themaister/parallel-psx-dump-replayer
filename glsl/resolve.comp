@@ -1,0 +1,37 @@
+#version 310 es
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#if defined(SCALED)
+layout(set = 0, binding = 0, rgba8) uniform writeonly mediump image2D uScaled;
+layout(set = 0, binding = 1) uniform mediump usampler2D uUnscaled;
+#elif defined(UNSCALED)
+layout(set = 0, binding = 0, r32ui) uniform writeonly mediump uimage2D uUnscaled;
+layout(set = 0, binding = 1) uniform mediump sampler2D uScaled;
+#endif
+
+layout(push_constant, std430) uniform Rect
+{
+    uvec2 offset;
+    uvec2 extent;
+    vec2 inv_source_size;
+    uint scale;
+} rect;
+
+void main()
+{
+#if defined(SCALED)
+    uvec2 coord = gl_GlobalInvocationID.xy + rect.offset * rect.scale;
+    vec2 uv = (vec2(coord) + 0.5) * rect.inv_source_size;
+    uint value = textureLod(uUnscaled, uv, 0.0).x;
+    uvec4 color = (uvec4(value) >> uvec4(0u, 5u, 10u, 15u)) & uvec4(31u, 31u, 31u, 1u);
+    vec4 unorm = vec4(color) / vec4(31.0, 31.0, 31.0, 1.0);
+    imageStore(uScaled, ivec2(coord), unorm);
+#elif defined(UNSCALED)
+    uvec2 coord = gl_GlobalInvocationID.xy + rect.offset;
+    vec2 uv = (vec2(coord) + 0.5) * rect.inv_source_size;
+    vec4 value = textureLod(uScaled, uv, 0.0);
+    uvec4 rgba = uvec4(round(value * vec4(31.0, 31.0, 31.0, 1.0)));
+    uint packed_color = (rgba.r << 0u) | (rgba.g << 5u) | (rgba.b << 10u) | (rgba.a << 15u);
+    imageStore(uUnscaled, ivec2(coord), uvec4(packed_color));
+#endif
+}

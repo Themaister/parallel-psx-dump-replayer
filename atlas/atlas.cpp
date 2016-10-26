@@ -12,6 +12,12 @@ FBAtlas::FBAtlas()
 		f = STATUS_FB_PREFER;
 }
 
+void FBAtlas::read_fragment(Domain domain, const Rect &rect)
+{
+	sync_domain(domain, rect);
+	read_domain(domain, Stage::Fragment, rect);
+}
+
 void FBAtlas::read_compute(Domain domain, const Rect &rect)
 {
 	sync_domain(domain, rect);
@@ -188,14 +194,16 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 		ownership = STATUS_FB_ONLY;
 		hazard_domains = STATUS_FB_WRITE | STATUS_SFB_WRITE | STATUS_SFB_READ;
 
-		resolve_domains = STATUS_TRANSFER_FB_READ | STATUS_FB_PREFER | STATUS_TRANSFER_SFB_WRITE;
+		//resolve_domains = STATUS_TRANSFER_FB_READ | STATUS_FB_PREFER | STATUS_TRANSFER_SFB_WRITE;
+		resolve_domains = STATUS_COMPUTE_FB_READ | STATUS_FB_PREFER | STATUS_COMPUTE_SFB_WRITE;
 	}
 	else
 	{
 		ownership = STATUS_SFB_ONLY;
 		hazard_domains = STATUS_FB_WRITE | STATUS_SFB_WRITE | STATUS_FB_READ;
 
-		resolve_domains = STATUS_TRANSFER_SFB_READ | STATUS_SFB_PREFER | STATUS_TRANSFER_FB_WRITE;
+		//resolve_domains = STATUS_TRANSFER_SFB_READ | STATUS_SFB_PREFER | STATUS_TRANSFER_FB_WRITE;
+		resolve_domains = STATUS_COMPUTE_SFB_READ | STATUS_SFB_PREFER | STATUS_COMPUTE_FB_WRITE;
 	}
 
 	for (unsigned y = ybegin; y <= yend; y++)
@@ -353,6 +361,8 @@ void FBAtlas::pipeline_barrier(StatusFlags domains)
 
 	static const StatusFlags fragment_read_stages = STATUS_FRAGMENT_SFB_READ | STATUS_FRAGMENT_FB_READ;
 
+	listener->hazard(domains);
+
 	if (domains & compute_write_stages)
 		domains |= compute_write_stages | compute_read_stages;
 	if (domains & compute_read_stages)
@@ -368,7 +378,5 @@ void FBAtlas::pipeline_barrier(StatusFlags domains)
 
 	for (auto &f : fb_info)
 		f &= ~domains;
-
-	listener->hazard(domains);
 }
 }

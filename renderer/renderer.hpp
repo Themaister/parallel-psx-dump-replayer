@@ -54,9 +54,12 @@ private:
 		Vulkan::ProgramHandle copy_to_vram;
 		Vulkan::ProgramHandle unscaled_quad_blitter;
 		Vulkan::ProgramHandle scaled_quad_blitter;
+		Vulkan::ProgramHandle resolve_to_scaled;
+		Vulkan::ProgramHandle resolve_to_unscaled;
 	} pipelines;
 
 	void init_pipelines();
+	void ensure_command_buffer();
 };
 
 }

@@ -13,6 +13,8 @@ function(add_shader OUTPUT INPUT DEFINES)
    add_dependencies(shaders ${OUTPUT})
 endfunction(add_shader)
 
+add_shader(resolve.scaled.comp resolve.comp "-DSCALED")
+add_shader(resolve.unscaled.comp resolve.comp "-DUNSCALED")
 add_shader(quad.vert quad.vert "")
 add_shader(unscaled.quad.frag quad.frag "-DUNSCALED")
 add_shader(scaled.quad.frag quad.frag "-DSCALED")

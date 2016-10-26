@@ -1,4 +1,3 @@
-#include "atlas/atlas.hpp"
 #include "device.hpp"
 #include "wsi.hpp"
 #include <cmath>
@@ -213,6 +212,7 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 720);
 
+#if 0
 	Listener listener;
 
 	listener.copy_cpu_to_vram({ 0, 0, 8, 8 });
@@ -228,6 +228,7 @@ int main()
 
 	listener.copy_vram_to_vram({ 64, 64, 8, 8 }, { 8, 8, 8, 8 });
 	listener.flush();
+#endif
 
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4);
@@ -276,7 +277,7 @@ int main()
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
-		renderer.scanout({ 0, 0, 128, 128 });
+		renderer.scanout({ 0, 0, 64, 48 });
 		wsi.end_frame();
 	}
 }
