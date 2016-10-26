@@ -1,10 +1,10 @@
 add_custom_target(shaders)
 
 set(GLSL_FLAGS -mfmt=c)
-function(add_shader OUTPUT INPUT)
+function(add_shader OUTPUT INPUT DEFINES)
    add_custom_command(
       OUTPUT ${CMAKE_BINARY_DIR}/glsl/${OUTPUT}.inc 
-      COMMAND glslc -o ${CMAKE_BINARY_DIR}/glsl/${OUTPUT}.inc ${GLSL_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${INPUT}
+      COMMAND glslc ${DEFINES} -o ${CMAKE_BINARY_DIR}/glsl/${OUTPUT}.inc ${GLSL_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/${INPUT}
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${INPUT}
       IMPLICIT_DEPENDS CXX ${CMAKE_CURRENT_SOURCE_DIR}/${INPUT}
       VERBATIM)
@@ -13,10 +13,11 @@ function(add_shader OUTPUT INPUT)
    add_dependencies(shaders ${OUTPUT})
 endfunction(add_shader)
 
-add_shader(quad.vert quad.vert)
-add_shader(quad.frag quad.frag)
-add_shader(triangle.vert triangle.vert)
-add_shader(triangle.frag triangle.frag)
-add_shader(test.comp test.comp)
-add_shader(copy_vram.comp copy_vram.comp)
+add_shader(quad.vert quad.vert "")
+add_shader(unscaled.quad.frag quad.frag "-DUNSCALED")
+add_shader(scaled.quad.frag quad.frag "-DSCALED")
+add_shader(triangle.vert triangle.vert "")
+add_shader(triangle.frag triangle.frag "")
+add_shader(test.comp test.comp "")
+add_shader(copy_vram.comp copy_vram.comp "")
 

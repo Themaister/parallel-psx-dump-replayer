@@ -276,7 +276,7 @@ int main()
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
-		renderer.scanout({ 50, 200, 128, 128 });
+		renderer.scanout({ 0, 0, 128, 128 });
 		wsi.end_frame();
 	}
 }

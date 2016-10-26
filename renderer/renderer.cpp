@@ -13,7 +13,7 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	info.usage =
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-		VK_IMAGE_USAGE_STORAGE_BIT;
+		VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	framebuffer = device.create_image(info);
 	info.width *= scaling;
@@ -33,18 +33,21 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	atlas.set_hazard_listener(this);
 
 	init_pipelines();
-#if 0
-	cmd = device.request_command_buffer();
-	VkClearValue color = {};
-	color.color.float32[1] = 1.0f;
-	cmd->clear_image(*scaled_framebuffer, color);
-	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	device.submit(cmd);
-	cmd.reset();
-#endif
-	static const uint16_t data[8 * 8] = {0};
-	copy_cpu_to_vram(data, { 0, 0, 8, 8 });
+
+#define COLOR (31 << 0)
+	static const uint16_t data[8 * 8] = {
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
+	};
+	copy_cpu_to_vram(data, { 16, 16, 8, 8 });
+	cmd->image_barrier(*framebuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 	device.submit(cmd);
 	cmd.reset();
 }
@@ -54,15 +57,19 @@ void Renderer::init_pipelines()
 	static const uint32_t quad_vert[] =
 #include "quad.vert.inc"
 	;
-	static const uint32_t quad_frag[] =
-#include "quad.frag.inc"
+	static const uint32_t scaled_quad_frag[] =
+#include "scaled.quad.frag.inc"
+	;
+	static const uint32_t unscaled_quad_frag[] =
+#include "unscaled.quad.frag.inc"
 	;
 
 	static const uint32_t copy_vram_comp[] =
 #include "copy_vram.comp.inc"
 	;
 
-	pipelines.quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), quad_frag, sizeof(quad_frag));
+	pipelines.scaled_quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
+	pipelines.unscaled_quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 }
 
@@ -88,8 +95,8 @@ void Renderer::scanout(const Rect &rect)
 
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
 	cmd->set_quad_state();
-	cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
-	cmd->set_program(*pipelines.quad_blitter);
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
+	cmd->set_program(*pipelines.unscaled_quad_blitter);
 	int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
 	*data++ = -128;
 	*data++ = -128;

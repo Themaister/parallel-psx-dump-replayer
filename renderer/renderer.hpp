@@ -52,7 +52,8 @@ private:
 	struct
 	{
 		Vulkan::ProgramHandle copy_to_vram;
-		Vulkan::ProgramHandle quad_blitter;
+		Vulkan::ProgramHandle unscaled_quad_blitter;
+		Vulkan::ProgramHandle scaled_quad_blitter;
 	} pipelines;
 
 	void init_pipelines();
