@@ -64,6 +64,20 @@ void CommandBuffer::clear_image(const Image &image, const VkClearValue &value)
 		vkCmdClearDepthStencilImage(cmd, image.get_image(), image.get_layout(), &value.depthStencil, 1, &range);
 }
 
+void CommandBuffer::full_barrier()
+{
+	barrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+	        VK_ACCESS_SHADER_WRITE_BIT |
+	        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	        VK_ACCESS_TRANSFER_WRITE_BIT,
+	        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+	        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+	        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	        VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+}
+
 void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_access, VkPipelineStageFlags dst_stages,
                             VkAccessFlags dst_access)
 {

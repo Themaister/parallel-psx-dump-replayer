@@ -35,6 +35,11 @@ Renderer::Renderer(Device &device, unsigned scaling)
 
 	init_pipelines();
 
+	ensure_command_buffer();
+	cmd->clear_image(*scaled_framebuffer, {});
+	cmd->clear_image(*framebuffer, {});
+	cmd->full_barrier();
+
 #define COLOR (31 << 0)
 	static const uint16_t data[8 * 8] = {
 		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
@@ -118,7 +123,6 @@ void Renderer::set_texture_window(const Rect &rect)
 void Renderer::scanout(const Rect &rect)
 {
 	atlas.read_fragment(Domain::Scaled, rect);
-	LOG("Scanout!\n");
 
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));

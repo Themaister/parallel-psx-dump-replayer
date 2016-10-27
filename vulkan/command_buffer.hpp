@@ -64,6 +64,7 @@ public:
 	                          const VkExtent3D &extent, unsigned row_length, unsigned slice_height,
 	                          const VkImageSubresourceLayers &subresrouce);
 
+	void full_barrier();
 	void barrier(VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage,
 	             VkAccessFlags dst_access);
 
