@@ -426,7 +426,7 @@ Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
     , ibo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
     , ubo_chain(device, 1024 * 1024, device->get_gpu_properties().limits.minUniformBufferOffsetAlignment,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-	, staging_chain(device, 4 * 1024 * 1024, 64, VK_BUFFER_USAGE_TRANSFER_SRC_BIT)
+    , staging_chain(device, 4 * 1024 * 1024, 64, VK_BUFFER_USAGE_TRANSFER_SRC_BIT)
 {
 }
 
@@ -880,8 +880,8 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 		{
 			uint32_t row_length = initial[i].row_length ? initial[i].row_length : extent.width;
 			uint32_t array_height = initial[i].array_height ? initial[i].array_height : extent.height;
-			VkDeviceSize size = format_pixel_size(create_info.format) * create_info.layers * extent.depth * row_length *
-			                    array_height;
+			VkDeviceSize size =
+			    format_pixel_size(create_info.format) * create_info.layers * extent.depth * row_length * array_height;
 
 			subresource.mipLevel = i;
 			auto *ptr = staging_cmd->update_image(*handle, { 0, 0, 0 }, extent, row_length, array_height, subresource);

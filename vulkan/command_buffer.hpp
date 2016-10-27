@@ -26,12 +26,10 @@ enum CommandBufferDirtyBits
 
 	COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT = 1 << 8,
 
-	COMMAND_BUFFER_DYNAMIC_BITS =
-	COMMAND_BUFFER_DIRTY_VIEWPORT_BIT |
-	COMMAND_BUFFER_DIRTY_SCISSOR_BIT |
-	COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT |
-	COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT |
-	COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT
+	COMMAND_BUFFER_DYNAMIC_BITS = COMMAND_BUFFER_DIRTY_VIEWPORT_BIT | COMMAND_BUFFER_DIRTY_SCISSOR_BIT |
+	                              COMMAND_BUFFER_DIRTY_DEPTH_BIAS_BIT |
+	                              COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT |
+	                              COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT
 };
 using CommandBufferDirtyFlags = uint32_t;
 
@@ -51,7 +49,8 @@ public:
 	}
 
 	void clear_image(const Image &image, const VkClearValue &value);
-	void clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value, VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
+	void clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value,
+	                VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
 	void copy_buffer(const Buffer &dst, VkDeviceSize dst_offset, const Buffer &src, VkDeviceSize src_offset,
 	                 VkDeviceSize size);
@@ -109,8 +108,8 @@ public:
 	void *allocate_index_data(VkDeviceSize size, VkIndexType index_type);
 
 	void *update_buffer(const Buffer &buffer, VkDeviceSize offset, VkDeviceSize size);
-	void *update_image(const Image &image, const VkOffset3D &offset, const VkExtent3D &extent,
-						uint32_t row_length, uint32_t image_height, const VkImageSubresourceLayers &subresource);
+	void *update_image(const Image &image, const VkOffset3D &offset, const VkExtent3D &extent, uint32_t row_length,
+	                   uint32_t image_height, const VkImageSubresourceLayers &subresource);
 	void *update_image(const Image &image, uint32_t row_length = 0, uint32_t image_height = 0);
 
 	void set_viewport(const VkViewport &viewport);
@@ -131,9 +130,15 @@ public:
 	void set_opaque_state();
 	void set_quad_state();
 
-#define SET_STATIC_STATE(value) do { \
-    if (static_state.state.value != value) { static_state.state.value = value; set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT); } \
-} while(0)
+#define SET_STATIC_STATE(value)                               \
+	do                                                        \
+	{                                                         \
+		if (static_state.state.value != value)                \
+		{                                                     \
+			static_state.state.value = value;                 \
+			set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT); \
+		}                                                     \
+	} while (0)
 
 	inline void set_depth_test(bool depth_test, bool depth_write)
 	{
@@ -151,9 +156,8 @@ public:
 		SET_STATIC_STATE(blend_enable);
 	}
 
-	inline void
-	set_blend_factors(VkBlendFactor src_color_blend, VkBlendFactor src_alpha_blend, VkBlendFactor dst_color_blend,
-	                  VkBlendFactor dst_alpha_blend)
+	inline void set_blend_factors(VkBlendFactor src_color_blend, VkBlendFactor src_alpha_blend,
+	                              VkBlendFactor dst_color_blend, VkBlendFactor dst_alpha_blend)
 	{
 		SET_STATIC_STATE(src_color_blend);
 		SET_STATIC_STATE(dst_color_blend);
@@ -177,7 +181,8 @@ public:
 		SET_STATIC_STATE(stencil_test);
 	}
 
-	inline void set_stencil_front_ops(VkCompareOp stencil_front_compare_op, VkStencilOp stencil_front_pass, VkStencilOp stencil_front_fail, VkStencilOp stencil_front_depth_fail)
+	inline void set_stencil_front_ops(VkCompareOp stencil_front_compare_op, VkStencilOp stencil_front_pass,
+	                                  VkStencilOp stencil_front_fail, VkStencilOp stencil_front_depth_fail)
 	{
 		SET_STATIC_STATE(stencil_front_compare_op);
 		SET_STATIC_STATE(stencil_front_pass);
@@ -185,7 +190,8 @@ public:
 		SET_STATIC_STATE(stencil_front_depth_fail);
 	}
 
-	inline void set_stencil_back_ops(VkCompareOp stencil_back_compare_op, VkStencilOp stencil_back_pass, VkStencilOp stencil_back_fail, VkStencilOp stencil_back_depth_fail)
+	inline void set_stencil_back_ops(VkCompareOp stencil_back_compare_op, VkStencilOp stencil_back_pass,
+	                                 VkStencilOp stencil_back_fail, VkStencilOp stencil_back_depth_fail)
 	{
 		SET_STATIC_STATE(stencil_back_compare_op);
 		SET_STATIC_STATE(stencil_back_pass);
@@ -193,7 +199,8 @@ public:
 		SET_STATIC_STATE(stencil_back_depth_fail);
 	}
 
-	inline void set_stencil_ops(VkCompareOp stencil_compare_op, VkStencilOp stencil_pass, VkStencilOp stencil_fail, VkStencilOp stencil_depth_fail)
+	inline void set_stencil_ops(VkCompareOp stencil_compare_op, VkStencilOp stencil_pass, VkStencilOp stencil_fail,
+	                            VkStencilOp stencil_depth_fail)
 	{
 		set_stencil_front_ops(stencil_compare_op, stencil_pass, stencil_fail, stencil_depth_fail);
 		set_stencil_back_ops(stencil_compare_op, stencil_pass, stencil_fail, stencil_depth_fail);
@@ -226,9 +233,15 @@ public:
 		SET_STATIC_STATE(cull_mode);
 	}
 
-#define SET_DYNAMIC_STATE(state, flags) do { \
-    if (dynamic_state.state != state) { dynamic_state.state = state; set_dirty(flags); } \
-} while(0)
+#define SET_DYNAMIC_STATE(state, flags)   \
+	do                                    \
+	{                                     \
+		if (dynamic_state.state != state) \
+		{                                 \
+			dynamic_state.state = state;  \
+			set_dirty(flags);             \
+		}                                 \
+	} while (0)
 
 	inline void set_depth_bias(float depth_bias_constant, float depth_bias_slope)
 	{
@@ -244,7 +257,8 @@ public:
 		SET_DYNAMIC_STATE(blend_constants[3], COMMAND_BUFFER_DIRTY_BLEND_CONSTANT_BIT);
 	}
 
-	inline void set_stencil_front_reference(uint8_t front_compare_mask, uint8_t front_write_mask, uint8_t front_reference)
+	inline void set_stencil_front_reference(uint8_t front_compare_mask, uint8_t front_write_mask,
+	                                        uint8_t front_reference)
 	{
 		SET_DYNAMIC_STATE(front_compare_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
 		SET_DYNAMIC_STATE(front_write_mask, COMMAND_BUFFER_DIRTY_STENCIL_REFERENCE_BIT);
@@ -381,7 +395,8 @@ private:
 		} state;
 		uint32_t words[4];
 	} static_state = {};
-	static_assert(sizeof(static_state.words) >= sizeof(static_state.state), "Hashable pipeline state is not large enough!");
+	static_assert(sizeof(static_state.words) >= sizeof(static_state.state),
+	              "Hashable pipeline state is not large enough!");
 
 	struct DynamicState
 	{

@@ -1,5 +1,5 @@
-#include <cstring>
 #include "renderer.hpp"
+#include <cstring>
 
 using namespace Vulkan;
 using namespace std;
@@ -7,22 +7,20 @@ using namespace std;
 namespace PSX
 {
 Renderer::Renderer(Device &device, unsigned scaling)
-	: device(device),
-	  scaling(scaling)
+    : device(device)
+    , scaling(scaling)
 {
 	auto info = ImageCreateInfo::render_target(FB_WIDTH, FB_HEIGHT, VK_FORMAT_R32_UINT);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
-	info.usage =
-		VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-		VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+	             VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	framebuffer = device.create_image(info);
 	info.width *= scaling;
 	info.height *= scaling;
 	info.format = VK_FORMAT_R8G8B8A8_UNORM;
-	info.usage =
-		VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+	             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	scaled_framebuffer = device.create_image(info);
 	info.format = VK_FORMAT_D16_UNORM;
@@ -39,39 +37,6 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	cmd->clear_image(*scaled_framebuffer, {});
 	cmd->clear_image(*framebuffer, {});
 	cmd->full_barrier();
-
-#define COLOR (31 << 0)
-	static const uint16_t data[8 * 8] = {
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-		COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR, COLOR,
-	};
-#define COLOR2 (31 << 5)
-	static const uint16_t data2[8 * 8] = {
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
-	};
-
-	uint16_t tmp[24 * 8];
-	for (auto &t : tmp)
-		t = COLOR2;
-	tmp[1] = COLOR;
-
-	copy_cpu_to_vram(data, {7, 7, 8, 8});
-	copy_cpu_to_vram(data2, {24, 16, 8, 8});
-	//copy_cpu_to_vram(data, {16, 40, 8, 8});
-	copy_cpu_to_vram(tmp, {29, 40, 24, 8});
 	device.submit(cmd);
 	cmd.reset();
 }
@@ -80,43 +45,44 @@ void Renderer::init_pipelines()
 {
 	static const uint32_t quad_vert[] =
 #include "quad.vert.inc"
-	;
+	    ;
 
 	static const uint32_t scaled_quad_frag[] =
 #include "scaled.quad.frag.inc"
-	;
+	    ;
 
 	static const uint32_t unscaled_quad_frag[] =
 #include "unscaled.quad.frag.inc"
-	;
+	    ;
 
 	static const uint32_t copy_vram_comp[] =
 #include "copy_vram.comp.inc"
-	;
+	    ;
 
 	static const uint32_t resolve_to_scaled[] =
 #include "resolve.scaled.comp.inc"
-    ;
+	    ;
 
 	static const uint32_t resolve_to_unscaled[] =
 #include "resolve.unscaled.comp.inc"
-    ;
+	    ;
 
 	static const uint32_t opaque_flat_vert[] =
 #include "opaque.flat.vert.inc"
-	;
+	    ;
 	static const uint32_t opaque_flat_frag[] =
 #include "opaque.flat.frag.inc"
-	;
+	    ;
 
-	pipelines.scaled_quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag,
-	                                                      sizeof(scaled_quad_frag));
-	pipelines.unscaled_quad_blitter = device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag,
-	                                                        sizeof(unscaled_quad_frag));
+	pipelines.scaled_quad_blitter =
+	    device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
+	pipelines.unscaled_quad_blitter =
+	    device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled, sizeof(resolve_to_unscaled));
-	pipelines.opaque_flat = device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
+	pipelines.opaque_flat =
+	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -157,8 +123,8 @@ void Renderer::scanout(const Rect &rect)
 		float offset[2];
 		float scale[2];
 	};
-	Push push = {{float(rect.x) / FB_WIDTH,     float(rect.y) / FB_HEIGHT},
-	             {float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT}};
+	Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
@@ -231,7 +197,7 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 
-		Push push = {rect, {1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
+		Push push = { rect, { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch(scaling * (rect.width >> 3), scaling * (rect.height >> 3), 1);
 	}
@@ -241,7 +207,7 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
 
-		Push push = {rect, {1.0f / FB_WIDTH, 1.0f / FB_HEIGHT}, scaling};
+		Push push = { rect, { 1.0f / FB_WIDTH, 1.0f / FB_HEIGHT }, scaling };
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch(rect.width >> 3, rect.height >> 3, 1);
 	}
@@ -270,8 +236,9 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	float z = allocate_depth(false);
 	for (unsigned i = 0; i < 3; i++)
 	{
-		queue.opaque_vertices.push_back({vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
-		            vertices[i].color});
+		queue.opaque_vertices.push_back({ vertices[i].x + render_state.draw_offset_x,
+		                                  vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
+		                                  vertices[i].color });
 	}
 }
 
@@ -281,8 +248,8 @@ void Renderer::draw_quad(const Vertex *vertices)
 	BufferVertex v[4];
 	for (unsigned i = 0; i < 4; i++)
 	{
-		v[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
-		            vertices[i].color};
+		v[i] = { vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+			     vertices[i].w, vertices[i].color };
 	}
 
 	queue.opaque_vertices.push_back(v[0]);
@@ -316,7 +283,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	FBColor color = atlas.render_pass_clear_color();
 
 	RenderPassInfo info = {};
-	info.clear_depth_stencil = {1.0f, 0};
+	info.clear_depth_stencil = { 1.0f, 0 };
 	info.color_attachments[0] = &scaled_framebuffer->get_view();
 	info.depth_stencil = &depth->get_view();
 	info.num_color_attachments = 1;
@@ -334,8 +301,8 @@ void Renderer::flush_render_pass(const Rect &rect)
 	else
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
 
-	info.render_area.offset = {rect.x * scaling, rect.y * scaling};
-	info.render_area.extent = {rect.width * scaling, rect.height * scaling};
+	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
+	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
 
@@ -347,7 +314,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 void Renderer::render_opaque_primitives()
@@ -359,8 +326,8 @@ void Renderer::render_opaque_primitives()
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
 
 	// Render flat-shaded primitives.
-	auto *buffer = static_cast<BufferVertex *>(cmd->allocate_vertex_data(0, queue.opaque_vertices.size() *
-	                                                                        sizeof(BufferVertex), sizeof(BufferVertex)));
+	auto *buffer = static_cast<BufferVertex *>(
+	    cmd->allocate_vertex_data(0, queue.opaque_vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
 	for (auto i = queue.opaque_vertices.size(); i; i--)
 		*buffer++ = queue.opaque_vertices[i - 1];
 
@@ -373,9 +340,8 @@ void Renderer::render_opaque_primitives()
 	queue.opaque_vertices.clear();
 }
 
-void Renderer::upload_texture(Domain target_domain, const Rect &rect)
+void Renderer::upload_texture(Domain, const Rect &)
 {
-
 }
 
 void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
@@ -386,7 +352,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);
 
 	// TODO: Chain allocate this.
-	auto buffer = device.create_buffer({BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT}, data);
+	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, data);
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
 	view_info.offset = 0;
@@ -404,7 +370,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 		Rect rect;
 		uint32_t offset;
 	};
-	Push push = {rect, 0};
+	Push push = { rect, 0 };
 	cmd->push_constants(&push, 0, sizeof(push));
 
 	// TODO: Batch up work.
@@ -416,5 +382,4 @@ Renderer::~Renderer()
 	if (cmd)
 		device.submit(cmd);
 }
-
 }

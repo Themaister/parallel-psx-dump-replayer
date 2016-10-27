@@ -176,18 +176,18 @@ RenderPass::RenderPass(Device *device, const RenderPassInfo &info)
 			external_dependency.dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			external_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			external_dependency.dstAccessMask |=
-				VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		}
 
 		if (implicit_ds_transition)
 		{
-			external_dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-			                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			external_dependency.dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-			                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			external_dependency.srcStageMask |=
+			    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			external_dependency.dstStageMask |=
+			    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 			external_dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			external_dependency.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-			                                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+			external_dependency.dstAccessMask |=
+			    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 		}
 
 		external_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;

@@ -33,5 +33,7 @@ void main()
     uvec4 rgba = uvec4(round(value * vec4(31.0, 31.0, 31.0, 1.0)));
     uint packed_color = (rgba.r << 0u) | (rgba.g << 5u) | (rgba.b << 10u) | (rgba.a << 15u);
     imageStore(uUnscaled, ivec2(coord), uvec4(packed_color));
+#else
+#error "Invalid defines."
 #endif
 }

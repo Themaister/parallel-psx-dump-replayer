@@ -1,9 +1,9 @@
 #pragma once
 
+#include "atlas.hpp"
+#include "device.hpp"
 #include "vulkan.hpp"
 #include "wsi.hpp"
-#include "device.hpp"
-#include "atlas.hpp"
 
 namespace PSX
 {
@@ -41,8 +41,14 @@ public:
 
 	void scanout(const Rect &rect);
 
-	inline void set_texture_format(TextureMode mode) { texture_mode = mode; }
-	inline void enable_semi_transparent(bool enable) { semi_transparent = enable; }
+	inline void set_texture_format(TextureMode mode)
+	{
+		texture_mode = mode;
+	}
+	inline void enable_semi_transparent(bool enable)
+	{
+		semi_transparent = enable;
+	}
 
 	// Draw commands
 	void clear_rect(const Rect &rect, FBColor color);
@@ -104,5 +110,4 @@ private:
 	void render_opaque_primitives();
 	float allocate_depth(bool reads_window);
 };
-
 }

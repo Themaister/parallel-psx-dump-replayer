@@ -159,6 +159,9 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 
 void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 {
+	if (inside_render_pass(rect))
+		flush_render_pass();
+
 	unsigned xbegin = rect.x / BLOCK_WIDTH;
 	unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
@@ -180,9 +183,6 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 	// not, so we have to resolve it.
 	if ((bits & dirty_bits) == 0)
 		return;
-
-	if (inside_render_pass(rect))
-		flush_render_pass();
 
 	// For scaled domain,
 	// we need to blit from unscaled domain to scaled.

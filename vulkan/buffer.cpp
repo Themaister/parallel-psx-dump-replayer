@@ -19,12 +19,11 @@ Buffer::~Buffer()
 }
 
 BufferView::BufferView(Device *device, VkBufferView view, const BufferViewCreateInfo &create_info)
-	: Cookie(device)
-	, device(device)
-	, view(view)
-	, info(create_info)
+    : Cookie(device)
+    , device(device)
+    , view(view)
+    , info(create_info)
 {
-
 }
 
 BufferView::~BufferView()

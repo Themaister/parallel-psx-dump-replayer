@@ -8,7 +8,9 @@ using namespace std;
 namespace Vulkan
 {
 CommandBuffer::CommandBuffer(Device *device, VkCommandBuffer cmd, VkPipelineCache cache)
-	: device(device), cmd(cmd), cache(cache)
+    : device(device)
+    , cmd(cmd)
+    , cache(cache)
 {
 	begin_compute();
 	set_opaque_state();
@@ -67,7 +69,8 @@ void CommandBuffer::clear_image(const Image &image, const VkClearValue &value)
 		vkCmdClearDepthStencilImage(cmd, image.get_image(), image.get_layout(), &value.depthStencil, 1, &range);
 }
 
-void CommandBuffer::clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value, VkImageAspectFlags aspect)
+void CommandBuffer::clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value,
+                               VkImageAspectFlags aspect)
 {
 	VK_ASSERT(framebuffer);
 	VK_ASSERT(render_pass);
@@ -81,21 +84,18 @@ void CommandBuffer::clear_quad(unsigned attachment, const VkClearRect &rect, con
 void CommandBuffer::full_barrier()
 {
 	barrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	        VK_ACCESS_SHADER_WRITE_BIT |
-	        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	        VK_ACCESS_TRANSFER_WRITE_BIT,
+	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT |
+	            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
 	        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT |
-	        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	        VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+	            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+	            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
 }
 
 void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_access, VkPipelineStageFlags dst_stages,
                             VkAccessFlags dst_access)
 {
-	VkMemoryBarrier barrier = {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+	VkMemoryBarrier barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
 	vkCmdPipelineBarrier(cmd, src_stages, dst_stages, 0, 1, &barrier, 0, nullptr, 0, nullptr);
@@ -104,7 +104,7 @@ void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_a
 void CommandBuffer::buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stages, VkAccessFlags src_access,
                                    VkPipelineStageFlags dst_stages, VkAccessFlags dst_access)
 {
-	VkBufferMemoryBarrier barrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+	VkBufferMemoryBarrier barrier = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
 	barrier.buffer = buffer.get_buffer();
@@ -120,7 +120,7 @@ void CommandBuffer::image_barrier(const Image &image, VkImageLayout old_layout, 
 {
 	VK_ASSERT(image.get_create_info().domain == ImageDomain::Physical);
 
-	VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+	VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
 	barrier.oldLayout = old_layout;
@@ -144,8 +144,8 @@ void CommandBuffer::image_barrier(const Image &image, VkPipelineStageFlags src_s
 void CommandBuffer::generate_mipmap(const Image &image)
 {
 	auto &create_info = image.get_create_info();
-	VkOffset3D size = {int(create_info.width), int(create_info.height), int(create_info.depth)};
-	const VkOffset3D origin = {0, 0, 0};
+	VkOffset3D size = { int(create_info.width), int(create_info.height), int(create_info.depth) };
+	const VkOffset3D origin = { 0, 0, 0 };
 
 	for (unsigned i = 1; i < create_info.levels; i++)
 	{
@@ -154,8 +154,7 @@ void CommandBuffer::generate_mipmap(const Image &image)
 		size.y = max(size.y >> 1, 1);
 		size.z = max(size.z >> 1, 1);
 
-		blit_image(image, image, origin, size, origin, src_size, i, i - 1, 0, 0,
-		           create_info.layers, VK_FILTER_LINEAR);
+		blit_image(image, image, origin, size, origin, src_size, i, i - 1, 0, 0, create_info.layers, VK_FILTER_LINEAR);
 
 		if (i + 1 < create_info.levels)
 		{
@@ -171,14 +170,14 @@ void CommandBuffer::blit_image(const Image &dst, const Image &src, const VkOffse
                                unsigned num_layers, VkFilter filter)
 {
 	const auto add_offset = [](const VkOffset3D &a, const VkOffset3D &b) -> VkOffset3D {
-		return {a.x + b.x, a.y + b.y, a.z + b.z};
+		return { a.x + b.x, a.y + b.y, a.z + b.z };
 	};
 
 	const VkImageBlit blit = {
-		{format_to_aspect_mask(src.get_create_info().format), src_level, src_base_layer, num_layers},
-		{src_offset,                                          add_offset(src_offset, src_extent)},
-		{format_to_aspect_mask(dst.get_create_info().format), dst_level, dst_base_layer, num_layers},
-		{dst_offset,                                          add_offset(dst_offset, dst_extent)},
+		{ format_to_aspect_mask(src.get_create_info().format), src_level, src_base_layer, num_layers },
+		{ src_offset, add_offset(src_offset, src_extent) },
+		{ format_to_aspect_mask(dst.get_create_info().format), dst_level, dst_base_layer, num_layers },
+		{ dst_offset, add_offset(dst_offset, dst_extent) },
 	};
 
 	vkCmdBlitImage(cmd, src.get_image(), src.get_layout(), dst.get_image(), dst.get_layout(), 1, &blit, filter);
@@ -240,7 +239,7 @@ void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
 	if (info.depth_stencil)
 		clear_values[num_clear_values++].depthStencil = info.clear_depth_stencil;
 
-	VkRenderPassBeginInfo begin_info = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+	VkRenderPassBeginInfo begin_info = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
 	begin_info.renderPass = render_pass->get_render_pass();
 	begin_info.framebuffer = framebuffer->get_framebuffer();
 	begin_info.renderArea = rect;
@@ -249,7 +248,7 @@ void CommandBuffer::begin_render_pass(const RenderPassInfo &info)
 
 	vkCmdBeginRenderPass(cmd, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-	viewport = {0.0f, 0.0f, float(framebuffer->get_width()), float(framebuffer->get_height()), 0.0f, 1.0f};
+	viewport = { 0.0f, 0.0f, float(framebuffer->get_width()), float(framebuffer->get_height()), 0.0f, 1.0f };
 	scissor = rect;
 	begin_graphics();
 
@@ -271,12 +270,12 @@ void CommandBuffer::end_render_pass()
 VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 {
 	// Viewport state
-	VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+	VkPipelineViewportStateCreateInfo vp = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
 	vp.viewportCount = 1;
 	vp.scissorCount = 1;
 
 	// Dynamic state
-	VkPipelineDynamicStateCreateInfo dyn = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+	VkPipelineDynamicStateCreateInfo dyn = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
 	dyn.dynamicStateCount = 2;
 	VkDynamicState states[7] = {
 		VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT,
@@ -305,12 +304,13 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 			states[dyn.dynamicStateCount++] = VK_DYNAMIC_STATE_BLEND_CONSTANTS;
 		}
 		dynamic_state.blend_constant_enable = true;
-	} else
+	}
+	else
 		dynamic_state.blend_constant_enable = false;
 
 	// Blend state
 	VkPipelineColorBlendAttachmentState blend_attachments[VULKAN_NUM_ATTACHMENTS];
-	VkPipelineColorBlendStateCreateInfo blend = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+	VkPipelineColorBlendStateCreateInfo blend = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
 	blend.attachmentCount = render_pass_info.num_color_attachments;
 	blend.pAttachments = blend_attachments;
 	for (unsigned i = 0; i < blend.attachmentCount; i++)
@@ -331,7 +331,7 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	}
 
 	// Depth state
-	VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+	VkPipelineDepthStencilStateCreateInfo ds = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
 	ds.stencilTestEnable = render_pass->has_stencil() && static_state.state.stencil_test;
 	ds.depthTestEnable = render_pass->has_depth() && static_state.state.depth_test;
 	ds.depthWriteEnable = render_pass->has_depth() && static_state.state.depth_write;
@@ -350,7 +350,7 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	}
 
 	// Vertex input
-	VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+	VkPipelineVertexInputStateCreateInfo vi = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
 	VkVertexInputAttributeDescription vi_attribs[VULKAN_NUM_VERTEX_ATTRIBS];
 	vi.pVertexAttributeDescriptions = vi_attribs;
 	uint32_t attr_mask = current_layout->get_resource_layout().attribute_mask;
@@ -374,12 +374,12 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	});
 
 	// Input assembly
-	VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+	VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
 	ia.primitiveRestartEnable = static_state.state.primitive_restart;
 	ia.topology = static_cast<VkPrimitiveTopology>(static_state.state.topology);
 
 	// Multisample
-	VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+	VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
 	// TODO: Support more
 	ms.rasterizationSamples = static_cast<VkSampleCountFlagBits>(render_pass->get_sample_count());
 	ms.alphaToCoverageEnable = static_state.state.alpha_to_coverage;
@@ -388,7 +388,7 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 	ms.minSampleShading = 1.0f;
 
 	// Raster
-	VkPipelineRasterizationStateCreateInfo raster = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+	VkPipelineRasterizationStateCreateInfo raster = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
 	raster.cullMode = static_cast<VkCullModeFlags>(static_state.state.cull_mode);
 	raster.frontFace = static_cast<VkFrontFace>(static_state.state.front_face);
 	raster.lineWidth = 1.0f;
@@ -404,14 +404,14 @@ VkPipeline CommandBuffer::build_graphics_pipeline(Hash hash)
 		if (current_program->get_shader(stage))
 		{
 			auto &s = stages[num_stages++];
-			s = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+			s = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 			s.module = current_program->get_shader(stage)->get_module();
 			s.pName = "main";
 			s.stage = static_cast<VkShaderStageFlagBits>(1u << i);
 		}
 	}
 
-	VkGraphicsPipelineCreateInfo pipe = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+	VkGraphicsPipelineCreateInfo pipe = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 	pipe.layout = current_pipeline_layout;
 	pipe.renderPass = render_pass->get_render_pass();
 	pipe.subpass = 0;
@@ -637,7 +637,8 @@ void CommandBuffer::set_program(Program &program)
 
 		current_layout = program.get_pipeline_layout();
 		current_pipeline_layout = current_layout->get_layout();
-	} else if (program.get_pipeline_layout()->get_cookie() != current_layout->get_cookie())
+	}
+	else if (program.get_pipeline_layout()->get_cookie() != current_layout->get_cookie())
 	{
 		auto &new_layout = program.get_pipeline_layout()->get_resource_layout();
 		auto &old_layout = current_layout->get_resource_layout();
@@ -648,7 +649,8 @@ void CommandBuffer::set_program(Program &program)
 		{
 			dirty_sets = ~0u;
 			set_dirty(COMMAND_BUFFER_DIRTY_PUSH_CONSTANTS_BIT);
-		} else
+		}
+		else
 		{
 			// Find the first set whose descriptor set layout differs.
 			auto *new_pipe_layout = program.get_pipeline_layout();
@@ -701,8 +703,8 @@ void *CommandBuffer::update_image(const Image &image, const VkOffset3D &offset, 
 	if (!image_height)
 		image_height = height;
 
-	VkDeviceSize size = format_pixel_size(create_info.format) * subresource.layerCount * depth * row_length *
-	                    image_height;
+	VkDeviceSize size =
+	    format_pixel_size(create_info.format) * subresource.layerCount * depth * row_length * image_height;
 
 	auto data = device->allocate_staging_data(size);
 	copy_buffer_to_image(image, *data.buffer, data.offset, offset, extent, row_length, image_height, subresource);
@@ -712,11 +714,10 @@ void *CommandBuffer::update_image(const Image &image, const VkOffset3D &offset, 
 void *CommandBuffer::update_image(const Image &image, uint32_t row_length, uint32_t image_height)
 {
 	const VkImageSubresourceLayers subresource = {
-		format_to_aspect_mask(image.get_format()),
-		0, 0, 1,
+		format_to_aspect_mask(image.get_format()), 0, 0, 1,
 	};
-	return update_image(image, {0, 0, 0}, {image.get_width(), image.get_height(), image.get_depth()},
-	                    row_length, image_height, subresource);
+	return update_image(image, { 0, 0, 0 }, { image.get_width(), image.get_height(), image.get_depth() }, row_length,
+	                    image_height, subresource);
 }
 
 void *CommandBuffer::allocate_vertex_data(unsigned binding, VkDeviceSize size, VkDeviceSize stride,
@@ -738,7 +739,7 @@ void CommandBuffer::set_uniform_buffer(unsigned set, unsigned binding, const Buf
 	if (buffer.get_cookie() == cookies[set][binding] && b.buffer.offset == offset && b.buffer.range == range)
 		return;
 
-	b.buffer = {buffer.get_buffer(), offset, range};
+	b.buffer = { buffer.get_buffer(), offset, range };
 	cookies[set][binding] = buffer.get_cookie();
 	dirty_sets |= 1u << set;
 }
@@ -754,7 +755,7 @@ void CommandBuffer::set_storage_buffer(unsigned set, unsigned binding, const Buf
 	if (buffer.get_cookie() == cookies[set][binding] && b.buffer.offset == offset && b.buffer.range == range)
 		return;
 
-	b.buffer = {buffer.get_buffer(), offset, range};
+	b.buffer = { buffer.get_buffer(), offset, range };
 	cookies[set][binding] = buffer.get_cookie();
 	dirty_sets |= 1u << set;
 }
