@@ -51,6 +51,9 @@ void CommandBuffer::copy_image_to_buffer(const Buffer &buffer, const Image &imag
 
 void CommandBuffer::clear_image(const Image &image, const VkClearValue &value)
 {
+	VK_ASSERT(!framebuffer);
+	VK_ASSERT(!render_pass);
+
 	auto aspect = format_to_aspect_mask(image.get_format());
 	VkImageSubresourceRange range = {};
 	range.aspectMask = aspect;
@@ -62,6 +65,17 @@ void CommandBuffer::clear_image(const Image &image, const VkClearValue &value)
 		vkCmdClearColorImage(cmd, image.get_image(), image.get_layout(), &value.color, 1, &range);
 	else
 		vkCmdClearDepthStencilImage(cmd, image.get_image(), image.get_layout(), &value.depthStencil, 1, &range);
+}
+
+void CommandBuffer::clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value, VkImageAspectFlags aspect)
+{
+	VK_ASSERT(framebuffer);
+	VK_ASSERT(render_pass);
+	VkClearAttachment att = {};
+	att.clearValue = value;
+	att.colorAttachment = attachment;
+	att.aspectMask = aspect;
+	vkCmdClearAttachments(cmd, 1, &att, 1, &rect);
 }
 
 void CommandBuffer::full_barrier()

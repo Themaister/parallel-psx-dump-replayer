@@ -51,6 +51,7 @@ public:
 	}
 
 	void clear_image(const Image &image, const VkClearValue &value);
+	void clear_quad(unsigned attachment, const VkClearRect &rect, const VkClearValue &value, VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
 	void copy_buffer(const Buffer &dst, VkDeviceSize dst_offset, const Buffer &src, VkDeviceSize src_offset,
 	                 VkDeviceSize size);

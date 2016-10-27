@@ -14,6 +14,14 @@ enum class TextureMode
 	Palette8bpp,
 	ABGR1555
 };
+
+struct Vertex
+{
+	float x, y, w;
+	uint32_t color;
+	uint8_t u, v;
+};
+
 class Renderer : private HazardListener
 {
 public:
@@ -21,7 +29,14 @@ public:
 	~Renderer();
 
 	void set_draw_rect(const Rect &rect);
-	void clear_rect(const Rect &rect);
+
+	void set_draw_offset(int x, int y)
+	{
+		render_state.draw_offset_x = x;
+		render_state.draw_offset_y = y;
+	}
+
+	void clear_rect(const Rect &rect, FBColor color);
 	void set_texture_window(const Rect &rect);
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 
@@ -29,6 +44,8 @@ public:
 
 	inline void set_texture_format(TextureMode mode) { texture_mode = mode; }
 	inline void enable_semi_transparent(bool enable) { semi_transparent = enable; }
+
+	void draw_triangle(const Vertex *vertices);
 
 private:
 	Vulkan::Device &device;
@@ -42,9 +59,10 @@ private:
 
 	void hazard(StatusFlags flags) override;
 	void resolve(Domain target_domain, const Rect &rect) override;
-	void flush_render_pass() override;
+	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
 	void upload_texture(Domain target_domain, const Rect &rect) override;
+	void clear_quad(const Rect &rect, FBColor color) override;
 
 	TextureMode texture_mode = TextureMode::None;
 	bool semi_transparent = false;
@@ -56,10 +74,37 @@ private:
 		Vulkan::ProgramHandle scaled_quad_blitter;
 		Vulkan::ProgramHandle resolve_to_scaled;
 		Vulkan::ProgramHandle resolve_to_unscaled;
+		Vulkan::ProgramHandle opaque_flat;
 	} pipelines;
 
 	void init_pipelines();
 	void ensure_command_buffer();
+
+	struct
+	{
+		int draw_offset_x = 0;
+		int draw_offset_y = 0;
+	} render_state;
+
+	struct BufferVertex
+	{
+		float x, y, z, w;
+		uint32_t color;
+		uint8_t u, v;
+	};
+
+	struct Triangle
+	{
+		BufferVertex vertices[3];
+	};
+
+	struct OpaqueQueue
+	{
+		std::vector<Triangle> opaque_triangles;
+	} queue;
+	unsigned primitive_index = 0;
+
+	void render_opaque_primitives();
 };
 
 }

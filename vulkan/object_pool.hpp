@@ -151,6 +151,9 @@ public:
 	void insert_front(Iterator itr)
 	{
 		auto *node = itr.get();
+		if (head)
+			head->prev = node;
+
 		node->next = head;
 		node->prev = nullptr;
 		head = node;

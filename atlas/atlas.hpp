@@ -43,6 +43,8 @@ struct Rect
 	}
 };
 
+using FBColor = uint16_t;
+
 enum StatusFlag
 {
 	STATUS_FB_ONLY = 0,
@@ -82,9 +84,10 @@ public:
 	virtual ~HazardListener() = default;
 	virtual void hazard(StatusFlags flags) = 0;
 	virtual void resolve(Domain target_domain, const Rect &rect) = 0;
-	virtual void flush_render_pass() = 0;
+	virtual void flush_render_pass(const Rect &rect) = 0;
 	virtual void discard_render_pass() = 0;
 	virtual void upload_texture(Domain target_domain, const Rect &rect) = 0;
+	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
 };
 
 class FBAtlas
@@ -104,13 +107,18 @@ public:
 	void read_fragment(Domain domain, const Rect &rect);
 
 	void write_fragment(bool reads_window);
-	void clear_rect(const Rect &rect);
+	void clear_rect(const Rect &rect, FBColor color);
 	void set_draw_rect(const Rect &rect);
 	void set_texture_window(const Rect &rect);
 
 	bool render_pass_is_clear() const
 	{
 		return renderpass.clean_clear;
+	}
+
+	FBColor render_pass_clear_color() const
+	{
+		return renderpass.color;
 	}
 
 	void pipeline_barrier(StatusFlags domains);
@@ -129,6 +137,7 @@ private:
 	{
 		Rect rect;
 		Rect texture_window;
+		FBColor color = 0;
 		bool inside = false;
 		bool clean_clear = false;
 		bool wait_for_blit = false;

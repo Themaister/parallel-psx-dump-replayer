@@ -284,10 +284,11 @@ void FBAtlas::flush_render_pass()
 
 	if (renderpass.wait_for_blit)
 		pipeline_barrier(STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_WRITE);
+	renderpass.wait_for_blit = false;
 
 	renderpass.inside = false;
 	write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
-	listener->flush_render_pass();
+	listener->flush_render_pass(renderpass.rect);
 }
 
 void FBAtlas::set_texture_window(const Rect &rect)
@@ -313,7 +314,7 @@ void FBAtlas::write_fragment(bool reads_window)
 	}
 }
 
-void FBAtlas::clear_rect(const Rect &rect)
+void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 {
 	if (renderpass.rect == rect)
 	{
@@ -323,6 +324,7 @@ void FBAtlas::clear_rect(const Rect &rect)
 		renderpass.inside = true;
 		renderpass.clean_clear = true;
 		renderpass.wait_for_blit = false;
+		renderpass.color = color;
 	}
 	else if (!renderpass.inside)
 	{
@@ -330,6 +332,12 @@ void FBAtlas::clear_rect(const Rect &rect)
 		renderpass.inside = true;
 		renderpass.clean_clear = false;
 		renderpass.wait_for_blit = false;
+		listener->clear_quad(rect, color);
+	}
+	else
+	{
+		// TODO: If clear rect is outside the render region, flush the render pass.
+		listener->clear_quad(rect, color);
 	}
 }
 
@@ -338,7 +346,10 @@ void FBAtlas::set_draw_rect(const Rect &rect)
 	if (!renderpass.inside)
 		renderpass.rect = rect;
 	else if (renderpass.rect != rect)
+	{
 		flush_render_pass();
+		renderpass.rect = rect;
+	}
 }
 
 void FBAtlas::discard_render_pass()
