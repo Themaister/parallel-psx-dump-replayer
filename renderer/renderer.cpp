@@ -57,7 +57,7 @@ Renderer::Renderer(Device &device, unsigned scaling)
 		COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2, COLOR2,
 	};
 	copy_cpu_to_vram(data, {7, 7, 8, 8});
-	//copy_cpu_to_vram(data2, {16, 16, 8, 8});
+	copy_cpu_to_vram(data2, {24, 16, 8, 8});
 	//copy_cpu_to_vram(data, {16, 40, 8, 8});
 	//copy_cpu_to_vram(data, {29, 40, 8, 8});
 	device.submit(cmd);
@@ -117,6 +117,7 @@ void Renderer::set_texture_window(const Rect &rect)
 void Renderer::scanout(const Rect &rect)
 {
 	atlas.read_fragment(Domain::Scaled, rect);
+	LOG("Scanout!\n");
 
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
@@ -186,6 +187,8 @@ void Renderer::hazard(StatusFlags flags)
 
 	dst_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
+	LOG("Hazard!\n");
+
 	VK_ASSERT(src_stages);
 	VK_ASSERT(dst_stages);
 	ensure_command_buffer();
@@ -195,6 +198,8 @@ void Renderer::hazard(StatusFlags flags)
 void Renderer::resolve(Domain target_domain, const Rect &rect)
 {
 	ensure_command_buffer();
+
+	LOG("Resolving (%u, %u, %u, %u)\n", rect.x, rect.y, rect.width, rect.height);
 
 	struct Push
 	{
@@ -257,7 +262,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	auto buffer = device.create_buffer({BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT}, data);
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
-	view_info.range = 0;
+	view_info.offset = 0;
 	view_info.range = size;
 	view_info.format = VK_FORMAT_R16_UINT;
 	auto view = device.create_buffer_view(view_info);
