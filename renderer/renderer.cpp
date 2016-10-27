@@ -227,7 +227,6 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 
 	if (target_domain == Domain::Scaled)
 	{
-		LOG("Resolving scaled (%u, %u, %u, %u)\n", rect.x, rect.y, rect.width, rect.height);
 		cmd->set_program(*pipelines.resolve_to_scaled);
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
@@ -256,40 +255,57 @@ void Renderer::ensure_command_buffer()
 
 void Renderer::discard_render_pass()
 {
-	queue.opaque_triangles.clear();
+	queue.opaque_vertices.clear();
+}
+
+float Renderer::allocate_depth(bool reads_window)
+{
+	atlas.write_fragment(reads_window);
+	primitive_index++;
+	return 1.0f - primitive_index * (1.0f / 0xffff);
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
-	atlas.write_fragment(false);
-	primitive_index++;
-	float z = 1.0f - primitive_index * (1.0f / 0xffff);
-	Triangle triangle;
+	float z = allocate_depth(false);
 	for (unsigned i = 0; i < 3; i++)
 	{
-		triangle.vertices[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
-			 vertices[i].color};
+		queue.opaque_vertices.push_back({vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
+		            vertices[i].color});
 	}
-	queue.opaque_triangles.push_back(triangle);
+}
+
+void Renderer::draw_quad(const Vertex *vertices)
+{
+	float z = allocate_depth(false);
+	BufferVertex v[4];
+	for (unsigned i = 0; i < 4; i++)
+	{
+		v[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
+		            vertices[i].color};
+	}
+
+	queue.opaque_vertices.push_back(v[0]);
+	queue.opaque_vertices.push_back(v[1]);
+	queue.opaque_vertices.push_back(v[2]);
+	queue.opaque_vertices.push_back(v[3]);
+	queue.opaque_vertices.push_back(v[2]);
+	queue.opaque_vertices.push_back(v[1]);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
-	primitive_index++;
-	float z = 1.0f - primitive_index * (1.0f / 0xffff);
-	Triangle triangles[2];
+	float z = allocate_depth(false);
 	BufferVertex v0 = { float(rect.x), float(rect.y), z, 1.0f, color };
 	BufferVertex v1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, color };
 	BufferVertex v2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, color };
 	BufferVertex v3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f, color };
-	triangles[0].vertices[0] = v0;
-	triangles[0].vertices[1] = v1;
-	triangles[0].vertices[2] = v2;
-	triangles[1].vertices[0] = v3;
-	triangles[1].vertices[1] = v2;
-	triangles[1].vertices[2] = v1;
-	queue.opaque_triangles.push_back(triangles[0]);
-	queue.opaque_triangles.push_back(triangles[1]);
+	queue.opaque_vertices.push_back(v0);
+	queue.opaque_vertices.push_back(v1);
+	queue.opaque_vertices.push_back(v2);
+	queue.opaque_vertices.push_back(v3);
+	queue.opaque_vertices.push_back(v2);
+	queue.opaque_vertices.push_back(v1);
 }
 
 void Renderer::flush_render_pass(const Rect &rect)
@@ -300,10 +316,6 @@ void Renderer::flush_render_pass(const Rect &rect)
 	FBColor color = atlas.render_pass_clear_color();
 
 	RenderPassInfo info = {};
-	info.clear_color[0].float32[0] = ((color >> 0) & 0x1f) * (1.0f / 31.0f);
-	info.clear_color[0].float32[1] = ((color >> 5) & 0x1f) * (1.0f / 31.0f);
-	info.clear_color[0].float32[2] = ((color >> 10) & 0x1f) * (1.0f / 31.0f);
-	info.clear_color[0].float32[3] = ((color >> 15) & 0x1) * (1.0f / 1.0f);
 	info.clear_depth_stencil = {1.0f, 0};
 	info.color_attachments[0] = &scaled_framebuffer->get_view();
 	info.depth_stencil = &depth->get_view();
@@ -312,7 +324,13 @@ void Renderer::flush_render_pass(const Rect &rect)
 	info.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT |
 	                RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
 	if (is_clear)
+	{
+		info.clear_color[0].float32[0] = ((color >> 0) & 0x1f) * (1.0f / 31.0f);
+		info.clear_color[0].float32[1] = ((color >> 5) & 0x1f) * (1.0f / 31.0f);
+		info.clear_color[0].float32[2] = ((color >> 10) & 0x1f) * (1.0f / 31.0f);
+		info.clear_color[0].float32[3] = ((color >> 15) & 0x1) * (1.0f / 1.0f);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
+	}
 	else
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
 
@@ -334,30 +352,25 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 void Renderer::render_opaque_primitives()
 {
-	if (queue.opaque_triangles.empty())
+	if (queue.opaque_vertices.empty())
 		return;
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
 
 	// Render flat-shaded primitives.
-	auto *buffer = static_cast<BufferVertex *>(cmd->allocate_vertex_data(0, queue.opaque_triangles.size() *
-	                                                                        sizeof(Triangle), sizeof(BufferVertex)));
-	for (auto i = queue.opaque_triangles.size(); i; i--)
-	{
-		*buffer++ = queue.opaque_triangles[i - 1].vertices[0];
-		*buffer++ = queue.opaque_triangles[i - 1].vertices[1];
-		*buffer++ = queue.opaque_triangles[i - 1].vertices[2];
-	}
-	// Position
-	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
-	// Color
+	auto *buffer = static_cast<BufferVertex *>(cmd->allocate_vertex_data(0, queue.opaque_vertices.size() *
+	                                                                        sizeof(BufferVertex), sizeof(BufferVertex)));
+	for (auto i = queue.opaque_vertices.size(); i; i--)
+		*buffer++ = queue.opaque_vertices[i - 1];
+
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(BufferVertex, x));
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
-	cmd->draw(queue.opaque_triangles.size() * 3);
-	queue.opaque_triangles.clear();
+	cmd->draw(queue.opaque_vertices.size());
+	queue.opaque_vertices.clear();
 }
 
 void Renderer::upload_texture(Domain target_domain, const Rect &rect)

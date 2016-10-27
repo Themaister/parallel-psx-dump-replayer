@@ -36,7 +36,6 @@ public:
 		render_state.draw_offset_y = y;
 	}
 
-	void clear_rect(const Rect &rect, FBColor color);
 	void set_texture_window(const Rect &rect);
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 
@@ -45,7 +44,10 @@ public:
 	inline void set_texture_format(TextureMode mode) { texture_mode = mode; }
 	inline void enable_semi_transparent(bool enable) { semi_transparent = enable; }
 
+	// Draw commands
+	void clear_rect(const Rect &rect, FBColor color);
 	void draw_triangle(const Vertex *vertices);
+	void draw_quad(const Vertex *vertices);
 
 private:
 	Vulkan::Device &device;
@@ -93,18 +95,14 @@ private:
 		uint8_t u, v;
 	};
 
-	struct Triangle
-	{
-		BufferVertex vertices[3];
-	};
-
 	struct OpaqueQueue
 	{
-		std::vector<Triangle> opaque_triangles;
+		std::vector<BufferVertex> opaque_vertices;
 	} queue;
 	unsigned primitive_index = 0;
 
 	void render_opaque_primitives();
+	float allocate_depth(bool reads_window);
 };
 
 }
