@@ -1,3 +1,4 @@
+#include <cstring>
 #include "renderer.hpp"
 
 using namespace Vulkan;
@@ -199,7 +200,6 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 {
 	ensure_command_buffer();
 
-	LOG("Resolving (%u, %u, %u, %u)\n", rect.x, rect.y, rect.width, rect.height);
 
 	struct Push
 	{
@@ -210,6 +210,7 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 
 	if (target_domain == Domain::Scaled)
 	{
+		LOG("Resolving scaled (%u, %u, %u, %u)\n", rect.x, rect.y, rect.width, rect.height);
 		cmd->set_program(*pipelines.resolve_to_scaled);
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
