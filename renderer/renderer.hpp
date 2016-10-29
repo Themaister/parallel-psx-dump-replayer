@@ -113,6 +113,8 @@ private:
 	{
 		std::vector<BufferPosition> opaque_position;
 		std::vector<BufferAttrib> opaque_attrib;
+		std::vector<BufferPosition> opaque_textured_position[NUM_TEXTURES];
+		std::vector<BufferPosition> opaque_textured_attrib[NUM_TEXTURES];
 	} queue;
 	unsigned primitive_index = 0;
 

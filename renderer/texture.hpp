@@ -31,9 +31,14 @@ public:
 
 	TextureSurface allocate(Domain domain, const Rect &rect);
 	void end(Vulkan::CommandBuffer *cmd, const Vulkan::ImageView &scaled, const Vulkan::ImageView &unscaled);
-	const Vulkan::ImageView &get_image(unsigned index)
+	inline const Vulkan::ImageView &get_image(unsigned index)
 	{
 		return images[index]->get_view();
+	}
+
+	inline unsigned get_num_textures() const
+	{
+		return texture_count;
 	}
 
 private:
@@ -47,7 +52,6 @@ private:
 	unsigned texture_count = 0;
 
 	Vulkan::ImageHandle images[NUM_TEXTURES];
-
 	Vulkan::ProgramHandle scaled_blitter;
 	Vulkan::ProgramHandle unscaled_blitter;
 };
