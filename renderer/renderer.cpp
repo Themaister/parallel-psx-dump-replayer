@@ -290,7 +290,7 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	queue.opaque_position.push_back(pos3);
 	queue.opaque_position.push_back(pos2);
 	queue.opaque_position.push_back(pos1);
-	BufferAttrib attr = { 0.0f, 0.0f, 0.0f, 0xffffffff };
+	BufferAttrib attr = { 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color) };
 	for (unsigned i = 0; i < 6; i++)
 		queue.opaque_attrib.push_back(attr);
 }
@@ -300,7 +300,6 @@ void Renderer::flush_render_pass(const Rect &rect)
 	primitive_index = 0;
 	ensure_command_buffer();
 	bool is_clear = atlas.render_pass_is_clear();
-	FBColor color = atlas.render_pass_clear_color();
 
 	RenderPassInfo info = {};
 	info.clear_depth_stencil = { 1.0f, 0 };
@@ -312,10 +311,8 @@ void Renderer::flush_render_pass(const Rect &rect)
 	                RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
 	if (is_clear)
 	{
-		info.clear_color[0].float32[0] = ((color >> 0) & 0x1f) * (1.0f / 31.0f);
-		info.clear_color[0].float32[1] = ((color >> 5) & 0x1f) * (1.0f / 31.0f);
-		info.clear_color[0].float32[2] = ((color >> 10) & 0x1f) * (1.0f / 31.0f);
-		info.clear_color[0].float32[3] = ((color >> 15) & 0x1) * (1.0f / 1.0f);
+		FBColor color = atlas.render_pass_clear_color();
+		fbcolor_to_rgba32f(info.clear_color[0].float32, color);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
 	}
 	else

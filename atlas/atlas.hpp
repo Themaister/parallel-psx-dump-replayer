@@ -45,6 +45,31 @@ struct Rect
 
 using FBColor = uint16_t;
 
+static inline uint32_t fbcolor_to_rgba8(FBColor color)
+{
+	unsigned r = (color >>  0) & 0x1f;
+	unsigned g = (color >>  5) & 0x1f;
+	unsigned b = (color >> 10) & 0x1f;
+	unsigned a = color >> 15;
+	a *= 0xff;
+	r = (r << 3) | (r >> 2);
+	g = (g << 3) | (g >> 2);
+	b = (b << 3) | (b >> 2);
+	return (a << 24) | (b << 16) | (g << 8) | (r << 0);
+}
+
+static inline void fbcolor_to_rgba32f(float *v, FBColor color)
+{
+	unsigned r = (color >>  0) & 0x1f;
+	unsigned g = (color >>  5) & 0x1f;
+	unsigned b = (color >> 10) & 0x1f;
+	unsigned a = color >> 15;
+	v[0] = r * (1.0f / 31.0f);
+	v[1] = g * (1.0f / 31.0f);
+	v[2] = b * (1.0f / 31.0f);
+	v[3] = float(a);
+}
+
 enum StatusFlag
 {
 	STATUS_FB_ONLY = 0,

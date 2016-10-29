@@ -567,7 +567,7 @@ void CommandBuffer::set_vertex_attrib(uint32_t attrib, uint32_t binding, VkForma
 	attr.offset = offset;
 }
 
-void CommandBuffer::bind_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type)
+void CommandBuffer::set_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type)
 {
 	if (index.buffer == buffer.get_buffer() && index.offset == offset && index.index_type == index_type)
 		return;
@@ -678,7 +678,7 @@ void *CommandBuffer::allocate_constant_data(unsigned set, unsigned binding, VkDe
 void *CommandBuffer::allocate_index_data(VkDeviceSize size, VkIndexType index_type)
 {
 	auto data = device->allocate_index_data(size);
-	bind_index_buffer(*data.buffer, data.offset, index_type);
+	set_index_buffer(*data.buffer, data.offset, index_type);
 	return data.data;
 }
 

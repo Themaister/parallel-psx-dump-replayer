@@ -118,7 +118,7 @@ public:
 	void set_vertex_attrib(uint32_t attrib, uint32_t binding, VkFormat format, VkDeviceSize offset);
 	void set_vertex_binding(uint32_t binding, const Buffer &buffer, VkDeviceSize offset, VkDeviceSize stride,
 	                        VkVertexInputRate step_rate = VK_VERTEX_INPUT_RATE_VERTEX);
-	void bind_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type);
+	void set_index_buffer(const Buffer &buffer, VkDeviceSize offset, VkIndexType index_type);
 
 	void draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0,
 	          uint32_t first_instance = 0);
