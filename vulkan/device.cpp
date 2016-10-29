@@ -679,6 +679,8 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 	if (levels == VK_REMAINING_MIP_LEVELS)
 		levels = create_info.levels - base_level;
 
+	bool force_array = view ? (view->misc & IMAGE_VIEW_MISC_FORCE_ARRAY_BIT) : (create_info.misc & IMAGE_MISC_FORCE_ARRAY_BIT);
+
 	switch (create_info.type)
 	{
 	case VK_IMAGE_TYPE_1D:
@@ -687,7 +689,7 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 		VK_ASSERT(create_info.depth == 1);
 		VK_ASSERT(create_info.samples == VK_SAMPLE_COUNT_1_BIT);
 
-		if (layers > 1)
+		if (layers > 1 || force_array)
 			return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
 		else
 			return VK_IMAGE_VIEW_TYPE_1D;
@@ -701,14 +703,14 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 		{
 			VK_ASSERT(create_info.width == create_info.height);
 
-			if (layers > 6)
+			if (layers > 6 || force_array)
 				return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
 			else
 				return VK_IMAGE_VIEW_TYPE_CUBE;
 		}
 		else
 		{
-			if (layers > 6)
+			if (layers > 1 || force_array)
 				return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 			else
 				return VK_IMAGE_VIEW_TYPE_2D;

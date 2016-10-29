@@ -72,6 +72,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 	auto info = ImageCreateInfo::immutable_2d_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM, 1);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	info.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	info.misc = IMAGE_MISC_FORCE_ARRAY_BIT;
 	for (unsigned i = 0; i < texture_count; i++)
 	{
 		info.width = widths[i];

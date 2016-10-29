@@ -128,9 +128,16 @@ struct ImageInitialData
 
 enum ImageMiscFlagBits
 {
-	IMAGE_MISC_GENERATE_MIPS_BIT = 1 << 0
+	IMAGE_MISC_GENERATE_MIPS_BIT = 1 << 0,
+	IMAGE_MISC_FORCE_ARRAY_BIT = 1 << 0
 };
 using ImageMiscFlags = uint32_t;
+
+enum ImageViewMiscFlagBits
+{
+	IMAGE_VIEW_MISC_FORCE_ARRAY_BIT = 1 << 0
+};
+using ImageViewMiscFlags = uint32_t;
 
 class Image;
 struct ImageViewCreateInfo
@@ -141,6 +148,7 @@ struct ImageViewCreateInfo
 	unsigned levels = VK_REMAINING_MIP_LEVELS;
 	unsigned base_layer = 0;
 	unsigned layers = VK_REMAINING_ARRAY_LAYERS;
+	ImageViewMiscFlags misc = 0;
 	VkComponentMapping swizzle = {
 		VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A,
 	};
