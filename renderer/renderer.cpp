@@ -243,7 +243,7 @@ float Renderer::allocate_depth(bool reads_window)
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
-	float z = allocate_depth(false);
+	float z = allocate_depth(texture_mode != TextureMode::None);
 	for (unsigned i = 0; i < 3; i++)
 	{
 		queue.opaque_position.push_back({ vertices[i].x + render_state.draw_offset_x,
@@ -254,7 +254,7 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
-	float z = allocate_depth(false);
+	float z = allocate_depth(texture_mode != TextureMode::None);
 	BufferPosition pos[4];
 	BufferAttrib attr[4];
 	for (unsigned i = 0; i < 4; i++)
@@ -280,7 +280,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
-	float z = allocate_depth(false);
+	float z = allocate_depth(texture_mode != TextureMode::None);
 	BufferPosition pos0 = { float(rect.x), float(rect.y), z, 1.0f };
 	BufferPosition pos1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f };
 	BufferPosition pos2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f };
@@ -321,6 +321,9 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
 	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
+
+	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
+
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
 
@@ -333,6 +336,8 @@ void Renderer::flush_render_pass(const Rect &rect)
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
 	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+
+	allocator.begin();
 }
 
 void Renderer::render_opaque_primitives()

@@ -111,10 +111,15 @@ private:
 
 	struct OpaqueQueue
 	{
+		// Non-textured primitives.
 		std::vector<BufferPosition> opaque_position;
 		std::vector<BufferAttrib> opaque_attrib;
-		std::vector<BufferPosition> opaque_textured_position[NUM_TEXTURES];
-		std::vector<BufferPosition> opaque_textured_attrib[NUM_TEXTURES];
+
+		// Textured primitives, no semi-transparency.
+		std::vector<std::vector<BufferPosition>> opaque_textured_position;
+		std::vector<std::vector<BufferAttrib>> opaque_textured_attrib;
+
+		std::vector<Vulkan::ImageHandle> textures;
 	} queue;
 	unsigned primitive_index = 0;
 
