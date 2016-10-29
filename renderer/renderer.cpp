@@ -229,7 +229,8 @@ void Renderer::ensure_command_buffer()
 
 void Renderer::discard_render_pass()
 {
-	queue.opaque_vertices.clear();
+	queue.opaque_position.clear();
+	queue.opaque_attrib.clear();
 }
 
 float Renderer::allocate_depth(bool reads_window)
@@ -244,43 +245,54 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	float z = allocate_depth(false);
 	for (unsigned i = 0; i < 3; i++)
 	{
-		queue.opaque_vertices.push_back({ vertices[i].x + render_state.draw_offset_x,
-		                                  vertices[i].y + render_state.draw_offset_y, z, vertices[i].w,
-		                                  vertices[i].color });
+		queue.opaque_position.push_back({ vertices[i].x + render_state.draw_offset_x,
+		                                  vertices[i].y + render_state.draw_offset_y, z, vertices[i].w });
+		queue.opaque_attrib.push_back({ 0.0f, 0.0f, 0.0f, vertices[i].color });
 	}
 }
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
 	float z = allocate_depth(false);
-	BufferVertex v[4];
+	BufferPosition pos[4];
+	BufferAttrib attr[4];
 	for (unsigned i = 0; i < 4; i++)
 	{
-		v[i] = { vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
-			     vertices[i].w, vertices[i].color };
+		pos[i] = { vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+		           vertices[i].w };
+		attr[i] = { 0.0f, 0.0f, 0.0f, vertices[i].color };
 	}
 
-	queue.opaque_vertices.push_back(v[0]);
-	queue.opaque_vertices.push_back(v[1]);
-	queue.opaque_vertices.push_back(v[2]);
-	queue.opaque_vertices.push_back(v[3]);
-	queue.opaque_vertices.push_back(v[2]);
-	queue.opaque_vertices.push_back(v[1]);
+	queue.opaque_position.push_back(pos[0]);
+	queue.opaque_position.push_back(pos[1]);
+	queue.opaque_position.push_back(pos[2]);
+	queue.opaque_position.push_back(pos[3]);
+	queue.opaque_position.push_back(pos[2]);
+	queue.opaque_position.push_back(pos[1]);
+	queue.opaque_attrib.push_back(attr[0]);
+	queue.opaque_attrib.push_back(attr[1]);
+	queue.opaque_attrib.push_back(attr[2]);
+	queue.opaque_attrib.push_back(attr[3]);
+	queue.opaque_attrib.push_back(attr[2]);
+	queue.opaque_attrib.push_back(attr[1]);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
 	float z = allocate_depth(false);
-	BufferVertex v0 = { float(rect.x), float(rect.y), z, 1.0f, color };
-	BufferVertex v1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, color };
-	BufferVertex v2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, color };
-	BufferVertex v3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f, color };
-	queue.opaque_vertices.push_back(v0);
-	queue.opaque_vertices.push_back(v1);
-	queue.opaque_vertices.push_back(v2);
-	queue.opaque_vertices.push_back(v3);
-	queue.opaque_vertices.push_back(v2);
-	queue.opaque_vertices.push_back(v1);
+	BufferPosition pos0 = { float(rect.x), float(rect.y), z, 1.0f };
+	BufferPosition pos1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f };
+	BufferPosition pos2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f };
+	BufferPosition pos3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f };
+	queue.opaque_position.push_back(pos0);
+	queue.opaque_position.push_back(pos1);
+	queue.opaque_position.push_back(pos2);
+	queue.opaque_position.push_back(pos3);
+	queue.opaque_position.push_back(pos2);
+	queue.opaque_position.push_back(pos1);
+	BufferAttrib attr = { 0.0f, 0.0f, 0.0f, 0xffffffff };
+	for (unsigned i = 0; i < 6; i++)
+		queue.opaque_attrib.push_back(attr);
 }
 
 void Renderer::flush_render_pass(const Rect &rect)
@@ -327,25 +339,34 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 void Renderer::render_opaque_primitives()
 {
-	if (queue.opaque_vertices.empty())
+	if (queue.opaque_position.empty())
 		return;
+
+	VK_ASSERT(queue.opaque_attrib.size() == queue.opaque_position.size());
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
+	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
 
 	// Render flat-shaded primitives.
-	auto *buffer = static_cast<BufferVertex *>(
-	    cmd->allocate_vertex_data(0, queue.opaque_vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-	for (auto i = queue.opaque_vertices.size(); i; i--)
-		*buffer++ = queue.opaque_vertices[i - 1];
+	auto *pos = static_cast<BufferPosition *>(
+	    cmd->allocate_vertex_data(0, queue.opaque_position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
+	for (auto i = queue.opaque_position.size(); i; i--)
+		*pos++ = queue.opaque_position[i - 1];
 
-	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(BufferVertex, x));
-	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+	auto *attr = static_cast<BufferAttrib *>(
+		cmd->allocate_vertex_data(1, queue.opaque_attrib.size() * sizeof(BufferAttrib), sizeof(BufferAttrib)));
+	for (auto i = queue.opaque_attrib.size(); i; i--)
+		*attr++ = queue.opaque_attrib[i - 1];
+
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+	cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
 
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
-	cmd->draw(queue.opaque_vertices.size());
-	queue.opaque_vertices.clear();
+	cmd->draw(queue.opaque_position.size());
+	queue.opaque_position.clear();
+	queue.opaque_attrib.clear();
 }
 
 void Renderer::upload_texture(Domain, const Rect &)

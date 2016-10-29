@@ -1036,6 +1036,8 @@ void CommandBuffer::set_opaque_state()
 	state.stencil_test = false;
 	state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	state.write_mask = ~0u;
+
+	set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT);
 }
 
 void CommandBuffer::set_quad_state()
@@ -1049,5 +1051,6 @@ void CommandBuffer::set_quad_state()
 	state.depth_write = false;
 	state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 	state.write_mask = ~0u;
+	set_dirty(COMMAND_BUFFER_DIRTY_STATIC_STATE_BIT);
 }
 }

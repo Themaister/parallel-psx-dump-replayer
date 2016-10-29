@@ -97,16 +97,21 @@ private:
 		int draw_offset_y = 0;
 	} render_state;
 
-	struct BufferVertex
+	struct BufferPosition
 	{
 		float x, y, z, w;
+	};
+
+	struct BufferAttrib
+	{
+		float u, v, layer;
 		uint32_t color;
-		uint8_t u, v;
 	};
 
 	struct OpaqueQueue
 	{
-		std::vector<BufferVertex> opaque_vertices;
+		std::vector<BufferPosition> opaque_position;
+		std::vector<BufferAttrib> opaque_attrib;
 	} queue;
 	unsigned primitive_index = 0;
 
