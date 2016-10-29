@@ -15,6 +15,8 @@ endfunction(add_shader)
 
 add_shader(opaque.flat.vert opaque.vert "-DFLAT")
 add_shader(opaque.flat.frag opaque.frag "-DFLAT")
+add_shader(opaque.textured.vert opaque.vert "-DTEXTURED")
+add_shader(opaque.textured.frag opaque.frag "-DTEXTURED")
 add_shader(resolve.scaled.comp resolve.comp "-DSCALED")
 add_shader(resolve.unscaled.comp resolve.comp "-DUNSCALED")
 add_shader(quad.vert quad.vert "")

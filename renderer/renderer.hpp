@@ -92,6 +92,7 @@ private:
 		Vulkan::ProgramHandle blit_vram_unscaled;
 		Vulkan::ProgramHandle blit_vram_scaled;
 		Vulkan::ProgramHandle opaque_flat;
+		Vulkan::ProgramHandle opaque_textured;
 	} pipelines;
 
 	void init_pipelines();
@@ -131,11 +132,11 @@ private:
 	float last_uv_scale_x, last_uv_scale_y;
 
 	void render_opaque_primitives();
-	float allocate_depth(bool reads_window);
-
-	TextureAllocator allocator;
-	void flush_texture_allocator();
-
+	void render_opaque_texture_primitives();
 	void reset_queue();
+
+	float allocate_depth(bool reads_window);
+	void flush_texture_allocator();
+	TextureAllocator allocator;
 };
 }

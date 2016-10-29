@@ -66,6 +66,12 @@ void Renderer::init_pipelines()
 	static const uint32_t opaque_flat_frag[] =
 #include "opaque.flat.frag.inc"
 	;
+	static const uint32_t opaque_textured_vert[] =
+#include "opaque.textured.vert.inc"
+	;
+	static const uint32_t opaque_textured_frag[] =
+#include "opaque.textured.frag.inc"
+	;
 	static const uint32_t blit_vram_unscaled_comp[] =
 #include "blit_vram.unscaled.comp.inc"
 	;
@@ -84,6 +90,8 @@ void Renderer::init_pipelines()
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
 	pipelines.opaque_flat =
 		device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
+	pipelines.opaque_textured =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_textured_frag, sizeof(opaque_textured_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -380,6 +388,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	cmd->set_scissor(info.render_area);
 
 	render_opaque_primitives();
+	render_opaque_texture_primitives();
 
 	cmd->end_render_pass();
 
@@ -420,6 +429,42 @@ void Renderer::render_opaque_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
 	cmd->draw(queue.opaque_position.size());
+}
+
+void Renderer::render_opaque_texture_primitives()
+{
+	unsigned num_textures = queue.opaque_textured_position.size();
+
+	cmd->set_opaque_state();
+	cmd->set_cull_mode(VK_CULL_MODE_NONE);
+	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
+	cmd->set_program(*pipelines.opaque_textured);
+	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+	for (unsigned tex = 0; tex < num_textures; tex++)
+	{
+		auto &position = queue.opaque_textured_position[tex];
+		auto &attribs = queue.opaque_textured_attrib[tex];
+		if (position.empty())
+			continue;
+
+		// Render opaque textured primitives.
+		auto *pos = static_cast<BufferPosition *>(
+			cmd->allocate_vertex_data(0, position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
+		for (auto i = position.size(); i; i--)
+			*pos++ = position[i - 1];
+
+		auto *attr = static_cast<BufferAttrib *>(
+			cmd->allocate_vertex_data(1, attribs.size() * sizeof(BufferAttrib), sizeof(BufferAttrib)));
+		for (auto i = attribs.size(); i; i--)
+			*attr++ = attribs[i - 1];
+
+		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+		cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
+		cmd->set_vertex_attrib(2, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferAttrib, u));
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		cmd->draw(position.size());
+	}
 }
 
 void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
@@ -535,4 +580,5 @@ void Renderer::reset_queue()
 	queue.opaque_textured_position.clear();
 	queue.textures.clear();
 }
+
 }
