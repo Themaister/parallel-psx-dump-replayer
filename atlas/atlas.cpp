@@ -61,12 +61,11 @@ void FBAtlas::write_transfer(Domain domain, const Rect &rect)
 
 void FBAtlas::read_texture(const Rect &rect)
 {
-	auto domain = find_suitable_domain(rect);
-	sync_domain(domain, rect);
-	read_domain(domain, Stage::Compute, rect);
-	listener->upload_texture(domain, rect);
-
-	renderpass.wait_for_blit = true;
+	Rect shifted = { rect.x + renderpass.texture_offset_x, rect.y + renderpass.texture_offset_y, rect.width, rect.height };
+	auto domain = find_suitable_domain(shifted);
+	sync_domain(domain, shifted);
+	read_domain(domain, Stage::Compute, shifted);
+	listener->upload_texture(domain, rect, renderpass.texture_offset_x, renderpass.texture_offset_y);
 }
 
 void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
@@ -299,10 +298,6 @@ void FBAtlas::flush_render_pass()
 	if (!renderpass.inside)
 		return;
 
-	if (renderpass.wait_for_blit)
-		pipeline_barrier(STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_WRITE);
-	renderpass.wait_for_blit = false;
-
 	renderpass.inside = false;
 	write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
 	listener->flush_render_pass(renderpass.rect);
@@ -327,7 +322,6 @@ void FBAtlas::write_fragment(bool reads_window)
 		sync_domain(Domain::Scaled, renderpass.rect);
 		renderpass.inside = true;
 		renderpass.clean_clear = false;
-		renderpass.wait_for_blit = false;
 	}
 }
 
@@ -340,7 +334,6 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 		discard_render_pass();
 		renderpass.inside = true;
 		renderpass.clean_clear = true;
-		renderpass.wait_for_blit = false;
 		renderpass.color = color;
 	}
 	else if (!renderpass.inside)
@@ -348,7 +341,6 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 		sync_domain(Domain::Scaled, rect);
 		renderpass.inside = true;
 		renderpass.clean_clear = false;
-		renderpass.wait_for_blit = false;
 		listener->clear_quad(rect, color);
 	}
 	else

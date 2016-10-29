@@ -38,7 +38,7 @@ void TextureAllocator::begin()
 	texture_count = 0;
 }
 
-TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect)
+TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
 {
 	// Sizes are always POT, minimum 8, maximum 256 * max scaling (8).
 	unsigned xkey = trailing_zeroes(rect.width) - 3;
@@ -57,9 +57,9 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect)
 	unsigned layer = array_count[map]++;
 
 	if (domain == Domain::Scaled)
-		scaled_blits[map].push_back({ rect, 0, 0, 0, layer });
+		scaled_blits[map].push_back({ rect, off_x, off_y, 0, layer });
 	else
-		unscaled_blits[map].push_back({ rect, 0, 0, 0, layer });
+		unscaled_blits[map].push_back({ rect, off_x, off_y, 0, layer });
 
 	return { unsigned(map), layer };
 }

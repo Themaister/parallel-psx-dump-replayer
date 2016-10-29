@@ -7,9 +7,7 @@ using namespace std;
 namespace PSX
 {
 Renderer::Renderer(Device &device, unsigned scaling)
-    : device(device)
-    , scaling(scaling)
-	, allocator(device)
+	: device(device), scaling(scaling), allocator(device)
 {
 	auto info = ImageCreateInfo::render_target(FB_WIDTH, FB_HEIGHT, VK_FORMAT_R32_UINT);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
@@ -46,34 +44,28 @@ void Renderer::init_pipelines()
 {
 	static const uint32_t quad_vert[] =
 #include "quad.vert.inc"
-	    ;
-
+	;
 	static const uint32_t scaled_quad_frag[] =
 #include "scaled.quad.frag.inc"
-	    ;
-
+	;
 	static const uint32_t unscaled_quad_frag[] =
 #include "unscaled.quad.frag.inc"
-	    ;
-
+	;
 	static const uint32_t copy_vram_comp[] =
 #include "copy_vram.comp.inc"
-	    ;
-
+	;
 	static const uint32_t resolve_to_scaled[] =
 #include "resolve.scaled.comp.inc"
-	    ;
-
+	;
 	static const uint32_t resolve_to_unscaled[] =
 #include "resolve.unscaled.comp.inc"
-	    ;
-
+	;
 	static const uint32_t opaque_flat_vert[] =
 #include "opaque.flat.vert.inc"
-	    ;
+	;
 	static const uint32_t opaque_flat_frag[] =
 #include "opaque.flat.frag.inc"
-	    ;
+	;
 	static const uint32_t blit_vram_unscaled_comp[] =
 #include "blit_vram.unscaled.comp.inc"
 	;
@@ -82,16 +74,16 @@ void Renderer::init_pipelines()
 	;
 
 	pipelines.scaled_quad_blitter =
-	    device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
+		device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
 	pipelines.unscaled_quad_blitter =
-	    device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
+		device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled, sizeof(resolve_to_unscaled));
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
 	pipelines.opaque_flat =
-	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
+		device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -132,8 +124,8 @@ void Renderer::scanout(const Rect &rect)
 		float offset[2];
 		float scale[2];
 	};
-	Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
-		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
+	Push push = {{float(rect.x) / FB_WIDTH,     float(rect.y) / FB_HEIGHT},
+	             {float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT}};
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
@@ -206,7 +198,7 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 
-		Push push = { rect, { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
+		Push push = {rect, {1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch(scaling * (rect.width >> 3), scaling * (rect.height >> 3), 1);
 	}
@@ -216,7 +208,7 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
 
-		Push push = { rect, { 1.0f / FB_WIDTH, 1.0f / FB_HEIGHT }, scaling };
+		Push push = {rect, {1.0f / FB_WIDTH, 1.0f / FB_HEIGHT}, scaling};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch(rect.width >> 3, rect.height >> 3, 1);
 	}
@@ -244,12 +236,47 @@ float Renderer::allocate_depth(bool reads_window)
 void Renderer::draw_triangle(const Vertex *vertices)
 {
 	float z = allocate_depth(texture_mode != TextureMode::None);
+	BufferPosition pos[3];
+	BufferAttrib attr[3];
 	for (unsigned i = 0; i < 3; i++)
 	{
-		queue.opaque_position.push_back({ vertices[i].x + render_state.draw_offset_x,
-		                                  vertices[i].y + render_state.draw_offset_y, z, vertices[i].w });
-		queue.opaque_attrib.push_back({ 0.0f, 0.0f, 0.0f, vertices[i].color });
+		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+		          vertices[i].w};
+		attr[i] = {0.0f, 0.0f, 0.0f, vertices[i].color};
 	}
+
+	vector<BufferPosition> *positions;
+	vector<BufferAttrib> *attribs;
+	if (texture_mode != TextureMode::None)
+	{
+		for (unsigned i = 0; i < 3; i++)
+		{
+			attr[i].u = vertices[i].u * last_uv_scale_x;
+			attr[i].v = vertices[i].v * last_uv_scale_y;
+			attr[i].layer = float(last_surface.layer);
+		}
+
+		if (last_surface.texture >= queue.opaque_textured_attrib.size())
+		{
+			queue.opaque_textured_position.resize(last_surface.texture + 1);
+			queue.opaque_textured_attrib.resize(last_surface.texture + 1);
+		}
+
+		positions = &queue.opaque_textured_position[last_surface.texture];
+		attribs = &queue.opaque_textured_attrib[last_surface.texture];
+	}
+	else
+	{
+		positions = &queue.opaque_position;
+		attribs = &queue.opaque_attrib;
+	}
+
+	positions->push_back(pos[0]);
+	positions->push_back(pos[1]);
+	positions->push_back(pos[2]);
+	attribs->push_back(attr[0]);
+	attribs->push_back(attr[1]);
+	attribs->push_back(attr[2]);
 }
 
 void Renderer::draw_quad(const Vertex *vertices)
@@ -259,39 +286,65 @@ void Renderer::draw_quad(const Vertex *vertices)
 	BufferAttrib attr[4];
 	for (unsigned i = 0; i < 4; i++)
 	{
-		pos[i] = { vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
-		           vertices[i].w };
-		attr[i] = { 0.0f, 0.0f, 0.0f, vertices[i].color };
+		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+		          vertices[i].w};
+		attr[i] = {0.0f, 0.0f, 0.0f, vertices[i].color};
 	}
 
-	queue.opaque_position.push_back(pos[0]);
-	queue.opaque_position.push_back(pos[1]);
-	queue.opaque_position.push_back(pos[2]);
-	queue.opaque_position.push_back(pos[3]);
-	queue.opaque_position.push_back(pos[2]);
-	queue.opaque_position.push_back(pos[1]);
-	queue.opaque_attrib.push_back(attr[0]);
-	queue.opaque_attrib.push_back(attr[1]);
-	queue.opaque_attrib.push_back(attr[2]);
-	queue.opaque_attrib.push_back(attr[3]);
-	queue.opaque_attrib.push_back(attr[2]);
-	queue.opaque_attrib.push_back(attr[1]);
+	vector<BufferPosition> *positions;
+	vector<BufferAttrib> *attribs;
+	if (texture_mode != TextureMode::None)
+	{
+		for (unsigned i = 0; i < 4; i++)
+		{
+			attr[i].u = vertices[i].u * last_uv_scale_x;
+			attr[i].v = vertices[i].v * last_uv_scale_y;
+			attr[i].layer = float(last_surface.layer);
+		}
+
+		if (last_surface.texture >= queue.opaque_textured_attrib.size())
+		{
+			queue.opaque_textured_position.resize(last_surface.texture + 1);
+			queue.opaque_textured_attrib.resize(last_surface.texture + 1);
+		}
+
+		positions = &queue.opaque_textured_position[last_surface.texture];
+		attribs = &queue.opaque_textured_attrib[last_surface.texture];
+	}
+	else
+	{
+		positions = &queue.opaque_position;
+		attribs = &queue.opaque_attrib;
+	}
+
+	positions->push_back(pos[0]);
+	positions->push_back(pos[1]);
+	positions->push_back(pos[2]);
+	positions->push_back(pos[3]);
+	positions->push_back(pos[2]);
+	positions->push_back(pos[1]);
+	attribs->push_back(attr[0]);
+	attribs->push_back(attr[1]);
+	attribs->push_back(attr[2]);
+	attribs->push_back(attr[3]);
+	attribs->push_back(attr[2]);
+	attribs->push_back(attr[1]);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
 	float z = allocate_depth(texture_mode != TextureMode::None);
-	BufferPosition pos0 = { float(rect.x), float(rect.y), z, 1.0f };
-	BufferPosition pos1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f };
-	BufferPosition pos2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f };
-	BufferPosition pos3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f };
+	BufferPosition pos0 = {float(rect.x), float(rect.y), z, 1.0f};
+	BufferPosition pos1 = {float(rect.x) + float(rect.width), float(rect.y), z, 1.0f};
+	BufferPosition pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f};
+	BufferPosition pos3 = {float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f};
 	queue.opaque_position.push_back(pos0);
 	queue.opaque_position.push_back(pos1);
 	queue.opaque_position.push_back(pos2);
 	queue.opaque_position.push_back(pos3);
 	queue.opaque_position.push_back(pos2);
 	queue.opaque_position.push_back(pos1);
-	BufferAttrib attr = { 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color) };
+	BufferAttrib attr = {0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
 	for (unsigned i = 0; i < 6; i++)
 		queue.opaque_attrib.push_back(attr);
 }
@@ -303,7 +356,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	bool is_clear = atlas.render_pass_is_clear();
 
 	RenderPassInfo info = {};
-	info.clear_depth_stencil = { 1.0f, 0 };
+	info.clear_depth_stencil = {1.0f, 0};
 	info.color_attachments[0] = &scaled_framebuffer->get_view();
 	info.depth_stencil = &depth->get_view();
 	info.num_color_attachments = 1;
@@ -315,14 +368,13 @@ void Renderer::flush_render_pass(const Rect &rect)
 		FBColor color = atlas.render_pass_clear_color();
 		fbcolor_to_rgba32f(info.clear_color[0].float32, color);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
-	}
-	else
+	} else
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
 
-	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
-	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
+	info.render_area.offset = {int(rect.x * scaling), int(rect.y * scaling)};
+	info.render_area.extent = {rect.width * scaling, rect.height * scaling};
 
-	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
+	flush_texture_allocator();
 
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
@@ -335,9 +387,9 @@ void Renderer::flush_render_pass(const Rect &rect)
 	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	allocator.begin();
+	reset_queue();
 }
 
 void Renderer::render_opaque_primitives()
@@ -353,7 +405,7 @@ void Renderer::render_opaque_primitives()
 
 	// Render flat-shaded primitives.
 	auto *pos = static_cast<BufferPosition *>(
-	    cmd->allocate_vertex_data(0, queue.opaque_position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
+		cmd->allocate_vertex_data(0, queue.opaque_position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
 	for (auto i = queue.opaque_position.size(); i; i--)
 		*pos++ = queue.opaque_position[i - 1];
 
@@ -368,12 +420,21 @@ void Renderer::render_opaque_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
 	cmd->draw(queue.opaque_position.size());
-	queue.opaque_position.clear();
-	queue.opaque_attrib.clear();
 }
 
-void Renderer::upload_texture(Domain, const Rect &)
+void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
 {
+	if (domain == Domain::Scaled)
+	{
+		last_surface = allocator.allocate(domain, {scaling * rect.x, scaling * rect.y, scaling * rect.width,
+		                                           scaling * rect.height}, scaling * off_x, scaling * off_y);
+	}
+	else
+		last_surface = allocator.allocate(domain, rect, off_x, off_y);
+
+	last_surface.texture += queue.textures.size();
+	last_uv_scale_x = 1.0f / rect.width;
+	last_uv_scale_y = 1.0f / rect.height;
 }
 
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
@@ -397,24 +458,23 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
 		Push push = {
-			{ scaling * src.x, scaling * src.y },
-			{ scaling * dst.x, scaling * dst.y },
-			{ scaling * dst.width, scaling * dst.height },
-			{ 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT )},
+			{scaling * src.x,             scaling * src.y},
+			{scaling * dst.x,             scaling * dst.y},
+			{scaling * dst.width,         scaling * dst.height},
+			{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)},
 		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch((scaling * dst.width + 7) >> 3, (scaling * dst.height + 7) >> 3, 1);
-	}
-	else
+	} else
 	{
 		cmd->set_program(*pipelines.blit_vram_unscaled);
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 		Push push = {
-			{ src.x, src.y },
-			{ dst.x, dst.y },
-			{ dst.width, dst.height },
-			{ 1.0f / FB_WIDTH, 1.0f / FB_HEIGHT },
+			{src.x,           src.y},
+			{dst.x,           dst.y},
+			{dst.width,       dst.height},
+			{1.0f / FB_WIDTH, 1.0f / FB_HEIGHT},
 		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch((dst.width + 7) >> 3, (dst.height + 7) >> 3, 1);
@@ -427,7 +487,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);
 
 	// TODO: Chain allocate this.
-	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, data);
+	auto buffer = device.create_buffer({BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT}, data);
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
 	view_info.offset = 0;
@@ -445,7 +505,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 		Rect rect;
 		uint32_t offset;
 	};
-	Push push = { rect, 0 };
+	Push push = {rect, 0};
 	cmd->push_constants(&push, 0, sizeof(push));
 
 	// TODO: Batch up work.
@@ -456,5 +516,23 @@ Renderer::~Renderer()
 {
 	if (cmd)
 		device.submit(cmd);
+}
+
+void Renderer::flush_texture_allocator()
+{
+	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
+	unsigned num_textures = allocator.get_num_textures();
+	for (unsigned i = 0; i < num_textures; i++)
+		queue.textures.push_back(allocator.get_image(i));
+	allocator.begin();
+}
+
+void Renderer::reset_queue()
+{
+	queue.opaque_position.clear();
+	queue.opaque_attrib.clear();
+	queue.opaque_textured_attrib.clear();
+	queue.opaque_textured_position.clear();
+	queue.textures.clear();
 }
 }

@@ -111,7 +111,7 @@ public:
 	virtual void resolve(Domain target_domain, const Rect &rect) = 0;
 	virtual void flush_render_pass(const Rect &rect) = 0;
 	virtual void discard_render_pass() = 0;
-	virtual void upload_texture(Domain target_domain, const Rect &rect) = 0;
+	virtual void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) = 0;
 	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
 };
 
@@ -136,6 +136,11 @@ public:
 	void clear_rect(const Rect &rect, FBColor color);
 	void set_draw_rect(const Rect &rect);
 	void set_texture_window(const Rect &rect);
+	void set_texture_offset(unsigned x, unsigned y)
+	{
+		renderpass.texture_offset_x = x;
+		renderpass.texture_offset_y = y;
+	}
 
 	bool render_pass_is_clear() const
 	{
@@ -163,10 +168,10 @@ private:
 	{
 		Rect rect;
 		Rect texture_window;
+		unsigned texture_offset_x = 0, texture_offset_y = 0;
 		FBColor color = 0;
 		bool inside = false;
 		bool clean_clear = false;
-		bool wait_for_blit = false;
 	} renderpass;
 
 	StatusFlags &info(unsigned block_x, unsigned block_y)

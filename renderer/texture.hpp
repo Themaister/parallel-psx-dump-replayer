@@ -29,11 +29,11 @@ public:
 
 	void begin();
 
-	TextureSurface allocate(Domain domain, const Rect &rect);
+	TextureSurface allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y);
 	void end(Vulkan::CommandBuffer *cmd, const Vulkan::ImageView &scaled, const Vulkan::ImageView &unscaled);
-	inline const Vulkan::ImageView &get_image(unsigned index)
+	inline Vulkan::ImageHandle get_image(unsigned index)
 	{
-		return images[index]->get_view();
+		return images[index];
 	}
 
 	inline unsigned get_num_textures() const

@@ -37,6 +37,11 @@ public:
 	}
 
 	void set_texture_window(const Rect &rect);
+	inline void set_texture_offset(unsigned x, unsigned y)
+	{
+		atlas.set_texture_offset(x, y);
+	}
+
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 	void blit_vram(const Rect &dst, const Rect &src);
 
@@ -71,7 +76,7 @@ private:
 	void resolve(Domain target_domain, const Rect &rect) override;
 	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
-	void upload_texture(Domain target_domain, const Rect &rect) override;
+	void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) override;
 	void clear_quad(const Rect &rect, FBColor color) override;
 
 	TextureMode texture_mode = TextureMode::None;
@@ -122,10 +127,15 @@ private:
 		std::vector<Vulkan::ImageHandle> textures;
 	} queue;
 	unsigned primitive_index = 0;
+	TextureSurface last_surface;
+	float last_uv_scale_x, last_uv_scale_y;
 
 	void render_opaque_primitives();
 	float allocate_depth(bool reads_window);
 
 	TextureAllocator allocator;
+	void flush_texture_allocator();
+
+	void reset_queue();
 };
 }
