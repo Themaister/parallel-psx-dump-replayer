@@ -29,8 +29,7 @@ public:
 	~Renderer();
 
 	void set_draw_rect(const Rect &rect);
-
-	void set_draw_offset(int x, int y)
+	inline void set_draw_offset(int x, int y)
 	{
 		render_state.draw_offset_x = x;
 		render_state.draw_offset_y = y;
@@ -46,6 +45,7 @@ public:
 	{
 		texture_mode = mode;
 	}
+
 	inline void enable_semi_transparent(bool enable)
 	{
 		semi_transparent = enable;
