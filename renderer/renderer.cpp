@@ -73,6 +73,12 @@ void Renderer::init_pipelines()
 	static const uint32_t opaque_flat_frag[] =
 #include "opaque.flat.frag.inc"
 	    ;
+	static const uint32_t blit_vram_unscaled_comp[] =
+#include "blit_vram.unscaled.comp.inc"
+	;
+	static const uint32_t blit_vram_scaled_comp[] =
+#include "blit_vram.scaled.comp.inc"
+	;
 
 	pipelines.scaled_quad_blitter =
 	    device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
@@ -81,6 +87,8 @@ void Renderer::init_pipelines()
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled, sizeof(resolve_to_unscaled));
+	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
+	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
 	pipelines.opaque_flat =
 	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 }
@@ -344,10 +352,53 @@ void Renderer::upload_texture(Domain, const Rect &)
 {
 }
 
+void Renderer::blit_vram(const Rect &dst, const Rect &src)
+{
+	VK_ASSERT(dst.width == src.width);
+	VK_ASSERT(dst.height == src.height);
+	auto domain = atlas.blit_vram(dst, src);
+	ensure_command_buffer();
+
+	struct Push
+	{
+		uint32_t src_offset[2];
+		uint32_t dst_offset[2];
+		uint32_t size[2];
+		float inv_size[2];
+	};
+
+	if (domain == Domain::Scaled)
+	{
+		cmd->set_program(*pipelines.blit_vram_scaled);
+		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
+		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
+		Push push = {
+			{ scaling * src.x, scaling * src.y },
+			{ scaling * dst.x, scaling * dst.y },
+			{ scaling * dst.width, scaling * dst.height },
+			{ 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT )},
+		};
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->dispatch((scaling * dst.width + 7) >> 3, (scaling * dst.height + 7) >> 3, 1);
+	}
+	else
+	{
+		cmd->set_program(*pipelines.blit_vram_unscaled);
+		cmd->set_storage_texture(0, 0, framebuffer->get_view());
+		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
+		Push push = {
+			{ src.x, src.y },
+			{ dst.x, dst.y },
+			{ dst.width, dst.height },
+			{ 1.0f / FB_WIDTH, 1.0f / FB_HEIGHT },
+		};
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->dispatch((dst.width + 7) >> 3, (dst.height + 7) >> 3, 1);
+	}
+}
+
 void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 {
-	VK_ASSERT((rect.width & 7) == 0);
-	VK_ASSERT((rect.height & 7) == 0);
 	atlas.write_compute(Domain::Unscaled, rect);
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);
 

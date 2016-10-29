@@ -105,6 +105,7 @@ public:
 	void read_transfer(Domain domain, const Rect &rect);
 	void write_transfer(Domain domain, const Rect &rect);
 	void read_fragment(Domain domain, const Rect &rect);
+	Domain blit_vram(const Rect &dst, const Rect &src);
 
 	void write_fragment(bool reads_window);
 	void clear_rect(const Rect &rect, FBColor color);

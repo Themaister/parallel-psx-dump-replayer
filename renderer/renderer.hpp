@@ -38,6 +38,7 @@ public:
 
 	void set_texture_window(const Rect &rect);
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
+	void blit_vram(const Rect &dst, const Rect &src);
 
 	void scanout(const Rect &rect);
 
@@ -82,6 +83,8 @@ private:
 		Vulkan::ProgramHandle scaled_quad_blitter;
 		Vulkan::ProgramHandle resolve_to_scaled;
 		Vulkan::ProgramHandle resolve_to_unscaled;
+		Vulkan::ProgramHandle blit_vram_unscaled;
+		Vulkan::ProgramHandle blit_vram_scaled;
 		Vulkan::ProgramHandle opaque_flat;
 	} pipelines;
 

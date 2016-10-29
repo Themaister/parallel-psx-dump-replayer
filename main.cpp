@@ -42,8 +42,10 @@ int main()
 		renderer.draw_triangle(verts);
 		renderer.clear_rect({ 30, 28, 7, 7 }, 0x8882);
 		renderer.draw_quad(verts2);
-		renderer.copy_cpu_to_vram(black, { 32, 32, 5, 8 });
-		renderer.scanout({ 0, 0, 80, 60 });
+		renderer.blit_vram({ 32, 32, 8, 8 }, {24, 24, 8, 8});
+		renderer.copy_cpu_to_vram(black, { 48, 48, 8, 8 });
+		renderer.blit_vram({ 59, 53, 8, 8 }, {48, 48, 8, 8});
+		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();
 	}
 }

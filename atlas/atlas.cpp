@@ -12,6 +12,23 @@ FBAtlas::FBAtlas()
 		f = STATUS_FB_PREFER;
 }
 
+Domain FBAtlas::blit_vram(const Rect &dst, const Rect &src)
+{
+	auto src_domain = find_suitable_domain(src);
+	auto dst_domain = find_suitable_domain(dst);
+	Domain domain;
+	if (src_domain != dst_domain)
+		domain = Domain::Unscaled;
+	else
+		domain = src_domain;
+
+	sync_domain(domain, src);
+	sync_domain(domain, dst);
+	read_domain(domain, Stage::Compute, src);
+	write_domain(domain, Stage::Compute, dst);
+	return domain;
+}
+
 void FBAtlas::read_fragment(Domain domain, const Rect &rect)
 {
 	sync_domain(domain, rect);
