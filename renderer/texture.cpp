@@ -18,6 +18,9 @@ TextureAllocator::TextureAllocator(Vulkan::Device &device)
 	;
 	scaled_blitter = device.create_program(upload_scaled_comp, sizeof(upload_scaled_comp));
 	unscaled_blitter = device.create_program(upload_unscaled_comp, sizeof(upload_unscaled_comp));
+
+	for (auto &i : size_to_texture_map)
+		i = -1;
 }
 
 void TextureAllocator::begin()
@@ -97,7 +100,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		if (!scaled_blits[i].empty())
 		{
 			cmd->set_storage_texture(1, 0, images[i]->get_view());
-			void *ptr = cmd->allocate_constant_data(1, 0, scaled_blits[i].size() * sizeof(BlitInfo));
+			void *ptr = cmd->allocate_constant_data(1, 1, scaled_blits[i].size() * sizeof(BlitInfo));
 			memcpy(ptr, scaled_blits[i].data(), scaled_blits[i].size() * sizeof(BlitInfo));
 			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, scaled_blits[i].size());
 		}

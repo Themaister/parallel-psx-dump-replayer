@@ -462,7 +462,7 @@ void Renderer::render_opaque_texture_primitives()
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 		cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
 		cmd->set_vertex_attrib(2, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferAttrib, u));
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
 		cmd->draw(position.size());
 	}
 }

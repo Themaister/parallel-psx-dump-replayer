@@ -30,7 +30,7 @@ layout(push_constant, std430) uniform PushConstant
 
 void main()
 {
-    uvec2 coord = infos[gl_WorkGroupID.z].offset + infos[gl_WorkGroupID.z].base;
+    uvec2 coord = infos[gl_WorkGroupID.z].offset + infos[gl_WorkGroupID.z].base + gl_GlobalInvocationID.xy;
 #if defined(SCALED)
     vec2 uv = (vec2(coord) + 0.5) * registers.inv_size;
     vec4 color = textureLod(uFramebuffer, uv, 0.0);

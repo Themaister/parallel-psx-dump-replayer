@@ -12,6 +12,7 @@ void main()
 {
 #ifdef TEXTURED
     FragColor = vColor * texture(uTexture, vUV);
+    //FragColor = vec4(0.0);
 #else
     FragColor = vColor;
 #endif
