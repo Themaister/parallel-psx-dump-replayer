@@ -374,7 +374,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	cmd->push_constants(&push, 0, sizeof(push));
 
 	// TODO: Batch up work.
-	cmd->dispatch(rect.width >> 3, rect.height >> 3, 1);
+	cmd->dispatch((rect.width + 7) >> 3, (rect.height + 7) >> 3, 1);
 }
 
 Renderer::~Renderer()

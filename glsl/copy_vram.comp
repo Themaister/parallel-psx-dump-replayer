@@ -12,8 +12,11 @@ layout(push_constant, std430) uniform Rect
 
 void main()
 {
-    uint value = texelFetch(uImage,
-         int(rect.view_offset + rect.extent.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x)).x;
-    uvec2 coord = gl_GlobalInvocationID.xy + rect.offset;
-    imageStore(uFramebuffer, ivec2(coord), uvec4(value));
+    if (all(lessThan(gl_GlobalInvocationID.xy, rect.extent)))
+    {
+        uint value = texelFetch(uImage,
+             int(rect.view_offset + rect.extent.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x)).x;
+        uvec2 coord = gl_GlobalInvocationID.xy + rect.offset;
+        imageStore(uFramebuffer, ivec2(coord), uvec4(value));
+    }
 }
