@@ -26,4 +26,6 @@ add_shader(test.comp test.comp "")
 add_shader(copy_vram.comp copy_vram.comp "")
 add_shader(blit_vram.scaled.comp blit_vram.comp "-DSCALED")
 add_shader(blit_vram.unscaled.comp blit_vram.comp "-DUNSCALED")
+add_shader(upload.scaled.comp upload.comp "-DSCALED")
+add_shader(upload.unscaled.comp upload.comp "-DUNSCALED")
 

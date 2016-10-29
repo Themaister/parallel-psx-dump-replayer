@@ -4,6 +4,7 @@
 #include "device.hpp"
 #include "vulkan.hpp"
 #include "wsi.hpp"
+#include "texture.hpp"
 
 namespace PSX
 {
@@ -117,5 +118,7 @@ private:
 
 	void render_opaque_primitives();
 	float allocate_depth(bool reads_window);
+
+	TextureAllocator allocator;
 };
 }

@@ -25,7 +25,7 @@ static const unsigned NUM_TEXTURES = 8 * 8;
 class TextureAllocator
 {
 public:
-	TextureAllocator(Vulkan::Device *device);
+	TextureAllocator(Vulkan::Device &device);
 
 	void begin();
 
@@ -37,7 +37,7 @@ public:
 	}
 
 private:
-	Vulkan::Device *device;
+	Vulkan::Device &device;
 	int size_to_texture_map[NUM_TEXTURES];
 	unsigned widths[NUM_TEXTURES];
 	unsigned heights[NUM_TEXTURES];

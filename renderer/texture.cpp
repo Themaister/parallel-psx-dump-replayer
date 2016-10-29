@@ -7,9 +7,18 @@ using namespace std;
 
 namespace PSX
 {
-TextureAllocator::TextureAllocator(Vulkan::Device *device)
+TextureAllocator::TextureAllocator(Vulkan::Device &device)
 	: device(device)
-{}
+{
+	static const uint32_t upload_scaled_comp[] =
+#include "upload.scaled.comp.inc"
+	;
+	static const uint32_t upload_unscaled_comp[] =
+#include "upload.unscaled.comp.inc"
+	;
+	scaled_blitter = device.create_program(upload_scaled_comp, sizeof(upload_scaled_comp));
+	unscaled_blitter = device.create_program(upload_unscaled_comp, sizeof(upload_unscaled_comp));
+}
 
 void TextureAllocator::begin()
 {
@@ -68,13 +77,19 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		info.width = widths[i];
 		info.height = heights[i];
 		info.layers = array_count[i];
-		images[i] = device->create_image(info);
+		images[i] = device.create_image(info);
 	}
 
+	struct Push
+	{
+		float inv_size[2];
+		uint32_t scaling;
+	};
 	uint32_t scaling = scaled.get_image().get_width() / FB_WIDTH;
+	Push push = { { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
 	cmd->set_program(*scaled_blitter);
 	cmd->set_texture(0, 0, scaled, StockSampler::NearestClamp);
-	cmd->push_constants(&scaling, 0, sizeof(scaling));
+	cmd->push_constants(&push, 0, sizeof(push));
 
 	for (unsigned i = 0; i < texture_count; i++)
 	{

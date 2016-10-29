@@ -9,6 +9,7 @@ namespace PSX
 Renderer::Renderer(Device &device, unsigned scaling)
     : device(device)
     , scaling(scaling)
+	, allocator(device)
 {
 	auto info = ImageCreateInfo::render_target(FB_WIDTH, FB_HEIGHT, VK_FORMAT_R32_UINT);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
