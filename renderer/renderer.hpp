@@ -73,6 +73,11 @@ public:
 		render_state.force_mask_bit = enable;
 	}
 
+	inline void set_mask_test(bool enable)
+	{
+		render_state.mask_test = enable;
+	}
+
 	inline void set_texture_color_modulate(bool enable)
 	{
 		render_state.texture_color_modulate = enable;
@@ -113,6 +118,7 @@ private:
 		Vulkan::ProgramHandle opaque_textured;
 		Vulkan::ProgramHandle opaque_semi_transparent;
 		Vulkan::ProgramHandle semi_transparent;
+		Vulkan::ProgramHandle semi_transparent_masked;
 	} pipelines;
 
 	void init_pipelines();
@@ -129,6 +135,7 @@ private:
 		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
 		bool force_mask_bit = false;
 		bool texture_color_modulate = false;
+		bool mask_test = false;
 	} render_state;
 
 	struct BufferVertex
@@ -142,10 +149,15 @@ private:
 	{
 		unsigned image_index;
 		SemiTransparentMode semi_transparent;
+		bool textured;
+		bool masked;
 
 		bool operator==(const SemiTransparentState &other) const
 		{
-			return image_index == other.image_index && semi_transparent == other.semi_transparent;
+			return image_index == other.image_index &&
+				semi_transparent == other.semi_transparent &&
+				textured == other.textured &&
+				masked == other.masked;
 		}
 
 		bool operator!=(const SemiTransparentState &other) const
@@ -185,6 +197,6 @@ private:
 	TextureAllocator allocator;
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
-	std::vector<BufferVertex> &select_pipeline();
+	std::vector<BufferVertex> *select_pipeline();
 };
 }

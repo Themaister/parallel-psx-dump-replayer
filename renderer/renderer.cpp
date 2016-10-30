@@ -270,40 +270,52 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 	}
 }
 
-std::vector<Renderer::BufferVertex> &Renderer::select_pipeline()
+std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 {
+	// For mask testing, force primitives through the serialized blend path.
+	if (render_state.mask_test)
+		return nullptr;
+
 	if (render_state.texture_mode != TextureMode::None)
 	{
 		if (render_state.semi_transparent != SemiTransparentMode::None)
 		{
 			if (last_surface.texture >= queue.semi_transparent_opaque.size())
 				queue.semi_transparent_opaque.resize(last_surface.texture + 1);
-			return queue.semi_transparent_opaque[last_surface.texture];
+			return &queue.semi_transparent_opaque[last_surface.texture];
 		}
 		else
 		{
 			if (last_surface.texture >= queue.opaque_textured.size())
 				queue.opaque_textured.resize(last_surface.texture + 1);
-			return queue.opaque_textured[last_surface.texture];
+			return &queue.opaque_textured[last_surface.texture];
 		}
 	}
 	else
-		return queue.opaque;
+		return &queue.opaque;
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
 	BufferVertex vert[3];
 	build_attribs(vert, vertices, 3);
-	auto &out = select_pipeline();
-	for (unsigned i = 0; i < 3; i++)
-		out.push_back(vert[i]);
+	auto *out = select_pipeline();
+	if (out)
+	{
+		for (unsigned i = 0; i < 3; i++)
+			out->push_back(vert[i]);
+	}
 
-	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None)
+	if (render_state.mask_test || (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None))
 	{
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
-		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
+		queue.semi_transparent_state.push_back({
+			                                       last_surface.texture,
+			                                       render_state.texture_mode != TextureMode::None ? render_state.semi_transparent : SemiTransparentMode::None,
+			                                       render_state.texture_mode != TextureMode::None,
+			                                       render_state.mask_test
+		                                       });
 	}
 }
 
@@ -311,15 +323,18 @@ void Renderer::draw_quad(const Vertex *vertices)
 {
 	BufferVertex vert[4];
 	build_attribs(vert, vertices, 4);
-	auto &out = select_pipeline();
-	out.push_back(vert[0]);
-	out.push_back(vert[1]);
-	out.push_back(vert[2]);
-	out.push_back(vert[3]);
-	out.push_back(vert[2]);
-	out.push_back(vert[1]);
+	auto *out = select_pipeline();
+	if (out)
+	{
+		out->push_back(vert[0]);
+		out->push_back(vert[1]);
+		out->push_back(vert[2]);
+		out->push_back(vert[3]);
+		out->push_back(vert[2]);
+		out->push_back(vert[1]);
+	}
 
-	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None)
+	if (render_state.mask_test || (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None))
 	{
 		queue.semi_transparent.push_back(vert[0]);
 		queue.semi_transparent.push_back(vert[1]);
@@ -327,8 +342,18 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[3]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
-		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
-		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
+		queue.semi_transparent_state.push_back({
+			                                       last_surface.texture,
+			                                       render_state.texture_mode != TextureMode::None ? render_state.semi_transparent : SemiTransparentMode::None,
+			                                       render_state.texture_mode != TextureMode::None,
+			                                       render_state.mask_test
+		                                       });
+		queue.semi_transparent_state.push_back({
+			                                       last_surface.texture,
+			                                       render_state.texture_mode != TextureMode::None ? render_state.semi_transparent : SemiTransparentMode::None,
+			                                       render_state.texture_mode != TextureMode::None,
+			                                       render_state.mask_test
+		                                       });
 	}
 }
 
@@ -433,8 +458,6 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
 	cmd->set_depth_test(true, false);
 	cmd->set_blend_enable(true);
-	cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_CONSTANT_ALPHA, VK_BLEND_FACTOR_ZERO);
-	cmd->set_program(*pipelines.semi_transparent);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
@@ -448,38 +471,56 @@ void Renderer::render_semi_transparent_primitives()
 
 	const auto set_state = [&](const SemiTransparentState &state) {
 		cmd->set_texture(0, 1, queue.textures[state.image_index]->get_view(), StockSampler::NearestWrap);
+
 		switch (state.semi_transparent)
 		{
+		case SemiTransparentMode::None:
+		{
+			// For opaque primitives which are just masked, we can make use of fixed function blending.
+			cmd->set_blend_enable(true);
+			cmd->set_program(state.textured ? *pipelines.opaque_textured : *pipelines.opaque_flat);
+			if (state.textured)
+				cmd->set_texture(0, 0, queue.textures[state.image_index]->get_view(), StockSampler::LinearWrap);
+			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_DST_ALPHA, VK_BLEND_FACTOR_DST_ALPHA);
+			break;
+		}
 		case SemiTransparentMode::Add:
 		{
-			static const float rgba[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-			cmd->set_blend_constants(rgba);
+			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
+			cmd->set_blend_enable(true);
 			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
 			break;
 		}
 		case SemiTransparentMode::Average:
 		{
 			static const float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
+			cmd->set_blend_enable(true);
 			cmd->set_blend_constants(rgba);
 			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_CONSTANT_ALPHA, VK_BLEND_FACTOR_ZERO);
 			break;
 		}
 		case SemiTransparentMode::Sub:
 		{
-			static const float rgba[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-			cmd->set_blend_constants(rgba);
+			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
+			cmd->set_blend_enable(true);
 			cmd->set_blend_op(VK_BLEND_OP_REVERSE_SUBTRACT, VK_BLEND_OP_ADD);
+			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
 			break;
 		}
 		case SemiTransparentMode::AddQuarter:
 		{
 			static const float rgba[4] = {0.25f, 0.25f, 0.25f, 1.0f};
+			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
+			cmd->set_blend_enable(true);
 			cmd->set_blend_constants(rgba);
 			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
 			break;
 		}
-		default:
-			break;
 		}
 	};
 	set_state(last_state);
