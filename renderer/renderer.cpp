@@ -57,8 +57,14 @@ void Renderer::init_pipelines()
 	static const uint32_t resolve_to_scaled[] =
 #include "resolve.scaled.comp.inc"
 	;
-	static const uint32_t resolve_to_unscaled[] =
-#include "resolve.unscaled.comp.inc"
+	static const uint32_t resolve_to_unscaled_2[] =
+#include "resolve.unscaled.2.comp.inc"
+	;
+	static const uint32_t resolve_to_unscaled_4[] =
+#include "resolve.unscaled.4.comp.inc"
+	;
+	static const uint32_t resolve_to_unscaled_8[] =
+#include "resolve.unscaled.8.comp.inc"
 	;
 	static const uint32_t opaque_flat_vert[] =
 #include "opaque.flat.vert.inc"
@@ -97,13 +103,27 @@ void Renderer::init_pipelines()
 #include "feedback.add_quarter.frag.inc"
 	;
 
+	switch (scaling)
+	{
+	case 8:
+		pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled_8, sizeof(resolve_to_unscaled_8));
+		break;
+
+	case 4:
+		pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled_4, sizeof(resolve_to_unscaled_4));
+		break;
+
+	default:
+		pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled_2, sizeof(resolve_to_unscaled_2));
+		break;
+	}
+
 	pipelines.scaled_quad_blitter =
 		device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
 	pipelines.unscaled_quad_blitter =
 		device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
-	pipelines.resolve_to_unscaled = device.create_program(resolve_to_unscaled, sizeof(resolve_to_unscaled));
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
 	pipelines.opaque_flat =

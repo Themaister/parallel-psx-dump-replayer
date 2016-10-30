@@ -33,7 +33,39 @@ void main()
 #elif defined(UNSCALED)
     uvec2 coord = gl_GlobalInvocationID.xy + offsets[gl_WorkGroupID.z].xy;
     vec2 uv = (vec2(coord) + 0.5) * registers.inv_source_size;
-    vec4 value = textureLod(uScaled, uv, 0.0);
+#if SCALE == 2
+    // Grabs 4 texels and averages them box-style.
+    mediump vec4 value = textureLod(uScaled, uv, 0.0);
+#elif SCALE == 4
+    // Grabs 16 texels and averages them box-style.
+    uv -= vec2(0.25 / 1024.0, 0.25 / 512.0);
+    mediump vec4 value = textureLod(uScaled, uv, 0.0);
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 0));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(0, 2));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 2));
+    value /= 4.0;
+#elif SCALE == 8
+    // Kinda crazy, grabs 64 texels and averages them.
+    uv -= vec2(0.375 / 1024.0, 0.375 / 512.0);
+    mediump vec4 value = textureLod(uScaled, uv, 0.0);
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 0));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(4, 0));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(6, 0));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(0, 2));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 2));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(4, 2));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(6, 2));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(0, 4));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 4));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(4, 4));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(6, 4));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(0, 6));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(2, 6));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(4, 6));
+    value += textureLodOffset(uScaled, uv, 0.0, ivec2(6, 6));
+    value /= 16.0;
+#endif
+
     uvec4 rgba = uvec4(round(value * vec4(31.0, 31.0, 31.0, 1.0)));
     uint packed_color = (rgba.r << 0u) | (rgba.g << 5u) | (rgba.b << 10u) | (rgba.a << 15u);
     imageStore(uUnscaled, ivec2(coord), uvec4(packed_color));
