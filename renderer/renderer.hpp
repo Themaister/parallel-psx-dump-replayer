@@ -118,7 +118,10 @@ private:
 		Vulkan::ProgramHandle opaque_textured;
 		Vulkan::ProgramHandle opaque_semi_transparent;
 		Vulkan::ProgramHandle semi_transparent;
-		Vulkan::ProgramHandle semi_transparent_masked;
+		Vulkan::ProgramHandle semi_transparent_masked_add;
+		Vulkan::ProgramHandle semi_transparent_masked_average;
+		Vulkan::ProgramHandle semi_transparent_masked_sub;
+		Vulkan::ProgramHandle semi_transparent_masked_add_quarter;
 	} pipelines;
 
 	void init_pipelines();

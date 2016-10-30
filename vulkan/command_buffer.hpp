@@ -65,6 +65,7 @@ public:
 	                          const VkImageSubresourceLayers &subresrouce);
 
 	void full_barrier();
+	void pixel_barrier();
 	void barrier(VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage,
 	             VkAccessFlags dst_access);
 

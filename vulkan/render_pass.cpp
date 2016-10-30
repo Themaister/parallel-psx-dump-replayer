@@ -159,17 +159,29 @@ RenderPass::RenderPass(Device *device, const RenderPassInfo &info)
 	subpass.pColorAttachments = color_ref;
 	subpass.pDepthStencilAttachment = &ds_ref;
 
+	if (info.op_flags & RENDER_PASS_OP_COLOR_FEEDBACK_BIT)
+	{
+		subpass.inputAttachmentCount = num_color_attachments;
+		subpass.pInputAttachments = color_ref;
+#ifdef VULKAN_DEBUG
+		for (unsigned i = 0; i < num_color_attachments; i++)
+			VK_ASSERT(color_ref[i].layout == VK_IMAGE_LAYOUT_GENERAL);
+#endif
+	}
+
 	VkRenderPassCreateInfo rp_info = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
 	rp_info.subpassCount = 1;
 	rp_info.pSubpasses = &subpass;
 	rp_info.pAttachments = attachments;
 	rp_info.attachmentCount = num_attachments;
 
-	VkSubpassDependency external_dependency = {};
+	VkSubpassDependency external_dependencies[2] = {};
+	unsigned num_external_deps = 0;
 
 	// For transient attachments and/or swapchain, implicitly perform image layout changes.
 	if (implicit_color_transition || implicit_ds_transition)
 	{
+		auto &external_dependency = external_dependencies[num_external_deps++];
 		if (implicit_color_transition)
 		{
 			external_dependency.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -192,9 +204,22 @@ RenderPass::RenderPass(Device *device, const RenderPassInfo &info)
 
 		external_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		external_dependency.dstSubpass = 0;
-		rp_info.dependencyCount = 1;
-		rp_info.pDependencies = &external_dependency;
 	}
+
+	if (info.op_flags & RENDER_PASS_OP_COLOR_FEEDBACK_BIT)
+	{
+		auto &dep = external_dependencies[num_external_deps++];
+		dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dep.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dep.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+		dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		dep.srcSubpass = 0;
+		dep.dstSubpass = 0;
+	}
+
+	rp_info.dependencyCount = num_external_deps;
+	rp_info.pDependencies = external_dependencies;
 
 	if (vkCreateRenderPass(device->get_device(), &rp_info, nullptr, &render_pass) != VK_SUCCESS)
 		LOG("Failed to create render pass.");

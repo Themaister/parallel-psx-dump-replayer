@@ -83,6 +83,8 @@ void CommandBuffer::clear_quad(unsigned attachment, const VkClearRect &rect, con
 
 void CommandBuffer::full_barrier()
 {
+	VK_ASSERT(!render_pass);
+	VK_ASSERT(!framebuffer);
 	barrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT |
 	            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -92,9 +94,22 @@ void CommandBuffer::full_barrier()
 	            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
 }
 
+void CommandBuffer::pixel_barrier()
+{
+	VK_ASSERT(render_pass);
+	VK_ASSERT(framebuffer);
+	VkMemoryBarrier barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+	barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+	                     VK_DEPENDENCY_BY_REGION_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
+}
+
 void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_access, VkPipelineStageFlags dst_stages,
                             VkAccessFlags dst_access)
 {
+	VK_ASSERT(!render_pass);
+	VK_ASSERT(!framebuffer);
 	VkMemoryBarrier barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
@@ -104,6 +119,8 @@ void CommandBuffer::barrier(VkPipelineStageFlags src_stages, VkAccessFlags src_a
 void CommandBuffer::buffer_barrier(const Buffer &buffer, VkPipelineStageFlags src_stages, VkAccessFlags src_access,
                                    VkPipelineStageFlags dst_stages, VkAccessFlags dst_access)
 {
+	VK_ASSERT(!render_pass);
+	VK_ASSERT(!framebuffer);
 	VkBufferMemoryBarrier barrier = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
@@ -118,6 +135,8 @@ void CommandBuffer::image_barrier(const Image &image, VkImageLayout old_layout, 
                                   VkPipelineStageFlags src_stages, VkAccessFlags src_access,
                                   VkPipelineStageFlags dst_stages, VkAccessFlags dst_access)
 {
+	VK_ASSERT(!render_pass);
+	VK_ASSERT(!framebuffer);
 	VK_ASSERT(image.get_create_info().domain == ImageDomain::Physical);
 
 	VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };

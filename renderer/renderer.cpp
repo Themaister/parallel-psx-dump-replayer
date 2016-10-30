@@ -487,38 +487,86 @@ void Renderer::render_semi_transparent_primitives()
 		}
 		case SemiTransparentMode::Add:
 		{
-			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
-			cmd->set_blend_enable(true);
-			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
-			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
+			if (state.masked)
+			{
+				cmd->set_program(*pipelines.semi_transparent_masked_add);
+				cmd->pixel_barrier();
+				cmd->set_blend_enable(false);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
+			}
+			else
+			{
+				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_blend_enable(true);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
+				                       VK_BLEND_FACTOR_ZERO);
+			}
 			break;
 		}
 		case SemiTransparentMode::Average:
 		{
-			static const float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
-			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
-			cmd->set_blend_enable(true);
-			cmd->set_blend_constants(rgba);
-			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
-			cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_CONSTANT_ALPHA, VK_BLEND_FACTOR_ZERO);
+			if (state.masked)
+			{
+				cmd->set_program(*pipelines.semi_transparent_masked_average);
+				cmd->pixel_barrier();
+				cmd->set_blend_enable(false);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
+			}
+			else
+			{
+				static const float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_blend_enable(true);
+				cmd->set_blend_constants(rgba);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE,
+				                       VK_BLEND_FACTOR_CONSTANT_ALPHA, VK_BLEND_FACTOR_ZERO);
+			}
 			break;
 		}
 		case SemiTransparentMode::Sub:
 		{
-			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
-			cmd->set_blend_enable(true);
-			cmd->set_blend_op(VK_BLEND_OP_REVERSE_SUBTRACT, VK_BLEND_OP_ADD);
-			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
+			if (state.masked)
+			{
+				cmd->set_program(*pipelines.semi_transparent_masked_sub);
+				cmd->pixel_barrier();
+				cmd->set_blend_enable(false);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
+			}
+			else
+			{
+				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_blend_enable(true);
+				cmd->set_blend_op(VK_BLEND_OP_REVERSE_SUBTRACT, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
+				                       VK_BLEND_FACTOR_ZERO);
+			}
 			break;
 		}
 		case SemiTransparentMode::AddQuarter:
 		{
-			static const float rgba[4] = {0.25f, 0.25f, 0.25f, 1.0f};
-			cmd->set_program(state.masked ? *pipelines.semi_transparent_masked : *pipelines.semi_transparent);
-			cmd->set_blend_enable(true);
-			cmd->set_blend_constants(rgba);
-			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
-			cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
+			if (state.masked)
+			{
+				cmd->set_program(*pipelines.semi_transparent_masked_add_quarter);
+				cmd->pixel_barrier();
+				cmd->set_blend_enable(false);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
+			}
+			else
+			{
+				static const float rgba[4] = {0.25f, 0.25f, 0.25f, 1.0f};
+				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_blend_enable(true);
+				cmd->set_blend_constants(rgba);
+				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+				cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
+				                       VK_BLEND_FACTOR_ZERO);
+			}
 			break;
 		}
 		}
