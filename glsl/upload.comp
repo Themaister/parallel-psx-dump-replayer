@@ -57,6 +57,7 @@ void main()
 #if defined(SCALED)
     uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base) + apply_window(gl_GlobalInvocationID.xy);
     vec4 color = texelFetch(uFramebuffer, ivec2(coord), 0);
+    color.a = round(color.a);
 #elif defined(UNSCALED)
     uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base) + apply_window(gl_GlobalInvocationID.xy);
     uint rgba = texelFetch(uFramebuffer, ivec2(coord), 0).x;
