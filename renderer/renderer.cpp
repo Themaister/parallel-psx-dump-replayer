@@ -22,7 +22,7 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	scaled_framebuffer = device.create_image(info);
-	info.format = VK_FORMAT_D16_UNORM;
+	info.format = device.get_default_depth_format();
 	info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	info.domain = ImageDomain::Transient;
 	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -243,7 +243,7 @@ float Renderer::allocate_depth()
 {
 	atlas.write_fragment();
 	primitive_index++;
-	return 1.0f - primitive_index * (1.0f / 0xffff);
+	return 1.0f - primitive_index * (2.0f / 0xffffff); // Double the epsilon to be safe(r) when w is used.
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)
@@ -471,7 +471,7 @@ void Renderer::render_opaque_texture_primitives()
 		for (auto i = attribs.size(); i; i--)
 			*attr++ = attribs[i - 1];
 
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->draw(position.size());
 	}
