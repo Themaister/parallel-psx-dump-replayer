@@ -87,12 +87,8 @@ void FBAtlas::read_texture()
 	auto domain = palette ? Domain::Unscaled : find_suitable_domain(shifted);
 	sync_domain(domain, shifted);
 
-	const Rect palette_rect = {
-		renderpass.palette_offset_x,
-		renderpass.palette_offset_y,
-		renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u,
-		1
-	};
+	const Rect palette_rect = { renderpass.palette_offset_x, renderpass.palette_offset_y,
+		                        renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
 
 	if (palette)
 		sync_domain(domain, palette_rect);
@@ -100,7 +96,8 @@ void FBAtlas::read_texture()
 	read_domain(domain, Stage::Compute, shifted);
 	if (palette)
 		read_domain(domain, Stage::Compute, palette_rect);
-	listener->upload_texture(domain, renderpass.texture_window, renderpass.texture_offset_x, renderpass.texture_offset_y);
+	listener->upload_texture(domain, renderpass.texture_window, renderpass.texture_offset_x,
+	                         renderpass.texture_offset_y);
 }
 
 void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
@@ -371,12 +368,8 @@ void FBAtlas::write_fragment()
 		shifted.x += renderpass.texture_offset_x;
 		shifted.y += renderpass.texture_offset_y;
 
-		const Rect palette_rect = {
-			renderpass.palette_offset_x,
-			renderpass.palette_offset_y,
-			renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u,
-			1
-		};
+		const Rect palette_rect = { renderpass.palette_offset_x, renderpass.palette_offset_y,
+			                        renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
 
 		if (reads_palette)
 		{

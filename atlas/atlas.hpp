@@ -55,8 +55,8 @@ using FBColor = uint16_t;
 
 static inline uint32_t fbcolor_to_rgba8(FBColor color)
 {
-	unsigned r = (color >>  0) & 0x1f;
-	unsigned g = (color >>  5) & 0x1f;
+	unsigned r = (color >> 0) & 0x1f;
+	unsigned g = (color >> 5) & 0x1f;
 	unsigned b = (color >> 10) & 0x1f;
 	unsigned a = color >> 15;
 	a *= 0xff;
@@ -68,8 +68,8 @@ static inline uint32_t fbcolor_to_rgba8(FBColor color)
 
 static inline void fbcolor_to_rgba32f(float *v, FBColor color)
 {
-	unsigned r = (color >>  0) & 0x1f;
-	unsigned g = (color >>  5) & 0x1f;
+	unsigned r = (color >> 0) & 0x1f;
+	unsigned g = (color >> 5) & 0x1f;
 	unsigned b = (color >> 10) & 0x1f;
 	unsigned a = color >> 15;
 	v[0] = r * (1.0f / 31.0f);

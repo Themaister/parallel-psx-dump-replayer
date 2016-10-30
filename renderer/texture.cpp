@@ -1,6 +1,6 @@
-#include <cstring>
 #include "texture.hpp"
 #include "util.hpp"
+#include <cstring>
 
 using namespace Vulkan;
 using namespace std;
@@ -8,20 +8,20 @@ using namespace std;
 namespace PSX
 {
 TextureAllocator::TextureAllocator(Vulkan::Device &device)
-	: device(device)
+    : device(device)
 {
 	static const uint32_t upload_scaled_comp[] =
 #include "upload.scaled.comp.inc"
-	;
+	    ;
 	static const uint32_t upload_unscaled_comp[] =
 #include "upload.unscaled.comp.inc"
-	;
+	    ;
 	static const uint32_t upload_pal4_comp[] =
 #include "upload.pal4.comp.inc"
-	;
+	    ;
 	static const uint32_t upload_pal8_comp[] =
 #include "upload.pal8.comp.inc"
-	;
+	    ;
 	scaled_blitter = device.create_program(upload_scaled_comp, sizeof(upload_scaled_comp));
 	unscaled_blitter = device.create_program(upload_unscaled_comp, sizeof(upload_unscaled_comp));
 	pal4_blitter = device.create_program(upload_pal4_comp, sizeof(upload_pal4_comp));
@@ -52,7 +52,8 @@ void TextureAllocator::begin()
 	max_layer_count = 0;
 }
 
-TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y, unsigned pal_off_x, unsigned pal_off_y)
+TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y,
+                                          unsigned pal_off_x, unsigned pal_off_y)
 {
 	// Sizes are always POT, minimum 8, maximum 256 * max scaling (8).
 	unsigned xkey = trailing_zeroes(rect.width) - 3;
@@ -71,9 +72,7 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 	unsigned layer = array_count[map]++;
 	max_layer_count = max(layer + 1, max_layer_count);
 
-	const auto pack2x16 = [](uint32_t x, uint32_t y) {
-		return x | (y << 16);
-	};
+	const auto pack2x16 = [](uint32_t x, uint32_t y) { return x | (y << 16); };
 
 	const auto pack_mask = [](const Rect &rect) -> uint32_t {
 		uint32_t xmask = rect.width - 1;
@@ -142,8 +141,8 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 	for (unsigned i = 0; i < texture_count; i++)
 	{
 		cmd->image_barrier(*images[i], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+		                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 		images[i]->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 }

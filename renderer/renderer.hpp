@@ -2,9 +2,9 @@
 
 #include "atlas.hpp"
 #include "device.hpp"
+#include "texture.hpp"
 #include "vulkan.hpp"
 #include "wsi.hpp"
-#include "texture.hpp"
 
 namespace PSX
 {
@@ -157,10 +157,8 @@ private:
 
 		bool operator==(const SemiTransparentState &other) const
 		{
-			return image_index == other.image_index &&
-				semi_transparent == other.semi_transparent &&
-				textured == other.textured &&
-				masked == other.masked;
+			return image_index == other.image_index && semi_transparent == other.semi_transparent &&
+			       textured == other.textured && masked == other.masked;
 		}
 
 		bool operator!=(const SemiTransparentState &other) const

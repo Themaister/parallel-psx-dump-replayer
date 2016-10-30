@@ -680,7 +680,8 @@ static inline VkImageViewType get_image_view_type(const ImageCreateInfo &create_
 	if (levels == VK_REMAINING_MIP_LEVELS)
 		levels = create_info.levels - base_level;
 
-	bool force_array = view ? (view->misc & IMAGE_VIEW_MISC_FORCE_ARRAY_BIT) : (create_info.misc & IMAGE_MISC_FORCE_ARRAY_BIT);
+	bool force_array =
+	    view ? (view->misc & IMAGE_VIEW_MISC_FORCE_ARRAY_BIT) : (create_info.misc & IMAGE_MISC_FORCE_ARRAY_BIT);
 
 	switch (create_info.type)
 	{
