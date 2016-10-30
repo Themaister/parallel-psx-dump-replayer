@@ -16,6 +16,15 @@ struct Vertex
 	uint8_t u, v;
 };
 
+enum class SemiTransparentMode
+{
+	None,
+	Average,
+	Add,
+	Sub,
+	AddQuarter
+};
+
 class Renderer : private HazardListener
 {
 public:
@@ -54,9 +63,9 @@ public:
 		allocator.set_texture_mode(mode);
 	}
 
-	inline void set_semi_transparent(bool enable)
+	inline void set_semi_transparent(SemiTransparentMode state)
 	{
-		render_state.semi_transparent = enable;
+		render_state.semi_transparent = state;
 	}
 
 	inline void set_force_mask_bit(bool enable)
@@ -117,7 +126,7 @@ private:
 		unsigned palette_offset_y = 0;
 
 		TextureMode texture_mode = TextureMode::None;
-		bool semi_transparent = false;
+		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
 		bool force_mask_bit = false;
 		bool texture_color_modulate = false;
 	} render_state;
@@ -132,10 +141,11 @@ private:
 	struct SemiTransparentState
 	{
 		unsigned image_index;
+		SemiTransparentMode semi_transparent;
 
 		bool operator==(const SemiTransparentState &other) const
 		{
-			return image_index == other.image_index;
+			return image_index == other.image_index && semi_transparent == other.semi_transparent;
 		}
 
 		bool operator!=(const SemiTransparentState &other) const

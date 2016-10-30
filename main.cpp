@@ -49,7 +49,7 @@ int main()
 	for (unsigned i = 0; i < 4; i++)
 		black[i] = 0;
 
-	uint16_t palentry[4] = { 0x8000, 31 << 0, 31 << 5, 31 << 10 };
+	uint16_t palentry[4] = { 0xffff, 31 << 0, 31 << 5, 31 << 10 };
 	uint16_t paltexture[4 * 8] = {
 		0x0100, 0x0101, 0x0202, 0x0303,
 		0x0201, 0x0101, 0x0202, 0x0303,
@@ -61,7 +61,7 @@ int main()
 		0x0201, 0x0101, 0x0202, 0x0303,
 	};
 
-	renderer.set_texture_color_modulate(true);
+	renderer.set_texture_color_modulate(false);
 
 	while (!wsi.alive())
 	{
@@ -83,9 +83,9 @@ int main()
 		renderer.set_palette_offset(512, 0);
 		renderer.set_texture_window({16, 16, 8, 8});
 		renderer.set_texture_mode(TextureMode::Palette8bpp);
-		renderer.set_semi_transparent(true);
+		renderer.set_semi_transparent(SemiTransparentMode::Average);
 		renderer.draw_quad(verts4);
-		renderer.set_semi_transparent(false);
+		renderer.set_semi_transparent(SemiTransparentMode::None);
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();

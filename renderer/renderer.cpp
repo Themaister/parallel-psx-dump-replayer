@@ -274,7 +274,7 @@ std::vector<Renderer::BufferVertex> &Renderer::select_pipeline()
 {
 	if (render_state.texture_mode != TextureMode::None)
 	{
-		if (render_state.semi_transparent)
+		if (render_state.semi_transparent != SemiTransparentMode::None)
 		{
 			if (last_surface.texture >= queue.semi_transparent_opaque.size())
 				queue.semi_transparent_opaque.resize(last_surface.texture + 1);
@@ -299,11 +299,11 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	for (unsigned i = 0; i < 3; i++)
 		out.push_back(vert[i]);
 
-	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent)
+	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None)
 	{
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
-		queue.semi_transparent_state.push_back({ last_surface.texture });
+		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
 	}
 }
 
@@ -319,7 +319,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 	out.push_back(vert[2]);
 	out.push_back(vert[1]);
 
-	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent)
+	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None)
 	{
 		queue.semi_transparent.push_back(vert[0]);
 		queue.semi_transparent.push_back(vert[1]);
@@ -327,8 +327,8 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[3]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
-		queue.semi_transparent_state.push_back({ last_surface.texture });
-		queue.semi_transparent_state.push_back({ last_surface.texture });
+		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
+		queue.semi_transparent_state.push_back({ last_surface.texture, render_state.semi_transparent });
 	}
 }
 
@@ -445,10 +445,44 @@ void Renderer::render_semi_transparent_primitives()
 	memcpy(verts, queue.semi_transparent.data(), size);
 
 	auto last_state = queue.semi_transparent_state[0];
-	const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
-	cmd->set_texture(0, 1, queue.textures[last_state.image_index]->get_view(), StockSampler::NearestWrap);
-	cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
-	cmd->set_blend_constants(rgba);
+
+	const auto set_state = [&](const SemiTransparentState &state) {
+		cmd->set_texture(0, 1, queue.textures[state.image_index]->get_view(), StockSampler::NearestWrap);
+		switch (state.semi_transparent)
+		{
+		case SemiTransparentMode::Add:
+		{
+			static const float rgba[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+			cmd->set_blend_constants(rgba);
+			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			break;
+		}
+		case SemiTransparentMode::Average:
+		{
+			static const float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+			cmd->set_blend_constants(rgba);
+			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			break;
+		}
+		case SemiTransparentMode::Sub:
+		{
+			static const float rgba[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+			cmd->set_blend_constants(rgba);
+			cmd->set_blend_op(VK_BLEND_OP_REVERSE_SUBTRACT, VK_BLEND_OP_ADD);
+			break;
+		}
+		case SemiTransparentMode::AddQuarter:
+		{
+			static const float rgba[4] = {0.25f, 0.25f, 0.25f, 1.0f};
+			cmd->set_blend_constants(rgba);
+			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			break;
+		}
+		default:
+			break;
+		}
+	};
+	set_state(last_state);
 
 	// These pixels are blended, so we have to render them in-order.
 	// Batch up as long as we can.
@@ -461,11 +495,7 @@ void Renderer::render_semi_transparent_primitives()
 			last_draw_offset = i;
 
 			last_state = queue.semi_transparent_state[i];
-			cmd->set_texture(0, 1, queue.textures[last_state.image_index]->get_view(), StockSampler::NearestWrap);
-
-			const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
-			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
-			cmd->set_blend_constants(rgba);
+			set_state(last_state);
 		}
 	}
 
@@ -498,7 +528,7 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 		for (auto i = vertices.size(); i; i--)
 			*vert++ = vertices[i - 1];
 
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->draw(vertices.size());
 	}
