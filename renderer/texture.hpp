@@ -13,7 +13,6 @@ struct TextureSurface
 
 struct BlitInfo
 {
-	Rect rect;
 	uint32_t base;
 	uint32_t pal_base;
 	uint32_t mask;

@@ -78,10 +78,10 @@ int main()
 		renderer.draw_triangle(verts3);
 
 		renderer.copy_cpu_to_vram(palentry, { 512, 0, 4, 1 });
-		renderer.copy_cpu_to_vram(paltexture, { 512, 8, 4, 8 });
-		renderer.set_texture_offset(512, 8);
+		renderer.copy_cpu_to_vram(paltexture, { 512, 16, 4, 8 });
+		renderer.set_texture_offset(512 - 8, 16 - 16);
 		renderer.set_palette_offset(512, 0);
-		renderer.set_texture_window({0, 0, 16, 16});
+		renderer.set_texture_window({16, 16, 16, 16});
 		renderer.set_texture_mode(TextureMode::Palette8bpp);
 		renderer.draw_quad(verts4);
 

@@ -16,7 +16,6 @@ layout(push_constant, std430) uniform Rect
     uvec2 src_offset;
     uvec2 dst_offset;
     uvec2 extent;
-    vec2 inv_size;
 } rect;
 
 void main()
@@ -25,12 +24,11 @@ void main()
     {
         uvec2 src_coord = gl_GlobalInvocationID.xy + rect.src_offset;
         uvec2 dst_coord = gl_GlobalInvocationID.xy + rect.dst_offset;
-        vec2 uv = (vec2(src_coord) + 0.5) * rect.inv_size;
 #if defined(SCALED)
-        vec4 value = textureLod(uImage, uv, 0.0);
+        vec4 value = texelFetch(uImage, ivec2(src_coord), 0);
         imageStore(uFramebuffer, ivec2(dst_coord), value);
 #elif defined(UNSCALED)
-        uint value = textureLod(uImage, uv, 0.0).x;
+        uint value = texelFetch(uImage, ivec2(src_coord), 0).x;
         imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value));
 #endif
     }

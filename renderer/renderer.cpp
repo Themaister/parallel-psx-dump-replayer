@@ -501,7 +501,6 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 		uint32_t src_offset[2];
 		uint32_t dst_offset[2];
 		uint32_t size[2];
-		float inv_size[2];
 	};
 
 	if (domain == Domain::Scaled)
@@ -513,7 +512,6 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 			{scaling * src.x,             scaling * src.y},
 			{scaling * dst.x,             scaling * dst.y},
 			{scaling * dst.width,         scaling * dst.height},
-			{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)},
 		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch((scaling * dst.width + 7) >> 3, (scaling * dst.height + 7) >> 3, 1);
@@ -527,7 +525,6 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 			{src.x,           src.y},
 			{dst.x,           dst.y},
 			{dst.width,       dst.height},
-			{1.0f / FB_WIDTH, 1.0f / FB_HEIGHT},
 		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch((dst.width + 7) >> 3, (dst.height + 7) >> 3, 1);

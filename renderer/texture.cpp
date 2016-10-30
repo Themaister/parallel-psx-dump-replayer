@@ -67,18 +67,26 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 	}
 	unsigned layer = array_count[map]++;
 
-	auto pack2x16 = [](uint32_t x, uint32_t y) {
+	const auto pack2x16 = [](uint32_t x, uint32_t y) {
 		return x | (y << 16);
 	};
 
+	const auto pack_mask = [](const Rect &rect) -> uint32_t {
+		uint32_t xmask = rect.width - 1;
+		uint32_t ymask = rect.height - 1;
+		uint32_t xshift = rect.x;
+		uint32_t yshift = rect.y;
+		return (xmask << 0) | (ymask << 8) | (xshift << 16) | (yshift << 24);
+	};
+
 	if (domain == Domain::Scaled)
-		scaled_blits[map].push_back({ rect, pack2x16(off_x, off_y), 0, 0, layer });
+		scaled_blits[map].push_back({ pack2x16(off_x, off_y), 0, pack_mask(rect), layer });
 	else if (texture_mode == TextureMode::Palette4bpp)
-		pal4_blits[map].push_back({ rect, pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), 0, layer });
+		pal4_blits[map].push_back({ pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), pack_mask(rect), layer });
 	else if (texture_mode == TextureMode::Palette8bpp)
-		pal8_blits[map].push_back({ rect, pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), 0, layer });
+		pal8_blits[map].push_back({ pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), pack_mask(rect), layer });
 	else
-		unscaled_blits[map].push_back({ rect, pack2x16(off_x, off_y), 0, 0, layer });
+		unscaled_blits[map].push_back({ pack2x16(off_x, off_y), 0, pack_mask(rect), layer });
 
 	return { unsigned(map), layer };
 }
@@ -112,6 +120,9 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 			}
 		}
 	};
+
+	uint32_t scaling = scaled.get_image().get_width() / 1024;
+	cmd->push_constants(&scaling, 0, sizeof(scaling));
 
 	cmd->set_program(*scaled_blitter);
 	cmd->set_texture(0, 0, scaled, StockSampler::NearestClamp);

@@ -10,22 +10,30 @@ layout(set = 1, binding = 0, rgba8) uniform writeonly mediump image2DArray uImag
 
 struct BlitInfo
 {
-    uvec2 offset;
-    uvec2 extent;
     uint base;
     uint palbase;
-    uint mask;
+    uint window;
     uint layer;
 };
 
 layout(set = 1, binding = 1, std140) uniform BlitInfos
 {
-    BlitInfo infos[512];
+    BlitInfo infos[1024];
 };
+
+layout(std430, push_constant) uniform PushMe
+{
+    uint scale;
+} registers;
 
 uvec2 unpack2x16(uint x)
 {
     return uvec2(x & 0xffffu, x >> 16u);
+}
+
+uvec4 unpack4x8(uint x)
+{
+    return (uvec4(x) >> uvec4(0u, 8u, 16u, 24u)) & 0xffu;
 }
 
 vec4 abgr1555(uint value)
@@ -34,18 +42,28 @@ vec4 abgr1555(uint value)
     return vec4(ucolor) / vec4(31.0, 31.0, 31.0, 1.0);
 }
 
+uvec2 apply_window(uvec2 coord)
+{
+    uvec4 masks = unpack4x8(infos[gl_WorkGroupID.z].window);
+#if defined(SCALED)
+    masks.xy = (masks.xy << registers.scale) | ((1u << registers.scale) - 1u);
+    masks.zw <<= registers.scale;
+#endif
+    return (coord.xy & masks.xy) | masks.zw;
+}
+
 void main()
 {
 #if defined(SCALED)
-    uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
+    uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base) + apply_window(gl_GlobalInvocationID.xy);
     vec4 color = texelFetch(uFramebuffer, ivec2(coord), 0);
 #elif defined(UNSCALED)
-    uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
+    uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base) + apply_window(gl_GlobalInvocationID.xy);
     uint rgba = texelFetch(uFramebuffer, ivec2(coord), 0).x;
     vec4 color = abgr1555(rgba);
 #elif defined(PAL4)
     uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base);
-    uvec2 subcoord = infos[gl_WorkGroupID.z].offset + gl_GlobalInvocationID.xy;
+    uvec2 subcoord = apply_window(gl_GlobalInvocationID.xy);
     uint shift = 4u * (subcoord.x & 3u);
     subcoord.x >>= 2u;
     coord += subcoord;
@@ -57,7 +75,7 @@ void main()
     vec4 color = abgr1555(rgba);
 #elif defined(PAL8)
     uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base);
-    uvec2 subcoord = infos[gl_WorkGroupID.z].offset + gl_GlobalInvocationID.xy;
+    uvec2 subcoord = apply_window(gl_GlobalInvocationID.xy);
     uint shift = 8u * (subcoord.x & 1u);
     subcoord.x >>= 1u;
     coord += subcoord;
