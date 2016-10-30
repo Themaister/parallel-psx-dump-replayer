@@ -230,7 +230,6 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 
 	struct Push
 	{
-		Rect rect;
 		float inv_size[2];
 		uint32_t scale;
 	};
@@ -241,8 +240,10 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 
-		Push push = {rect, {1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
+		Push push = {{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
 		cmd->push_constants(&push, 0, sizeof(push));
+		void *ptr = cmd->allocate_constant_data(1, 0, 2 * sizeof(uint32_t));
+		memcpy(ptr, &rect, 2 * sizeof(uint32_t));
 		cmd->dispatch(scaling * (rect.width >> 3), scaling * (rect.height >> 3), 1);
 	}
 	else
@@ -251,8 +252,10 @@ void Renderer::resolve(Domain target_domain, const Rect &rect)
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
 
-		Push push = {rect, {1.0f / FB_WIDTH, 1.0f / FB_HEIGHT}, scaling};
+		Push push = {{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
 		cmd->push_constants(&push, 0, sizeof(push));
+		void *ptr = cmd->allocate_constant_data(1, 0, 2 * sizeof(uint32_t));
+		memcpy(ptr, &rect, 2 * sizeof(uint32_t));
 		cmd->dispatch(rect.width >> 3, rect.height >> 3, 1);
 	}
 }
