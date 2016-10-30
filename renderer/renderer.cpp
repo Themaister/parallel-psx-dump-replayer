@@ -235,8 +235,7 @@ void Renderer::ensure_command_buffer()
 
 void Renderer::discard_render_pass()
 {
-	queue.opaque_position.clear();
-	queue.opaque_attrib.clear();
+	reset_queue();
 }
 
 float Renderer::allocate_depth()
@@ -246,81 +245,53 @@ float Renderer::allocate_depth()
 	return 1.0f - primitive_index * (2.0f / 0xffffff); // Double the epsilon to be safe(r) when w is used.
 }
 
-void Renderer::build_attribs(BufferPosition *positions, BufferAttrib *attribs, const Vertex *vertices, unsigned count)
+void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsigned count)
 {
 	float z = allocate_depth();
 	for (unsigned i = 0; i < count; i++)
 	{
-		positions[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
-		          vertices[i].w};
-		attribs[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
+		output[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+		          vertices[i].w, vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
 
 		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
-			attribs[i].color = 0x808080;
+			output[i].color = 0x808080;
 
-		attribs[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
+		output[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
 	}
 }
 
-void Renderer::select_pipeline(std::vector<BufferPosition> *&positions, std::vector<BufferAttrib> *&attribs)
+std::vector<Renderer::BufferVertex> &Renderer::select_pipeline()
 {
 	if (render_state.texture_mode != TextureMode::None)
 	{
-		if (last_surface.texture >= queue.opaque_textured_attrib.size())
-		{
-			queue.opaque_textured_position.resize(last_surface.texture + 1);
-			queue.opaque_textured_attrib.resize(last_surface.texture + 1);
-		}
-
-		positions = &queue.opaque_textured_position[last_surface.texture];
-		attribs = &queue.opaque_textured_attrib[last_surface.texture];
+		if (last_surface.texture >= queue.opaque_textured.size())
+			queue.opaque_textured.resize(last_surface.texture + 1);
+		return queue.opaque_textured[last_surface.texture];
 	}
 	else
-	{
-		positions = &queue.opaque_position;
-		attribs = &queue.opaque_attrib;
-	}
+		return queue.opaque;
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
-	BufferPosition pos[3];
-	BufferAttrib attr[3];
-	build_attribs(pos, attr, vertices, 3);
-
-	vector<BufferPosition> *positions;
-	vector<BufferAttrib> *attribs;
-	select_pipeline(positions, attribs);
-
+	BufferVertex vert[3];
+	build_attribs(vert, vertices, 3);
+	auto &out = select_pipeline();
 	for (unsigned i = 0; i < 3; i++)
-	{
-		positions->push_back(pos[i]);
-		attribs->push_back(attr[i]);
-	}
+		out.push_back(vert[i]);
 }
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
-	BufferPosition pos[4];
-	BufferAttrib attr[4];
-	build_attribs(pos, attr, vertices, 4);
-
-	vector<BufferPosition> *positions;
-	vector<BufferAttrib> *attribs;
-	select_pipeline(positions, attribs);
-
-	positions->push_back(pos[0]);
-	positions->push_back(pos[1]);
-	positions->push_back(pos[2]);
-	positions->push_back(pos[3]);
-	positions->push_back(pos[2]);
-	positions->push_back(pos[1]);
-	attribs->push_back(attr[0]);
-	attribs->push_back(attr[1]);
-	attribs->push_back(attr[2]);
-	attribs->push_back(attr[3]);
-	attribs->push_back(attr[2]);
-	attribs->push_back(attr[1]);
+	BufferVertex vert[4];
+	build_attribs(vert, vertices, 4);
+	auto &out = select_pipeline();
+	out.push_back(vert[0]);
+	out.push_back(vert[1]);
+	out.push_back(vert[2]);
+	out.push_back(vert[3]);
+	out.push_back(vert[2]);
+	out.push_back(vert[1]);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
@@ -329,19 +300,16 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	float z = allocate_depth();
 	atlas.set_texture_mode(old);
 
-	BufferPosition pos0 = {float(rect.x), float(rect.y), z, 1.0f};
-	BufferPosition pos1 = {float(rect.x) + float(rect.width), float(rect.y), z, 1.0f};
-	BufferPosition pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f};
-	BufferPosition pos3 = {float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f};
-	queue.opaque_position.push_back(pos0);
-	queue.opaque_position.push_back(pos1);
-	queue.opaque_position.push_back(pos2);
-	queue.opaque_position.push_back(pos3);
-	queue.opaque_position.push_back(pos2);
-	queue.opaque_position.push_back(pos1);
-	BufferAttrib attr = {0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
-	for (unsigned i = 0; i < 6; i++)
-		queue.opaque_attrib.push_back(attr);
+	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos1 = {float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos3 = {float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	queue.opaque.push_back(pos0);
+	queue.opaque.push_back(pos1);
+	queue.opaque.push_back(pos2);
+	queue.opaque.push_back(pos3);
+	queue.opaque.push_back(pos2);
+	queue.opaque.push_back(pos1);
 }
 
 void Renderer::flush_render_pass(const Rect &rect)
@@ -391,37 +359,30 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 void Renderer::render_opaque_primitives()
 {
-	if (queue.opaque_position.empty())
+	if (queue.opaque.empty())
 		return;
-
-	VK_ASSERT(queue.opaque_attrib.size() == queue.opaque_position.size());
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
 	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
 
 	// Render flat-shaded primitives.
-	auto *pos = static_cast<BufferPosition *>(
-		cmd->allocate_vertex_data(0, queue.opaque_position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
-	for (auto i = queue.opaque_position.size(); i; i--)
-		*pos++ = queue.opaque_position[i - 1];
-
-	auto *attr = static_cast<BufferAttrib *>(
-		cmd->allocate_vertex_data(1, queue.opaque_attrib.size() * sizeof(BufferAttrib), sizeof(BufferAttrib)));
-	for (auto i = queue.opaque_attrib.size(); i; i--)
-		*attr++ = queue.opaque_attrib[i - 1];
+	auto *vert = static_cast<BufferVertex *>(
+		cmd->allocate_vertex_data(0, queue.opaque.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+	for (auto i = queue.opaque.size(); i; i--)
+		*vert++ = queue.opaque[i - 1];
 
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
-	cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
+	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
-	cmd->draw(queue.opaque_position.size());
+	cmd->draw(queue.opaque.size());
 }
 
 void Renderer::render_opaque_texture_primitives()
 {
-	unsigned num_textures = queue.opaque_textured_position.size();
+	unsigned num_textures = queue.opaque_textured.size();
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
@@ -429,30 +390,24 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_program(*pipelines.opaque_textured);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
-	cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
-	cmd->set_vertex_attrib(2, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferAttrib, u));
+	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
-		auto &position = queue.opaque_textured_position[tex];
-		auto &attribs = queue.opaque_textured_attrib[tex];
-		if (position.empty())
+		auto &vertices = queue.opaque_textured[tex];
+		if (vertices.empty())
 			continue;
 
 		// Render opaque textured primitives.
-		auto *pos = static_cast<BufferPosition *>(
-			cmd->allocate_vertex_data(0, position.size() * sizeof(BufferPosition), sizeof(BufferPosition)));
-		for (auto i = position.size(); i; i--)
-			*pos++ = position[i - 1];
-
-		auto *attr = static_cast<BufferAttrib *>(
-			cmd->allocate_vertex_data(1, attribs.size() * sizeof(BufferAttrib), sizeof(BufferAttrib)));
-		for (auto i = attribs.size(); i; i--)
-			*attr++ = attribs[i - 1];
+		auto *vert = static_cast<BufferVertex *>(
+			cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+		for (auto i = vertices.size(); i; i--)
+			*vert++ = vertices[i - 1];
 
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
-		cmd->draw(position.size());
+		cmd->draw(vertices.size());
 	}
 }
 
@@ -567,10 +522,8 @@ void Renderer::flush_texture_allocator()
 
 void Renderer::reset_queue()
 {
-	queue.opaque_position.clear();
-	queue.opaque_attrib.clear();
-	queue.opaque_textured_attrib.clear();
-	queue.opaque_textured_position.clear();
+	queue.opaque.clear();
+	queue.opaque_textured.clear();
 	queue.textures.clear();
 }
 

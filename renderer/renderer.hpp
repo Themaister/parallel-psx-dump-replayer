@@ -120,13 +120,9 @@ private:
 		bool texture_color_modulate = false;
 	} render_state;
 
-	struct BufferPosition
+	struct BufferVertex
 	{
 		float x, y, z, w;
-	};
-
-	struct BufferAttrib
-	{
 		float u, v, layer;
 		uint32_t color;
 	};
@@ -134,12 +130,10 @@ private:
 	struct OpaqueQueue
 	{
 		// Non-textured primitives.
-		std::vector<BufferPosition> opaque_position;
-		std::vector<BufferAttrib> opaque_attrib;
+		std::vector<BufferVertex> opaque;
 
 		// Textured primitives, no semi-transparency.
-		std::vector<std::vector<BufferPosition>> opaque_textured_position;
-		std::vector<std::vector<BufferAttrib>> opaque_textured_attrib;
+		std::vector<std::vector<BufferVertex>> opaque_textured;
 
 		std::vector<Vulkan::ImageHandle> textures;
 	} queue;
@@ -155,7 +149,7 @@ private:
 	void flush_texture_allocator();
 	TextureAllocator allocator;
 
-	void build_attribs(BufferPosition *positions, BufferAttrib *attribs, const Vertex *vertices, unsigned count);
-	void select_pipeline(std::vector<BufferPosition> *&positions, std::vector<BufferAttrib> *&attribs);
+	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
+	std::vector<BufferVertex> &select_pipeline();
 };
 }
