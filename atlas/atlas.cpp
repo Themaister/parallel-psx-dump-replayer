@@ -62,11 +62,28 @@ void FBAtlas::write_transfer(Domain domain, const Rect &rect)
 void FBAtlas::read_texture()
 {
 	auto shifted = renderpass.texture_window;
+	bool palette;
+	switch (renderpass.texture_mode)
+	{
+	case TextureMode::Palette4bpp:
+		shifted.x >>= 2;
+		shifted.width >>= 2;
+		palette = true;
+		break;
+
+	case TextureMode::Palette8bpp:
+		shifted.x >>= 1;
+		shifted.width >>= 1;
+		palette = true;
+		break;
+
+	default:
+		palette = false;
+		break;
+	}
 	shifted.x += renderpass.texture_offset_x;
 	shifted.y += renderpass.texture_offset_y;
 
-	bool palette = renderpass.texture_mode == TextureMode::Palette4bpp ||
-	               renderpass.texture_mode == TextureMode::Palette8bpp;
 	auto domain = palette ? Domain::Unscaled : find_suitable_domain(shifted);
 	sync_domain(domain, shifted);
 
@@ -332,11 +349,27 @@ void FBAtlas::write_fragment()
 	if (reads_window)
 	{
 		Rect shifted = renderpass.texture_window;
+		bool reads_palette;
+		switch (renderpass.texture_mode)
+		{
+		case TextureMode::Palette4bpp:
+			shifted.x >>= 2;
+			shifted.width >>= 2;
+			reads_palette = true;
+			break;
+
+		case TextureMode::Palette8bpp:
+			shifted.x >>= 1;
+			shifted.width >>= 1;
+			reads_palette = true;
+			break;
+
+		default:
+			reads_palette = false;
+			break;
+		}
 		shifted.x += renderpass.texture_offset_x;
 		shifted.y += renderpass.texture_offset_y;
-
-		bool reads_palette = renderpass.texture_mode == TextureMode::Palette4bpp ||
-			renderpass.texture_mode == TextureMode::Palette8bpp;
 
 		const Rect palette_rect = {
 			renderpass.palette_offset_x,

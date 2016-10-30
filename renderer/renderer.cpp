@@ -466,7 +466,7 @@ void Renderer::render_opaque_texture_primitives()
 		for (auto i = attribs.size(); i; i--)
 			*attr++ = attribs[i - 1];
 
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->draw(position.size());
 	}
@@ -517,7 +517,8 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->dispatch((scaling * dst.width + 7) >> 3, (scaling * dst.height + 7) >> 3, 1);
-	} else
+	}
+	else
 	{
 		cmd->set_program(*pipelines.blit_vram_unscaled);
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());

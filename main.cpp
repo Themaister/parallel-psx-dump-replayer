@@ -36,10 +36,11 @@ int main()
 		{ 60.0f, 80.0f, 1.0f, 0xffffffff, 0, 16 },
 	};
 
-	const Vertex verts4[3] = {
+	const Vertex verts4[4] = {
 		{ 40.0f, 40.0f, 1.0f, 0xffffffff, 0, 0 },
-		{ 60.0f, 40.0f, 1.0f, 0xffffffff, 16, 0 },
-		{ 40.0f, 60.0f, 1.0f, 0xffffffff, 0, 16 },
+		{ 60.0f, 40.0f, 1.0f, 0xffffffff, 8, 0 },
+		{ 40.0f, 60.0f, 1.0f, 0xffffffff, 0, 8},
+		{ 60.0f, 60.0f, 1.0f, 0xffffffff, 8, 8 },
 	};
 
 	uint16_t black[16 * 16];
@@ -47,6 +48,18 @@ int main()
 		l = 0xaaaa;
 	for (unsigned i = 0; i < 4; i++)
 		black[i] = 0;
+
+	uint16_t palentry[4] = { 0x0000, 31 << 0, 31 << 5, 31 << 10 };
+	uint16_t paltexture[4 * 8] = {
+		0x0100, 0x0101, 0x0202, 0x0303,
+		0x0200, 0x0101, 0x0202, 0x0303,
+		0x0100, 0x0101, 0x0202, 0x0303,
+		0x0200, 0x0101, 0x0202, 0x0303,
+		0x0100, 0x0101, 0x0202, 0x0303,
+		0x0200, 0x0101, 0x0202, 0x0303,
+		0x0100, 0x0101, 0x0202, 0x0303,
+		0x0200, 0x0101, 0x0202, 0x0303,
+	};
 
 	while (!wsi.alive())
 	{
@@ -63,10 +76,14 @@ int main()
 		renderer.set_texture_window({0, 0, 16, 16});
 		renderer.set_texture_mode(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts3);
-		renderer.set_texture_offset(256, 256);
+
+		renderer.copy_cpu_to_vram(palentry, { 512, 0, 4, 1 });
+		renderer.copy_cpu_to_vram(paltexture, { 512, 8, 4, 8 });
+		renderer.set_texture_offset(512, 8);
+		renderer.set_palette_offset(512, 0);
 		renderer.set_texture_window({0, 0, 16, 16});
-		renderer.set_texture_mode(TextureMode::ABGR1555);
-		renderer.draw_triangle(verts4);
+		renderer.set_texture_mode(TextureMode::Palette8bpp);
+		renderer.draw_quad(verts4);
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();

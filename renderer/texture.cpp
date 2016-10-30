@@ -100,16 +100,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		images[i] = device.create_image(info);
 	}
 
-	struct Push
-	{
-		float inv_size[2];
-		uint32_t scaling;
-	};
-	uint32_t scaling = scaled.get_image().get_width() / FB_WIDTH;
-	Push push = { { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
-	cmd->push_constants(&push, 0, sizeof(push));
-
-	auto issue_blits = [&](const std::vector<BlitInfo> *infos) {
+	const auto issue_blits = [this, cmd](const std::vector<BlitInfo> *infos) {
 		for (unsigned i = 0; i < texture_count; i++)
 		{
 			if (!infos[i].empty())
@@ -128,7 +119,9 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 	cmd->set_program(*unscaled_blitter);
 	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
 	issue_blits(unscaled_blits);
+	cmd->set_program(*pal4_blitter);
 	issue_blits(pal4_blits);
+	cmd->set_program(*pal8_blitter);
 	issue_blits(pal8_blits);
 
 	for (unsigned i = 0; i < texture_count; i++)

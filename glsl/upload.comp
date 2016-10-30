@@ -23,12 +23,6 @@ layout(set = 1, binding = 1, std140) uniform BlitInfos
     BlitInfo infos[512];
 };
 
-layout(push_constant, std430) uniform PushConstant
-{
-    vec2 inv_size;
-    uint scaling;
-} registers;
-
 uvec2 unpack2x16(uint x)
 {
     return uvec2(x & 0xffffu, x >> 16u);
@@ -44,28 +38,34 @@ void main()
 {
 #if defined(SCALED)
     uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
-    vec2 uv = (vec2(coord) + 0.5) * registers.inv_size;
-    vec4 color = textureLod(uFramebuffer, uv, 0.0);
+    vec4 color = texelFetch(uFramebuffer, ivec2(coord), 0);
 #elif defined(UNSCALED)
     uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
-    vec2 uv = (vec2(coord) + 0.5) / vec2(1024.0, 512.0);
-    uint rgba = textureLod(uFramebuffer, uv, 0.0).x;
+    uint rgba = texelFetch(uFramebuffer, ivec2(coord), 0).x;
     vec4 color = abgr1555(rgba);
 #elif defined(PAL4)
-    uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
-    vec2 uv = (vec2(coord >> uvec2(2u, 0u)) + 0.5) / vec2(1024.0, 512.0);
-    uint index = textureLod(uFramebuffer, uv, 0.0).x;
-    index = (index >> (4u * (coord.x & 3u))) & 0xfu;
-    uv = (vec2(unpack2x16(infos[gl_WorkGroupID.z].palbase)) + 0.5) / vec2(1024.0, 512.0);
-    uint rgba = textureLod(uFramebuffer, uv, 0.0).x;
+    uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base);
+    uvec2 subcoord = infos[gl_WorkGroupID.z].offset + gl_GlobalInvocationID.xy;
+    uint shift = 4u * (subcoord.x & 3u);
+    subcoord.x >>= 2u;
+    coord += subcoord;
+    uint index = texelFetch(uFramebuffer, ivec2(coord), 0).x;
+    index = (index >> shift) & 0xfu;
+    uvec2 palcoord = unpack2x16(infos[gl_WorkGroupID.z].palbase);
+    palcoord.x += index;
+    uint rgba = texelFetch(uFramebuffer, ivec2(palcoord), 0).x;
     vec4 color = abgr1555(rgba);
 #elif defined(PAL8)
-    uvec2 coord = infos[gl_WorkGroupID.z].offset + unpack2x16(infos[gl_WorkGroupID.z].base) + gl_GlobalInvocationID.xy;
-    vec2 uv = (vec2(coord >> uvec2(1u, 0u)) + 0.5) / vec2(1024.0, 512.0);
-    uint index = textureLod(uFramebuffer, uv, 0.0).x;
-    index = (index >> (8u * (coord.x & 1u))) & 0xffu;
-    uv = (vec2(unpack2x16(infos[gl_WorkGroupID.z].palbase)) + 0.5) / vec2(1024.0, 512.0);
-    uint rgba = textureLod(uFramebuffer, uv, 0.0).x;
+    uvec2 coord = unpack2x16(infos[gl_WorkGroupID.z].base);
+    uvec2 subcoord = infos[gl_WorkGroupID.z].offset + gl_GlobalInvocationID.xy;
+    uint shift = 8u * (subcoord.x & 1u);
+    subcoord.x >>= 1u;
+    coord += subcoord;
+    uint index = texelFetch(uFramebuffer, ivec2(coord), 0).x;
+    index = (index >> shift) & 0xffu;
+    uvec2 palcoord = unpack2x16(infos[gl_WorkGroupID.z].palbase);
+    palcoord.x += index;
+    uint rgba = texelFetch(uFramebuffer, ivec2(palcoord), 0).x;
     vec4 color = abgr1555(rgba);
 #else
 #error "Invalid defines."
