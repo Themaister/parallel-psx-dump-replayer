@@ -109,57 +109,27 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 	Push push = { { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
 	cmd->push_constants(&push, 0, sizeof(push));
 
+	auto issue_blits = [&](const std::vector<BlitInfo> *infos) {
+		for (unsigned i = 0; i < texture_count; i++)
+		{
+			if (!infos[i].empty())
+			{
+				cmd->set_storage_texture(1, 0, images[i]->get_view());
+				void *ptr = cmd->allocate_constant_data(1, 1, infos[i].size() * sizeof(BlitInfo));
+				memcpy(ptr, infos[i].data(), infos[i].size() * sizeof(BlitInfo));
+				cmd->dispatch(widths[i] >> 3, heights[i] >> 3, infos[i].size());
+			}
+		}
+	};
+
 	cmd->set_program(*scaled_blitter);
 	cmd->set_texture(0, 0, scaled, StockSampler::NearestClamp);
-	for (unsigned i = 0; i < texture_count; i++)
-	{
-		if (!scaled_blits[i].empty())
-		{
-			cmd->set_storage_texture(1, 0, images[i]->get_view());
-			void *ptr = cmd->allocate_constant_data(1, 1, scaled_blits[i].size() * sizeof(BlitInfo));
-			memcpy(ptr, scaled_blits[i].data(), scaled_blits[i].size() * sizeof(BlitInfo));
-			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, scaled_blits[i].size());
-		}
-	}
-
+	issue_blits(scaled_blits);
 	cmd->set_program(*unscaled_blitter);
 	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
-	for (unsigned i = 0; i < texture_count; i++)
-	{
-		if (!unscaled_blits[i].empty())
-		{
-			cmd->set_storage_texture(1, 0, images[i]->get_view());
-			void *ptr = cmd->allocate_constant_data(1, 1, unscaled_blits[i].size() * sizeof(BlitInfo));
-			memcpy(ptr, unscaled_blits[i].data(), unscaled_blits[i].size() * sizeof(BlitInfo));
-			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, unscaled_blits[i].size());
-		}
-	}
-
-	cmd->set_program(*pal4_blitter);
-	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
-	for (unsigned i = 0; i < texture_count; i++)
-	{
-		if (!pal4_blits[i].empty())
-		{
-			cmd->set_storage_texture(1, 0, images[i]->get_view());
-			void *ptr = cmd->allocate_constant_data(1, 1, pal4_blits[i].size() * sizeof(BlitInfo));
-			memcpy(ptr, pal4_blits[i].data(), pal4_blits[i].size() * sizeof(BlitInfo));
-			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, pal4_blits[i].size());
-		}
-	}
-
-	cmd->set_program(*pal8_blitter);
-	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
-	for (unsigned i = 0; i < texture_count; i++)
-	{
-		if (!pal8_blits[i].empty())
-		{
-			cmd->set_storage_texture(1, 0, images[i]->get_view());
-			void *ptr = cmd->allocate_constant_data(1, 1, pal8_blits[i].size() * sizeof(BlitInfo));
-			memcpy(ptr, pal8_blits[i].data(), pal8_blits[i].size() * sizeof(BlitInfo));
-			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, pal8_blits[i].size());
-		}
-	}
+	issue_blits(unscaled_blits);
+	issue_blits(pal4_blits);
+	issue_blits(pal8_blits);
 
 	for (unsigned i = 0; i < texture_count; i++)
 	{
