@@ -154,5 +154,7 @@ private:
 	float allocate_depth();
 	void flush_texture_allocator();
 	TextureAllocator allocator;
+
+	void build_attribs(BufferPosition *positions, BufferAttrib *attribs, const Vertex *vertices, unsigned count);
 };
 }

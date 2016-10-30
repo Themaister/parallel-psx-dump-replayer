@@ -246,22 +246,27 @@ float Renderer::allocate_depth()
 	return 1.0f - primitive_index * (2.0f / 0xffffff); // Double the epsilon to be safe(r) when w is used.
 }
 
-void Renderer::draw_triangle(const Vertex *vertices)
+void Renderer::build_attribs(BufferPosition *positions, BufferAttrib *attribs, const Vertex *vertices, unsigned count)
 {
 	float z = allocate_depth();
-	BufferPosition pos[3];
-	BufferAttrib attr[3];
-	for (unsigned i = 0; i < 3; i++)
+	for (unsigned i = 0; i < count; i++)
 	{
-		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
+		positions[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
 		          vertices[i].w};
-		attr[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
+		attribs[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
 
 		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
-			attr[i].color = 0x808080;
+			attribs[i].color = 0x808080;
 
-		attr[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
+		attribs[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
 	}
+}
+
+void Renderer::draw_triangle(const Vertex *vertices)
+{
+	BufferPosition pos[3];
+	BufferAttrib attr[3];
+	build_attribs(pos, attr, vertices, 3);
 
 	vector<BufferPosition> *positions;
 	vector<BufferAttrib> *attribs;
@@ -292,18 +297,9 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
-	float z = allocate_depth();
 	BufferPosition pos[4];
 	BufferAttrib attr[4];
-	for (unsigned i = 0; i < 4; i++)
-	{
-		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
-		          vertices[i].w};
-		attr[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
-		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
-			attr[i].color = 0x808080;
-		attr[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
-	}
+	build_attribs(pos, attr, vertices, 4);
 
 	vector<BufferPosition> *positions;
 	vector<BufferAttrib> *attribs;
