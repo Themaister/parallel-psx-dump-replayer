@@ -16,8 +16,16 @@ TextureAllocator::TextureAllocator(Vulkan::Device &device)
 	static const uint32_t upload_unscaled_comp[] =
 #include "upload.unscaled.comp.inc"
 	;
+	static const uint32_t upload_pal4_comp[] =
+#include "upload.pal4.comp.inc"
+	;
+	static const uint32_t upload_pal8_comp[] =
+#include "upload.pal8.comp.inc"
+	;
 	scaled_blitter = device.create_program(upload_scaled_comp, sizeof(upload_scaled_comp));
 	unscaled_blitter = device.create_program(upload_unscaled_comp, sizeof(upload_unscaled_comp));
+	pal4_blitter = device.create_program(upload_pal4_comp, sizeof(upload_pal4_comp));
+	pal8_blitter = device.create_program(upload_pal8_comp, sizeof(upload_pal8_comp));
 
 	for (auto &i : size_to_texture_map)
 		i = -1;
@@ -41,7 +49,7 @@ void TextureAllocator::begin()
 	texture_count = 0;
 }
 
-TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
+TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y, unsigned pal_off_x, unsigned pal_off_y)
 {
 	// Sizes are always POT, minimum 8, maximum 256 * max scaling (8).
 	unsigned xkey = trailing_zeroes(rect.width) - 3;
@@ -59,10 +67,18 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 	}
 	unsigned layer = array_count[map]++;
 
+	auto pack2x16 = [](uint32_t x, uint32_t y) {
+		return x | (y << 16);
+	};
+
 	if (domain == Domain::Scaled)
-		scaled_blits[map].push_back({ rect, off_x, off_y, 0, layer });
+		scaled_blits[map].push_back({ rect, pack2x16(off_x, off_y), 0, 0, layer });
+	else if (texture_mode == TextureMode::Palette4bpp)
+		pal4_blits[map].push_back({ rect, pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), 0, layer });
+	else if (texture_mode == TextureMode::Palette8bpp)
+		pal8_blits[map].push_back({ rect, pack2x16(off_x, off_y), pack2x16(pal_off_x, pal_off_y), 0, layer });
 	else
-		unscaled_blits[map].push_back({ rect, off_x, off_y, 0, layer });
+		unscaled_blits[map].push_back({ rect, pack2x16(off_x, off_y), 0, 0, layer });
 
 	return { unsigned(map), layer };
 }
@@ -91,10 +107,10 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 	};
 	uint32_t scaling = scaled.get_image().get_width() / FB_WIDTH;
 	Push push = { { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
-	cmd->set_program(*scaled_blitter);
-	cmd->set_texture(0, 0, scaled, StockSampler::NearestClamp);
 	cmd->push_constants(&push, 0, sizeof(push));
 
+	cmd->set_program(*scaled_blitter);
+	cmd->set_texture(0, 0, scaled, StockSampler::NearestClamp);
 	for (unsigned i = 0; i < texture_count; i++)
 	{
 		if (!scaled_blits[i].empty())
@@ -116,6 +132,32 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 			void *ptr = cmd->allocate_constant_data(1, 1, unscaled_blits[i].size() * sizeof(BlitInfo));
 			memcpy(ptr, unscaled_blits[i].data(), unscaled_blits[i].size() * sizeof(BlitInfo));
 			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, unscaled_blits[i].size());
+		}
+	}
+
+	cmd->set_program(*pal4_blitter);
+	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
+	for (unsigned i = 0; i < texture_count; i++)
+	{
+		if (!pal4_blits[i].empty())
+		{
+			cmd->set_storage_texture(1, 0, images[i]->get_view());
+			void *ptr = cmd->allocate_constant_data(1, 1, pal4_blits[i].size() * sizeof(BlitInfo));
+			memcpy(ptr, pal4_blits[i].data(), pal4_blits[i].size() * sizeof(BlitInfo));
+			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, pal4_blits[i].size());
+		}
+	}
+
+	cmd->set_program(*pal8_blitter);
+	cmd->set_texture(0, 0, unscaled, StockSampler::NearestClamp);
+	for (unsigned i = 0; i < texture_count; i++)
+	{
+		if (!pal8_blits[i].empty())
+		{
+			cmd->set_storage_texture(1, 0, images[i]->get_view());
+			void *ptr = cmd->allocate_constant_data(1, 1, pal8_blits[i].size() * sizeof(BlitInfo));
+			memcpy(ptr, pal8_blits[i].data(), pal8_blits[i].size() * sizeof(BlitInfo));
+			cmd->dispatch(widths[i] >> 3, heights[i] >> 3, pal8_blits[i].size());
 		}
 	}
 

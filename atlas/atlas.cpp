@@ -59,13 +59,31 @@ void FBAtlas::write_transfer(Domain domain, const Rect &rect)
 	write_domain(domain, Stage::Transfer, rect);
 }
 
-void FBAtlas::read_texture(const Rect &rect)
+void FBAtlas::read_texture()
 {
-	Rect shifted = { rect.x + renderpass.texture_offset_x, rect.y + renderpass.texture_offset_y, rect.width, rect.height };
-	auto domain = find_suitable_domain(shifted);
+	auto shifted = renderpass.texture_window;
+	shifted.x += renderpass.texture_offset_x;
+	shifted.y += renderpass.texture_offset_y;
+
+	bool palette = renderpass.texture_mode == TextureMode::Palette4bpp ||
+	               renderpass.texture_mode == TextureMode::Palette8bpp;
+	auto domain = palette ? Domain::Unscaled : find_suitable_domain(shifted);
 	sync_domain(domain, shifted);
+
+	const Rect palette_rect = {
+		renderpass.palette_offset_x,
+		renderpass.palette_offset_y,
+		renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u,
+		1
+	};
+
+	if (palette)
+		sync_domain(domain, palette_rect);
+
 	read_domain(domain, Stage::Compute, shifted);
-	listener->upload_texture(domain, rect, renderpass.texture_offset_x, renderpass.texture_offset_y);
+	if (palette)
+		read_domain(domain, Stage::Compute, palette_rect);
+	listener->upload_texture(domain, renderpass.texture_window, renderpass.texture_offset_x, renderpass.texture_offset_y);
 }
 
 void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
@@ -308,13 +326,34 @@ void FBAtlas::set_texture_window(const Rect &rect)
 	renderpass.texture_window = rect;
 }
 
-void FBAtlas::write_fragment(bool reads_window)
+void FBAtlas::write_fragment()
 {
+	bool reads_window = renderpass.texture_mode != TextureMode::None;
 	if (reads_window)
 	{
-		if (inside_render_pass(renderpass.texture_window))
+		Rect shifted = renderpass.texture_window;
+		shifted.x += renderpass.texture_offset_x;
+		shifted.y += renderpass.texture_offset_y;
+
+		bool reads_palette = renderpass.texture_mode == TextureMode::Palette4bpp ||
+			renderpass.texture_mode == TextureMode::Palette8bpp;
+
+		const Rect palette_rect = {
+			renderpass.palette_offset_x,
+			renderpass.palette_offset_y,
+			renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u,
+			1
+		};
+
+		if (reads_palette)
+		{
+			if (inside_render_pass(shifted) || inside_render_pass(palette_rect))
+				flush_render_pass();
+		}
+		else if (inside_render_pass(shifted))
 			flush_render_pass();
-		read_texture(renderpass.texture_window);
+
+		read_texture();
 	}
 
 	if (!renderpass.inside)

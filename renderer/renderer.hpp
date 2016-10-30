@@ -8,13 +8,6 @@
 
 namespace PSX
 {
-enum class TextureMode
-{
-	None,
-	Palette4bpp,
-	Palette8bpp,
-	ABGR1555
-};
 
 struct Vertex
 {
@@ -42,14 +35,23 @@ public:
 		atlas.set_texture_offset(x, y);
 	}
 
+	inline void set_palette_offset(unsigned x, unsigned y)
+	{
+		atlas.set_palette_offset(x, y);
+		render_state.palette_offset_x = x;
+		render_state.palette_offset_y = y;
+	}
+
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 	void blit_vram(const Rect &dst, const Rect &src);
 
 	void scanout(const Rect &rect);
 
-	inline void set_texture_format(TextureMode mode)
+	inline void set_texture_mode(TextureMode mode)
 	{
 		texture_mode = mode;
+		atlas.set_texture_mode(mode);
+		allocator.set_texture_mode(mode);
 	}
 
 	inline void enable_semi_transparent(bool enable)
@@ -102,6 +104,8 @@ private:
 	{
 		int draw_offset_x = 0;
 		int draw_offset_y = 0;
+		unsigned palette_offset_x = 0;
+		unsigned palette_offset_y = 0;
 	} render_state;
 
 	struct BufferPosition
@@ -135,7 +139,7 @@ private:
 	void render_opaque_texture_primitives();
 	void reset_queue();
 
-	float allocate_depth(bool reads_window);
+	float allocate_depth();
 	void flush_texture_allocator();
 	TextureAllocator allocator;
 };

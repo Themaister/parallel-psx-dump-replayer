@@ -30,4 +30,6 @@ add_shader(blit_vram.scaled.comp blit_vram.comp "-DSCALED")
 add_shader(blit_vram.unscaled.comp blit_vram.comp "-DUNSCALED")
 add_shader(upload.scaled.comp upload.comp "-DSCALED")
 add_shader(upload.unscaled.comp upload.comp "-DUNSCALED")
+add_shader(upload.pal4.comp upload.comp "-DPAL4")
+add_shader(upload.pal8.comp upload.comp "-DPAL8")
 

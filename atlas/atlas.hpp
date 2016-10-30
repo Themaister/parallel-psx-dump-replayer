@@ -25,6 +25,14 @@ enum class Stage : unsigned
 	Fragment
 };
 
+enum class TextureMode
+{
+	None,
+	Palette4bpp,
+	Palette8bpp,
+	ABGR1555
+};
+
 struct Rect
 {
 	unsigned x = 0;
@@ -132,14 +140,27 @@ public:
 	void read_fragment(Domain domain, const Rect &rect);
 	Domain blit_vram(const Rect &dst, const Rect &src);
 
-	void write_fragment(bool reads_window);
+	void write_fragment();
 	void clear_rect(const Rect &rect, FBColor color);
 	void set_draw_rect(const Rect &rect);
 	void set_texture_window(const Rect &rect);
+
+	TextureMode set_texture_mode(TextureMode mode)
+	{
+		std::swap(renderpass.texture_mode, mode);
+		return mode;
+	}
+
 	void set_texture_offset(unsigned x, unsigned y)
 	{
 		renderpass.texture_offset_x = x;
 		renderpass.texture_offset_y = y;
+	}
+
+	void set_palette_offset(unsigned x, unsigned y)
+	{
+		renderpass.palette_offset_x = x;
+		renderpass.palette_offset_y = y;
 	}
 
 	bool render_pass_is_clear() const
@@ -161,7 +182,7 @@ private:
 	void read_domain(Domain domain, Stage stage, const Rect &rect);
 	void write_domain(Domain domain, Stage stage, const Rect &rect);
 	void sync_domain(Domain domain, const Rect &rect);
-	void read_texture(const Rect &rect);
+	void read_texture();
 	Domain find_suitable_domain(const Rect &rect);
 
 	struct
@@ -169,6 +190,8 @@ private:
 		Rect rect;
 		Rect texture_window;
 		unsigned texture_offset_x = 0, texture_offset_y = 0;
+		unsigned palette_offset_x = 0, palette_offset_y = 0;
+		TextureMode texture_mode = TextureMode::None;
 		FBColor color = 0;
 		bool inside = false;
 		bool clean_clear = false;

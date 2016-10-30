@@ -234,16 +234,16 @@ void Renderer::discard_render_pass()
 	queue.opaque_attrib.clear();
 }
 
-float Renderer::allocate_depth(bool reads_window)
+float Renderer::allocate_depth()
 {
-	atlas.write_fragment(reads_window);
+	atlas.write_fragment();
 	primitive_index++;
 	return 1.0f - primitive_index * (1.0f / 0xffff);
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
-	float z = allocate_depth(texture_mode != TextureMode::None);
+	float z = allocate_depth();
 	BufferPosition pos[3];
 	BufferAttrib attr[3];
 	for (unsigned i = 0; i < 3; i++)
@@ -289,7 +289,7 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
-	float z = allocate_depth(texture_mode != TextureMode::None);
+	float z = allocate_depth();
 	BufferPosition pos[4];
 	BufferAttrib attr[4];
 	for (unsigned i = 0; i < 4; i++)
@@ -341,7 +341,10 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
-	float z = allocate_depth(texture_mode != TextureMode::None);
+	auto old = atlas.set_texture_mode(TextureMode::None);
+	float z = allocate_depth();
+	atlas.set_texture_mode(old);
+
 	BufferPosition pos0 = {float(rect.x), float(rect.y), z, 1.0f};
 	BufferPosition pos1 = {float(rect.x) + float(rect.width), float(rect.y), z, 1.0f};
 	BufferPosition pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f};
@@ -474,10 +477,12 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 	if (domain == Domain::Scaled)
 	{
 		last_surface = allocator.allocate(domain, {scaling * rect.x, scaling * rect.y, scaling * rect.width,
-		                                           scaling * rect.height}, scaling * off_x, scaling * off_y);
+		                                           scaling * rect.height}, scaling * off_x, scaling * off_y,
+		                                  render_state.palette_offset_x, render_state.palette_offset_y);
 	}
 	else
-		last_surface = allocator.allocate(domain, rect, off_x, off_y);
+		last_surface = allocator.allocate(domain, rect, off_x, off_y,
+		                                  render_state.palette_offset_x, render_state.palette_offset_y);
 
 	last_surface.texture += queue.textures.size();
 	last_uv_scale_x = 1.0f / rect.width;

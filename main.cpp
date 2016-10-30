@@ -51,7 +51,7 @@ int main()
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
-		renderer.set_texture_format(TextureMode::None);
+		renderer.set_texture_mode(TextureMode::None);
 		renderer.set_draw_rect({ 24, 24, 49, 49 });
 		renderer.clear_rect({ 24, 24, 49, 49 }, 0x38ac);
 		renderer.draw_triangle(verts);
@@ -61,11 +61,11 @@ int main()
 
 		renderer.set_texture_offset(24, 24);
 		renderer.set_texture_window({0, 0, 16, 16});
-		renderer.set_texture_format(TextureMode::ABGR1555);
+		renderer.set_texture_mode(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts3);
 		renderer.set_texture_offset(256, 256);
 		renderer.set_texture_window({0, 0, 16, 16});
-		renderer.set_texture_format(TextureMode::ABGR1555);
+		renderer.set_texture_mode(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts4);
 
 		renderer.scanout({ 0, 0, 128, 72 });
