@@ -38,6 +38,8 @@ void TextureAllocator::begin()
 		images[i].reset();
 		scaled_blits[i].clear();
 		unscaled_blits[i].clear();
+		pal4_blits[i].clear();
+		pal8_blits[i].clear();
 	}
 
 	memset(widths, 0, texture_count * sizeof(widths[0]));
