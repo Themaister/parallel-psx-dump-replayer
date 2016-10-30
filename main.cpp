@@ -57,14 +57,14 @@ int main()
 		renderer.draw_triangle(verts);
 		renderer.draw_quad(verts2);
 
-		renderer.copy_cpu_to_vram(black, {256, 256, 8, 8});
+		renderer.copy_cpu_to_vram(black, {256, 256, 16, 16});
 
 		renderer.set_texture_offset(24, 24);
 		renderer.set_texture_window({0, 0, 16, 16});
 		renderer.set_texture_format(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts3);
 		renderer.set_texture_offset(256, 256);
-		renderer.set_texture_window({0, 0, 8, 8});
+		renderer.set_texture_window({0, 0, 16, 16});
 		renderer.set_texture_format(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts4);
 

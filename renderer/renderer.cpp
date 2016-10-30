@@ -376,7 +376,8 @@ void Renderer::flush_render_pass(const Rect &rect)
 		FBColor color = atlas.render_pass_clear_color();
 		fbcolor_to_rgba32f(info.clear_color[0].float32, color);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
-	} else
+	}
+	else
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
 
 	info.render_area.offset = {int(rect.x * scaling), int(rect.y * scaling)};
@@ -440,6 +441,9 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
 	cmd->set_program(*pipelines.opaque_textured);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+	cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
+	cmd->set_vertex_attrib(2, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferAttrib, u));
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
@@ -459,10 +463,8 @@ void Renderer::render_opaque_texture_primitives()
 		for (auto i = attribs.size(); i; i--)
 			*attr++ = attribs[i - 1];
 
-		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
-		cmd->set_vertex_attrib(1, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferAttrib, color));
-		cmd->set_vertex_attrib(2, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferAttrib, u));
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
+		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->draw(position.size());
 	}
 }
