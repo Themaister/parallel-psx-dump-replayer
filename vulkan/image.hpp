@@ -337,6 +337,11 @@ public:
 		return access_flags;
 	}
 
+	const MaliSDK::DeviceAllocation &get_allocation() const
+	{
+		return alloc;
+	}
+
 private:
 	Device *device;
 	VkImage image;

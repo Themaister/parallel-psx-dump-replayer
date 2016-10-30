@@ -20,6 +20,7 @@ struct BlitInfo
 };
 
 static const unsigned NUM_TEXTURES = 8 * 8;
+static const unsigned MAX_LAYERS = 256; // Vulkan spec limit.
 
 class TextureAllocator
 {
@@ -40,6 +41,11 @@ public:
 		return texture_count;
 	}
 
+	inline unsigned get_max_layer_count() const
+	{
+		return max_layer_count;
+	}
+
 	inline void set_texture_mode(TextureMode mode)
 	{
 		texture_mode = mode;
@@ -56,6 +62,7 @@ private:
 	std::vector<BlitInfo> pal4_blits[NUM_TEXTURES];
 	std::vector<BlitInfo> pal8_blits[NUM_TEXTURES];
 	unsigned texture_count = 0;
+	unsigned max_layer_count = 0;
 	TextureMode texture_mode = TextureMode::None;
 
 	Vulkan::ImageHandle images[NUM_TEXTURES];

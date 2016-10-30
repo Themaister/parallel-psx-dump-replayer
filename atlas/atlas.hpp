@@ -174,6 +174,7 @@ public:
 	}
 
 	void pipeline_barrier(StatusFlags domains);
+	void notify_external_barrier(StatusFlags domains);
 
 private:
 	StatusFlags fb_info[NUM_BLOCKS_X * NUM_BLOCKS_Y];

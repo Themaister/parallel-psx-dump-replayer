@@ -18,7 +18,7 @@ struct BlitInfo
 
 layout(set = 1, binding = 1, std140) uniform BlitInfos
 {
-    BlitInfo infos[1024];
+    BlitInfo infos[256];
 };
 
 layout(std430, push_constant) uniform PushMe

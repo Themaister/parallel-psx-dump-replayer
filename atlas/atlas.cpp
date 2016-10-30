@@ -439,21 +439,14 @@ void FBAtlas::discard_render_pass()
 	listener->discard_render_pass();
 }
 
-void FBAtlas::pipeline_barrier(StatusFlags domains)
+void FBAtlas::notify_external_barrier(StatusFlags domains)
 {
 	static const StatusFlags compute_read_stages = STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ;
-
 	static const StatusFlags compute_write_stages = STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_WRITE;
-
 	static const StatusFlags transfer_read_stages = STATUS_TRANSFER_FB_READ | STATUS_TRANSFER_SFB_READ;
-
 	static const StatusFlags transfer_write_stages = STATUS_TRANSFER_FB_WRITE | STATUS_TRANSFER_SFB_WRITE;
-
 	static const StatusFlags fragment_write_stages = STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_FB_WRITE;
-
 	static const StatusFlags fragment_read_stages = STATUS_FRAGMENT_SFB_READ | STATUS_FRAGMENT_FB_READ;
-
-	listener->hazard(domains);
 
 	if (domains & compute_write_stages)
 		domains |= compute_write_stages | compute_read_stages;
@@ -470,5 +463,11 @@ void FBAtlas::pipeline_barrier(StatusFlags domains)
 
 	for (auto &f : fb_info)
 		f &= ~domains;
+}
+
+void FBAtlas::pipeline_barrier(StatusFlags domains)
+{
+	listener->hazard(domains);
+	notify_external_barrier(domains);
 }
 }

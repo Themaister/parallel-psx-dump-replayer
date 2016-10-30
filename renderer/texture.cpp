@@ -47,6 +47,7 @@ void TextureAllocator::begin()
 		i = -1;
 
 	texture_count = 0;
+	max_layer_count = 0;
 }
 
 TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y, unsigned pal_off_x, unsigned pal_off_y)
@@ -66,6 +67,7 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 		texture_count++;
 	}
 	unsigned layer = array_count[map]++;
+	max_layer_count = max(layer + 1, max_layer_count);
 
 	const auto pack2x16 = [](uint32_t x, uint32_t y) {
 		return x | (y << 16);

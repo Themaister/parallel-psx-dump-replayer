@@ -70,8 +70,6 @@ int main()
 		renderer.draw_triangle(verts);
 		renderer.draw_quad(verts2);
 
-		renderer.copy_cpu_to_vram(black, {256, 256, 16, 16});
-
 		renderer.set_texture_offset(24, 24);
 		renderer.set_texture_window({0, 0, 16, 16});
 		renderer.set_texture_mode(TextureMode::ABGR1555);

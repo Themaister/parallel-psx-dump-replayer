@@ -160,6 +160,7 @@ void Renderer::hazard(StatusFlags flags)
 	{
 		src_stages |= VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
 		src_access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dst_access |= VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 	}
 
 	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
@@ -180,6 +181,10 @@ void Renderer::hazard(StatusFlags flags)
 	}
 
 	dst_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+	// If we have out-standing jobs in the compute pipe, issue them into cmdbuffer before injecting the barrier.
+	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
+		flush_texture_allocator();
 
 	LOG("Hazard!\n");
 
@@ -487,6 +492,9 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 	last_surface.texture += queue.textures.size();
 	last_uv_scale_x = 1.0f / rect.width;
 	last_uv_scale_y = 1.0f / rect.height;
+
+	if (allocator.get_max_layer_count() >= MAX_LAYERS)
+		flush_texture_allocator();
 }
 
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
@@ -574,6 +582,7 @@ void Renderer::flush_texture_allocator()
 	unsigned num_textures = allocator.get_num_textures();
 	for (unsigned i = 0; i < num_textures; i++)
 		queue.textures.push_back(allocator.get_image(i));
+
 	allocator.begin();
 }
 
