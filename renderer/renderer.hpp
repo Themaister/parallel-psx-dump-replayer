@@ -103,6 +103,7 @@ private:
 		Vulkan::ProgramHandle opaque_flat;
 		Vulkan::ProgramHandle opaque_textured;
 		Vulkan::ProgramHandle opaque_semi_transparent;
+		Vulkan::ProgramHandle semi_transparent;
 	} pipelines;
 
 	void init_pipelines();
@@ -131,6 +132,16 @@ private:
 	struct SemiTransparentState
 	{
 		unsigned image_index;
+
+		bool operator==(const SemiTransparentState &other) const
+		{
+			return image_index == other.image_index;
+		}
+
+		bool operator!=(const SemiTransparentState &other) const
+		{
+			return !(*this == other);
+		}
 	};
 
 	struct OpaqueQueue
@@ -156,6 +167,7 @@ private:
 	void render_opaque_primitives();
 	void render_opaque_texture_primitives();
 	void render_semi_transparent_opaque_texture_primitives();
+	void render_semi_transparent_primitives();
 	void reset_queue();
 
 	float allocate_depth();

@@ -75,6 +75,9 @@ void Renderer::init_pipelines()
 	static const uint32_t opaque_semitrans_frag[] =
 #include "opaque.textured.semitrans.frag.inc"
 	;
+	static const uint32_t semitrans_frag[] =
+#include "opaque.textured.trans.frag.inc"
+	;
 	static const uint32_t blit_vram_unscaled_comp[] =
 #include "blit_vram.unscaled.comp.inc"
 	;
@@ -97,6 +100,8 @@ void Renderer::init_pipelines()
 		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_textured_frag, sizeof(opaque_textured_frag));
 	pipelines.opaque_semi_transparent =
 		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_semitrans_frag, sizeof(opaque_semitrans_frag));
+	pipelines.semi_transparent =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), semitrans_frag, sizeof(semitrans_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -379,6 +384,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	render_opaque_primitives();
 	render_opaque_texture_primitives();
 	render_semi_transparent_opaque_texture_primitives();
+	render_semi_transparent_primitives();
 
 	cmd->end_render_pass();
 
@@ -412,6 +418,59 @@ void Renderer::render_opaque_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
 	cmd->draw(queue.opaque.size());
+}
+
+void Renderer::render_semi_transparent_primitives()
+{
+	unsigned prims = queue.semi_transparent_state.size();
+	if (!prims)
+		return;
+
+	unsigned last_draw_offset = 0;
+
+	cmd->set_opaque_state();
+	cmd->set_cull_mode(VK_CULL_MODE_NONE);
+	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
+	cmd->set_depth_test(true, false);
+	cmd->set_blend_enable(true);
+	cmd->set_blend_factors(VK_BLEND_FACTOR_CONSTANT_COLOR, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_CONSTANT_ALPHA, VK_BLEND_FACTOR_ZERO);
+	cmd->set_program(*pipelines.semi_transparent);
+	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
+
+	auto size = queue.semi_transparent.size() * sizeof(BufferVertex);
+	void *verts = cmd->allocate_vertex_data(0, size, sizeof(BufferVertex));
+	memcpy(verts, queue.semi_transparent.data(), size);
+
+	auto last_state = queue.semi_transparent_state[0];
+	const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
+	cmd->set_texture(0, 1, queue.textures[last_state.image_index]->get_view(), StockSampler::NearestWrap);
+	cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+	cmd->set_blend_constants(rgba);
+
+	// These pixels are blended, so we have to render them in-order.
+	// Batch up as long as we can.
+	for (unsigned i = 1; i < prims; i++)
+	{
+		if (last_state != queue.semi_transparent_state[i])
+		{
+			unsigned to_draw = i - last_draw_offset;
+			cmd->draw(to_draw * 3, 1, last_draw_offset * 3, 0);
+			last_draw_offset = i;
+
+			last_state = queue.semi_transparent_state[i];
+			cmd->set_texture(0, 1, queue.textures[last_state.image_index]->get_view(), StockSampler::NearestWrap);
+
+			const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
+			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
+			cmd->set_blend_constants(rgba);
+		}
+	}
+
+	unsigned to_draw = prims - last_draw_offset;
+	cmd->draw(to_draw * 3, 1, last_draw_offset * 3, 0);
 }
 
 void Renderer::render_semi_transparent_opaque_texture_primitives()

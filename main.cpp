@@ -61,6 +61,8 @@ int main()
 		0x0201, 0x0101, 0x0202, 0x0303,
 	};
 
+	renderer.set_texture_color_modulate(true);
+
 	while (!wsi.alive())
 	{
 		wsi.begin_frame();
