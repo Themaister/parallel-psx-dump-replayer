@@ -72,6 +72,9 @@ void Renderer::init_pipelines()
 	static const uint32_t opaque_textured_frag[] =
 #include "opaque.textured.frag.inc"
 	;
+	static const uint32_t opaque_semitrans_frag[] =
+#include "opaque.textured.semitrans.frag.inc"
+	;
 	static const uint32_t blit_vram_unscaled_comp[] =
 #include "blit_vram.unscaled.comp.inc"
 	;
@@ -92,6 +95,8 @@ void Renderer::init_pipelines()
 		device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 	pipelines.opaque_textured =
 		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_textured_frag, sizeof(opaque_textured_frag));
+	pipelines.opaque_semi_transparent =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_semitrans_frag, sizeof(opaque_semitrans_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -264,9 +269,18 @@ std::vector<Renderer::BufferVertex> &Renderer::select_pipeline()
 {
 	if (render_state.texture_mode != TextureMode::None)
 	{
-		if (last_surface.texture >= queue.opaque_textured.size())
-			queue.opaque_textured.resize(last_surface.texture + 1);
-		return queue.opaque_textured[last_surface.texture];
+		if (render_state.semi_transparent)
+		{
+			if (last_surface.texture >= queue.semi_transparent_opaque.size())
+				queue.semi_transparent_opaque.resize(last_surface.texture + 1);
+			return queue.semi_transparent_opaque[last_surface.texture];
+		}
+		else
+		{
+			if (last_surface.texture >= queue.opaque_textured.size())
+				queue.opaque_textured.resize(last_surface.texture + 1);
+			return queue.opaque_textured[last_surface.texture];
+		}
 	}
 	else
 		return queue.opaque;
@@ -279,6 +293,13 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	auto &out = select_pipeline();
 	for (unsigned i = 0; i < 3; i++)
 		out.push_back(vert[i]);
+
+	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent)
+	{
+		for (unsigned i = 0; i < 3; i++)
+			queue.semi_transparent.push_back(vert[i]);
+		queue.semi_transparent_state.push_back({ last_surface.texture });
+	}
 }
 
 void Renderer::draw_quad(const Vertex *vertices)
@@ -292,6 +313,18 @@ void Renderer::draw_quad(const Vertex *vertices)
 	out.push_back(vert[3]);
 	out.push_back(vert[2]);
 	out.push_back(vert[1]);
+
+	if (render_state.texture_mode != TextureMode::None && render_state.semi_transparent)
+	{
+		queue.semi_transparent.push_back(vert[0]);
+		queue.semi_transparent.push_back(vert[1]);
+		queue.semi_transparent.push_back(vert[2]);
+		queue.semi_transparent.push_back(vert[3]);
+		queue.semi_transparent.push_back(vert[2]);
+		queue.semi_transparent.push_back(vert[1]);
+		queue.semi_transparent_state.push_back({ last_surface.texture });
+		queue.semi_transparent_state.push_back({ last_surface.texture });
+	}
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
@@ -345,6 +378,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	render_opaque_primitives();
 	render_opaque_texture_primitives();
+	render_semi_transparent_opaque_texture_primitives();
 
 	cmd->end_render_pass();
 
@@ -378,6 +412,37 @@ void Renderer::render_opaque_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
 	cmd->draw(queue.opaque.size());
+}
+
+void Renderer::render_semi_transparent_opaque_texture_primitives()
+{
+	unsigned num_textures = queue.semi_transparent_opaque.size();
+
+	cmd->set_opaque_state();
+	cmd->set_cull_mode(VK_CULL_MODE_NONE);
+	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
+	cmd->set_program(*pipelines.opaque_semi_transparent);
+	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
+
+	for (unsigned tex = 0; tex < num_textures; tex++)
+	{
+		auto &vertices = queue.semi_transparent_opaque[tex];
+		if (vertices.empty())
+			continue;
+
+		// Render opaque textured primitives.
+		auto *vert = static_cast<BufferVertex *>(
+			cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+		for (auto i = vertices.size(); i; i--)
+			*vert++ = vertices[i - 1];
+
+		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
+		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		cmd->draw(vertices.size());
+	}
 }
 
 void Renderer::render_opaque_texture_primitives()
@@ -525,6 +590,10 @@ void Renderer::reset_queue()
 	queue.opaque.clear();
 	queue.opaque_textured.clear();
 	queue.textures.clear();
+	queue.semi_transparent.clear();
+	queue.semi_transparent_state.clear();
+	queue.semi_transparent_opaque.clear();
+	allocator.begin();
 }
 
 }

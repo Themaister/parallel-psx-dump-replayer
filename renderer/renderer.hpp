@@ -54,7 +54,7 @@ public:
 		allocator.set_texture_mode(mode);
 	}
 
-	inline void enable_semi_transparent(bool enable)
+	inline void set_semi_transparent(bool enable)
 	{
 		render_state.semi_transparent = enable;
 	}
@@ -102,6 +102,7 @@ private:
 		Vulkan::ProgramHandle blit_vram_scaled;
 		Vulkan::ProgramHandle opaque_flat;
 		Vulkan::ProgramHandle opaque_textured;
+		Vulkan::ProgramHandle opaque_semi_transparent;
 	} pipelines;
 
 	void init_pipelines();
@@ -127,6 +128,11 @@ private:
 		uint32_t color;
 	};
 
+	struct SemiTransparentState
+	{
+		unsigned image_index;
+	};
+
 	struct OpaqueQueue
 	{
 		// Non-textured primitives.
@@ -134,6 +140,12 @@ private:
 
 		// Textured primitives, no semi-transparency.
 		std::vector<std::vector<BufferVertex>> opaque_textured;
+
+		// Textured primitives, semi-transparency enabled.
+		std::vector<std::vector<BufferVertex>> semi_transparent_opaque;
+
+		std::vector<BufferVertex> semi_transparent;
+		std::vector<SemiTransparentState> semi_transparent_state;
 
 		std::vector<Vulkan::ImageHandle> textures;
 	} queue;
@@ -143,6 +155,7 @@ private:
 
 	void render_opaque_primitives();
 	void render_opaque_texture_primitives();
+	void render_semi_transparent_opaque_texture_primitives();
 	void reset_queue();
 
 	float allocate_depth();

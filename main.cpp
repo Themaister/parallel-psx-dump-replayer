@@ -81,7 +81,9 @@ int main()
 		renderer.set_palette_offset(512, 0);
 		renderer.set_texture_window({16, 16, 8, 8});
 		renderer.set_texture_mode(TextureMode::Palette8bpp);
+		renderer.set_semi_transparent(true);
 		renderer.draw_quad(verts4);
+		renderer.set_semi_transparent(false);
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();

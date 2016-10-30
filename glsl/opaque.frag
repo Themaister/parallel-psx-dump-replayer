@@ -17,12 +17,20 @@ void main()
     // Even for opaque draw calls, this pixel is transparent.
     // Sample in NN space since we need to do an exact test against 0.0.
     // Doing it in a filtered domain is a bit awkward.
+#ifdef SEMI_TRANS_OPAQUE
+    // In this pass, only accept opaque pixels.
+    if (all(equal(NNColor, vec4(0.0))) || NNColor.a > 0.5)
+        discard;
+#elif defined(OPAQUE)
     if (all(equal(NNColor, vec4(0.0))))
         discard;
+#else
+#error "Invalid defines."
+#endif
 
     vec4 color = texture(uTexture, vUV);
     vec3 shaded = color.rgb * vColor.rgb * (255.0 / 128.0);
-    FragColor = vec4(shaded, color.a + vColor.a);
+    FragColor = vec4(shaded, NNColor.a + vColor.a);
 #else
     FragColor = vColor;
 #endif
