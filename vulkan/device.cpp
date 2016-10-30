@@ -101,6 +101,7 @@ void Device::bake_program(Program &program)
 			layout.sets[set].uniform_buffer_mask |= shader_layout.sets[set].uniform_buffer_mask;
 			layout.sets[set].storage_buffer_mask |= shader_layout.sets[set].storage_buffer_mask;
 			layout.sets[set].sampled_buffer_mask |= shader_layout.sets[set].sampled_buffer_mask;
+			layout.sets[set].input_attachment_mask |= shader_layout.sets[set].input_attachment_mask;
 			layout.sets[set].stages |= shader_layout.sets[set].stages;
 		}
 

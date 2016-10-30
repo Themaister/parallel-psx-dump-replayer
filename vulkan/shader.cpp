@@ -99,6 +99,14 @@ Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDevic
 		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
 	}
 
+	for (auto &image : resources.subpass_inputs)
+	{
+		auto set = compiler.get_decoration(image.id, spv::DecorationDescriptorSet);
+		auto binding = compiler.get_decoration(image.id, spv::DecorationBinding);
+		layout.sets[set].input_attachment_mask |= 1u << binding;
+		layout.sets[set].stages |= 1u << static_cast<unsigned>(stage);
+	}
+
 	for (auto &image : resources.storage_images)
 	{
 		auto set = compiler.get_decoration(image.id, spv::DecorationDescriptorSet);

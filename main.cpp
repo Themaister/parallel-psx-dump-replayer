@@ -45,11 +45,9 @@ int main()
 
 	uint16_t black[16 * 16];
 	for (auto &l : black)
-		l = 0xaaaa;
-	for (unsigned i = 0; i < 4; i++)
-		black[i] = 0;
+		l = 0x5555 | 0x8000;
 
-	uint16_t palentry[4] = { 0x8000, 31 << 0, 31 << 5, 31 << 10 };
+	uint16_t palentry[4] = { 0x8000, 0x5555, 0x8000, 0x5555 };
 	uint16_t paltexture[4 * 8] = {
 		0x0100, 0x0101, 0x0202, 0x0303,
 		0x0201, 0x0101, 0x0202, 0x0303,
@@ -79,18 +77,22 @@ int main()
 
 		renderer.copy_cpu_to_vram(palentry, { 512, 0, 4, 1 });
 		renderer.copy_cpu_to_vram(paltexture, { 512, 16, 4, 8 });
+		renderer.copy_cpu_to_vram(black, { 800, 0, 8, 8 });
 		renderer.set_texture_offset(512 - 8, 16 - 16);
 		renderer.set_palette_offset(512, 0);
 		renderer.set_texture_window({16, 16, 8, 8});
 		renderer.set_texture_mode(TextureMode::Palette8bpp);
-		renderer.set_semi_transparent(SemiTransparentMode::Sub);
 		renderer.draw_quad(verts4);
-		renderer.set_semi_transparent(SemiTransparentMode::None);
 
+		renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
 		renderer.set_mask_test(true);
-		renderer.set_texture_mode(TextureMode::Palette8bpp);
+		renderer.set_texture_mode(TextureMode::ABGR1555);
+		renderer.set_texture_offset(800, 0);
+		renderer.set_texture_window({0, 0, 8, 8});
 		renderer.draw_quad(verts4);
 		renderer.set_mask_test(false);
+
+		renderer.set_semi_transparent(SemiTransparentMode::None);
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();

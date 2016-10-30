@@ -50,6 +50,13 @@ DescriptorSetAllocator::DescriptorSetAllocator(Device *device, const DescriptorS
 			types++;
 		}
 
+		if (layout.input_attachment_mask & (1u << i))
+		{
+			bindings.push_back({ i, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1, layout.stages, nullptr });
+			pool_size.push_back({ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VULKAN_NUM_SETS_PER_POOL });
+			types++;
+		}
+
 		(void)types;
 		VK_ASSERT(types <= 1 && "Descriptor set aliasing!");
 	}

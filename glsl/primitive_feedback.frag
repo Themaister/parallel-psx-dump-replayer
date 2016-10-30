@@ -21,13 +21,13 @@ void main()
         discard;
 
 #if defined(BLEND_ADD)
-    vec3 blended = shaded + fbcolor.rgb;
+    vec3 blended = mix(shaded, shaded + fbcolor.rgb, NNColor.a);
 #elif defined(BLEND_AVG)
-    vec3 blended = clamp(shaded, 0.0, 1.0) + fbcolor.rgb;
+    vec3 blended = mix(shaded, 0.5 * (clamp(shaded, 0.0, 1.0) + fbcolor.rgb), NNColor.a);
 #elif defined(BLEND_SUB)
-    vec3 blended = fbcolor.rgb - shaded;
+    vec3 blended = mix(shaded, fbcolor.rgb - shaded, NNColor.a);
 #elif defined(BLEND_ADD_QUARTER)
-    vec3 blended = clamp(shaded, 0.0, 1.0) * 0.25 + fbcolor.rgb;
+    vec3 blended = mix(shaded, clamp(shaded, 0.0, 1.0) * 0.25 + fbcolor.rgb, NNColor.a);
 #else
 #error "Invalid defines!"
 #endif

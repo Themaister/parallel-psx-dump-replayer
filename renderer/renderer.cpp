@@ -19,7 +19,7 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	info.height *= scaling;
 	info.format = VK_FORMAT_R8G8B8A8_UNORM;
 	info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-	             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	scaled_framebuffer = device.create_image(info);
 	info.format = device.get_default_depth_format();
@@ -84,6 +84,18 @@ void Renderer::init_pipelines()
 	static const uint32_t blit_vram_scaled_comp[] =
 #include "blit_vram.scaled.comp.inc"
 	;
+	static const uint32_t feedback_add_frag[] =
+#include "feedback.add.frag.inc"
+	;
+	static const uint32_t feedback_avg_frag[] =
+#include "feedback.avg.frag.inc"
+	;
+	static const uint32_t feedback_sub_frag[] =
+#include "feedback.sub.frag.inc"
+	;
+	static const uint32_t feedback_add_quarter_frag[] =
+#include "feedback.add_quarter.frag.inc"
+	;
 
 	pipelines.scaled_quad_blitter =
 		device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
@@ -102,6 +114,14 @@ void Renderer::init_pipelines()
 		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), opaque_semitrans_frag, sizeof(opaque_semitrans_frag));
 	pipelines.semi_transparent =
 		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), semitrans_frag, sizeof(semitrans_frag));
+	pipelines.semi_transparent_masked_add =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_add_frag, sizeof(feedback_add_frag));
+	pipelines.semi_transparent_masked_average =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_avg_frag, sizeof(feedback_avg_frag));
+	pipelines.semi_transparent_masked_sub =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_sub_frag, sizeof(feedback_sub_frag));
+	pipelines.semi_transparent_masked_add_quarter =
+		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_add_quarter_frag, sizeof(feedback_add_quarter_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -316,6 +336,12 @@ void Renderer::draw_triangle(const Vertex *vertices)
 			                                       render_state.texture_mode != TextureMode::None,
 			                                       render_state.mask_test
 		                                       });
+
+		// We've hit the dragon path, we'll need programmable blending for this render pass.
+		if (render_state.mask_test &&
+			render_state.texture_mode != TextureMode::None &&
+			render_state.semi_transparent != SemiTransparentMode::None)
+			render_pass_is_feedback = true;
 	}
 }
 
@@ -354,6 +380,12 @@ void Renderer::draw_quad(const Vertex *vertices)
 			                                       render_state.texture_mode != TextureMode::None,
 			                                       render_state.mask_test
 		                                       });
+
+		// We've hit the dragon path, we'll need programmable blending for this render pass.
+		if (render_state.mask_test &&
+			render_state.texture_mode != TextureMode::None &&
+			render_state.semi_transparent != SemiTransparentMode::None)
+			render_pass_is_feedback = true;
 	}
 }
 
@@ -377,7 +409,6 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 
 void Renderer::flush_render_pass(const Rect &rect)
 {
-	primitive_index = 0;
 	ensure_command_buffer();
 	bool is_clear = atlas.render_pass_is_clear();
 
@@ -389,6 +420,10 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	info.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT |
 	                RENDER_PASS_OP_DEPTH_STENCIL_OPTIMAL_BIT;
+
+	if (render_pass_is_feedback)
+		info.op_flags |= RENDER_PASS_OP_COLOR_FEEDBACK_BIT;
+
 	if (is_clear)
 	{
 		FBColor color = atlas.render_pass_clear_color();
@@ -491,6 +526,7 @@ void Renderer::render_semi_transparent_primitives()
 			{
 				cmd->set_program(*pipelines.semi_transparent_masked_add);
 				cmd->pixel_barrier();
+				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
@@ -510,6 +546,7 @@ void Renderer::render_semi_transparent_primitives()
 			if (state.masked)
 			{
 				cmd->set_program(*pipelines.semi_transparent_masked_average);
+				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -532,6 +569,7 @@ void Renderer::render_semi_transparent_primitives()
 			if (state.masked)
 			{
 				cmd->set_program(*pipelines.semi_transparent_masked_sub);
+				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -552,6 +590,7 @@ void Renderer::render_semi_transparent_primitives()
 			if (state.masked)
 			{
 				cmd->set_program(*pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -772,6 +811,8 @@ void Renderer::reset_queue()
 	queue.semi_transparent_state.clear();
 	queue.semi_transparent_opaque.clear();
 	allocator.begin();
+	primitive_index = 0;
+	render_pass_is_feedback = false;
 }
 
 }

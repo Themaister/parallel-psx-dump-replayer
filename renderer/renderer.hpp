@@ -186,6 +186,7 @@ private:
 		std::vector<Vulkan::ImageHandle> textures;
 	} queue;
 	unsigned primitive_index = 0;
+	bool render_pass_is_feedback = false;
 	TextureSurface last_surface;
 	float last_uv_scale_x, last_uv_scale_y;
 

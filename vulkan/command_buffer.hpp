@@ -90,6 +90,7 @@ public:
 
 	void set_program(Program &program);
 	void set_buffer_view(unsigned set, unsigned binding, const BufferView &view);
+	void set_input_attachment(unsigned set, unsigned binding, const ImageView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, const Sampler &sampler);
 	void set_texture(unsigned set, unsigned binding, const ImageView &view, StockSampler sampler);

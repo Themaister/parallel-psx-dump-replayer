@@ -815,6 +815,22 @@ void CommandBuffer::set_buffer_view(unsigned set, unsigned binding, const Buffer
 	dirty_sets |= 1u << set;
 }
 
+void CommandBuffer::set_input_attachment(unsigned set, unsigned binding, const ImageView &view)
+{
+	VK_ASSERT(set < VULKAN_NUM_DESCRIPTOR_SETS);
+	VK_ASSERT(binding < VULKAN_NUM_BINDINGS);
+	VK_ASSERT(view.get_image().get_create_info().usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+	if (view.get_cookie() == cookies[set][binding] &&
+	    bindings[set][binding].image.imageLayout == view.get_image().get_layout())
+		return;
+
+	auto &b = bindings[set][binding];
+	b.image.imageLayout = view.get_image().get_layout();
+	b.image.imageView = view.get_view();
+	cookies[set][binding] = view.get_cookie();
+	dirty_sets |= 1u << set;
+}
+
 void CommandBuffer::set_texture(unsigned set, unsigned binding, const ImageView &view)
 {
 	VK_ASSERT(set < VULKAN_NUM_DESCRIPTOR_SETS);
@@ -923,6 +939,13 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 		VK_ASSERT(bindings[set][binding].image.imageView != VK_NULL_HANDLE);
 	});
 
+	// Input attachments
+	for_each_bit(set_layout.input_attachment_mask, [&](uint32_t binding) {
+		h.u64(cookies[set][binding]);
+		h.u32(bindings[set][binding].image.imageLayout);
+		VK_ASSERT(bindings[set][binding].image.imageView != VK_NULL_HANDLE);
+	});
+
 	Hash hash = h.get();
 	auto allocated = current_layout->get_allocator(set)->find(hash);
 
@@ -993,6 +1016,18 @@ void CommandBuffer::flush_descriptor_set(uint32_t set)
 			write.pNext = nullptr;
 			write.descriptorCount = 1;
 			write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+			write.dstArrayElement = 0;
+			write.dstBinding = binding;
+			write.dstSet = allocated.first;
+			write.pImageInfo = &bindings[set][binding].image;
+		});
+
+		for_each_bit(set_layout.input_attachment_mask, [&](uint32_t binding) {
+			auto &write = writes[write_count++];
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.pNext = nullptr;
+			write.descriptorCount = 1;
+			write.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 			write.dstArrayElement = 0;
 			write.dstBinding = binding;
 			write.dstSet = allocated.first;
