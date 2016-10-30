@@ -89,5 +89,5 @@ void main()
 #error "Invalid defines."
 #endif
 
-    imageStore(uImage, ivec3(gl_GlobalInvocationID.xyz), color);
+    imageStore(uImage, ivec3(gl_GlobalInvocationID.xy, int(infos[gl_WorkGroupID.z].layer)), color);
 }
