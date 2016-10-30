@@ -11,7 +11,8 @@ layout(set = 0, binding = 1) uniform mediump sampler2D uScaled;
 
 layout(set = 1, binding = 0, std140) uniform Rects
 {
-    uvec2 offsets[2048];
+    // Have to pad due to silly std140-ness.
+    uvec4 offsets[1024];
 };
 
 layout(push_constant, std430) uniform PushMe
@@ -22,16 +23,15 @@ layout(push_constant, std430) uniform PushMe
 
 void main()
 {
-#define rect jobs[gl_WorkGroupID.z]
 #if defined(SCALED)
-    uvec2 coord = gl_GlobalInvocationID.xy + offsets[gl_WorkGroupID.z] * registers.scale;
+    uvec2 coord = gl_GlobalInvocationID.xy + offsets[gl_WorkGroupID.z].xy * registers.scale;
     vec2 uv = (vec2(coord) + 0.5) * registers.inv_source_size;
     uint value = textureLod(uUnscaled, uv, 0.0).x;
     uvec4 color = (uvec4(value) >> uvec4(0u, 5u, 10u, 15u)) & uvec4(31u, 31u, 31u, 1u);
     vec4 unorm = vec4(color) / vec4(31.0, 31.0, 31.0, 1.0);
     imageStore(uScaled, ivec2(coord), unorm);
 #elif defined(UNSCALED)
-    uvec2 coord = gl_GlobalInvocationID.xy + offsets[gl_WorkGroupID.z];
+    uvec2 coord = gl_GlobalInvocationID.xy + offsets[gl_WorkGroupID.z].xy;
     vec2 uv = (vec2(coord) + 0.5) * registers.inv_source_size;
     vec4 value = textureLod(uScaled, uv, 0.0);
     uvec4 rgba = uvec4(round(value * vec4(31.0, 31.0, 31.0, 1.0)));

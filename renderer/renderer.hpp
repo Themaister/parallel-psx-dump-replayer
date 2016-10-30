@@ -99,7 +99,7 @@ private:
 	Vulkan::CommandBufferHandle cmd;
 
 	void hazard(StatusFlags flags) override;
-	void resolve(Domain target_domain, const Rect &rect) override;
+	void resolve(Domain target_domain, unsigned x, unsigned y) override;
 	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
 	void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) override;
@@ -184,6 +184,9 @@ private:
 		std::vector<SemiTransparentState> semi_transparent_state;
 
 		std::vector<Vulkan::ImageHandle> textures;
+
+		std::vector<VkRect2D> scaled_resolves;
+		std::vector<VkRect2D> unscaled_resolves;
 	} queue;
 	unsigned primitive_index = 0;
 	bool render_pass_is_feedback = false;
@@ -202,5 +205,7 @@ private:
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
 	std::vector<BufferVertex> *select_pipeline();
+
+	void flush_resolves();
 };
 }

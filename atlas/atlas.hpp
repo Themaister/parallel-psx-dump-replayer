@@ -116,7 +116,7 @@ class HazardListener
 public:
 	virtual ~HazardListener() = default;
 	virtual void hazard(StatusFlags flags) = 0;
-	virtual void resolve(Domain target_domain, const Rect &rect) = 0;
+	virtual void resolve(Domain target_domain, unsigned x, unsigned y) = 0;
 	virtual void flush_render_pass(const Rect &rect) = 0;
 	virtual void discard_render_pass() = 0;
 	virtual void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) = 0;

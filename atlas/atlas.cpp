@@ -285,7 +285,7 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 			{
 				mask &= ~STATUS_OWNERSHIP_MASK;
 				mask |= resolve_domains;
-				listener->resolve(domain, { BLOCK_WIDTH * x, BLOCK_HEIGHT * y, BLOCK_WIDTH, BLOCK_HEIGHT });
+				listener->resolve(domain, BLOCK_WIDTH * x, BLOCK_HEIGHT * y);
 			}
 		}
 	}

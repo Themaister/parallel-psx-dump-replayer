@@ -213,6 +213,8 @@ void Renderer::hazard(StatusFlags flags)
 	dst_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
 	// If we have out-standing jobs in the compute pipe, issue them into cmdbuffer before injecting the barrier.
+	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_READ | STATUS_COMPUTE_SFB_WRITE))
+		flush_resolves();
 	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
 		flush_texture_allocator();
 
@@ -224,40 +226,64 @@ void Renderer::hazard(StatusFlags flags)
 	cmd->barrier(src_stages, src_access, dst_stages, dst_access);
 }
 
-void Renderer::resolve(Domain target_domain, const Rect &rect)
+void Renderer::flush_resolves()
 {
-	ensure_command_buffer();
-
 	struct Push
 	{
 		float inv_size[2];
 		uint32_t scale;
 	};
 
-	if (target_domain == Domain::Scaled)
+	if (!queue.scaled_resolves.empty())
 	{
+		ensure_command_buffer();
 		cmd->set_program(*pipelines.resolve_to_scaled);
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 
-		Push push = {{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
-		cmd->push_constants(&push, 0, sizeof(push));
-		void *ptr = cmd->allocate_constant_data(1, 0, 2 * sizeof(uint32_t));
-		memcpy(ptr, &rect, 2 * sizeof(uint32_t));
-		cmd->dispatch(scaling * (rect.width >> 3), scaling * (rect.height >> 3), 1);
+		unsigned size = queue.scaled_resolves.size();
+		for (unsigned i = 0; i < size; i += 1024)
+		{
+			unsigned to_run = min(size - i, 1024u);
+
+			Push push = { {1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling };
+			cmd->push_constants(&push, 0, sizeof(push));
+			void *ptr = cmd->allocate_constant_data(1, 0, to_run * sizeof(VkRect2D));
+			memcpy(ptr, queue.scaled_resolves.data() + i, to_run * sizeof(VkRect2D));
+			cmd->dispatch(scaling, scaling, to_run);
+		}
 	}
-	else
+
+	if (!queue.unscaled_resolves.empty())
 	{
+		ensure_command_buffer();
 		cmd->set_program(*pipelines.resolve_to_unscaled);
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
 
-		Push push = {{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
-		cmd->push_constants(&push, 0, sizeof(push));
-		void *ptr = cmd->allocate_constant_data(1, 0, 2 * sizeof(uint32_t));
-		memcpy(ptr, &rect, 2 * sizeof(uint32_t));
-		cmd->dispatch(rect.width >> 3, rect.height >> 3, 1);
+		unsigned size = queue.unscaled_resolves.size();
+		for (unsigned i = 0; i < size; i += 1024)
+		{
+			unsigned to_run = min(size - i, 1024u);
+
+			Push push = { {1.0f / FB_WIDTH, 1.0f / FB_HEIGHT }, 1u };
+			cmd->push_constants(&push, 0, sizeof(push));
+			void *ptr = cmd->allocate_constant_data(1, 0, to_run * sizeof(VkRect2D));
+			memcpy(ptr, queue.unscaled_resolves.data() + i, to_run * sizeof(VkRect2D));
+			cmd->dispatch(1, 1, to_run);
+		}
 	}
+
+	queue.scaled_resolves.clear();
+	queue.unscaled_resolves.clear();
+}
+
+void Renderer::resolve(Domain target_domain, unsigned x, unsigned y)
+{
+	if (target_domain == Domain::Scaled)
+		queue.scaled_resolves.push_back({{ int(x), int(y) }, { BLOCK_WIDTH, BLOCK_HEIGHT }});
+	else
+		queue.unscaled_resolves.push_back({{ int(x), int(y) }, { BLOCK_WIDTH, BLOCK_HEIGHT }});
 }
 
 void Renderer::ensure_command_buffer()

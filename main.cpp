@@ -94,7 +94,7 @@ int main()
 
 		renderer.set_semi_transparent(SemiTransparentMode::None);
 
-		renderer.copy_cpu_to_vram(black, { 32, 32, 16, 16 });
+		renderer.copy_cpu_to_vram(black, { 34, 34, 16, 16 });
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();
