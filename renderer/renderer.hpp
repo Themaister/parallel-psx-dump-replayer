@@ -156,5 +156,6 @@ private:
 	TextureAllocator allocator;
 
 	void build_attribs(BufferPosition *positions, BufferAttrib *attribs, const Vertex *vertices, unsigned count);
+	void select_pipeline(std::vector<BufferPosition> *&positions, std::vector<BufferAttrib> *&attribs);
 };
 }

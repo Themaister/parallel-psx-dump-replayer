@@ -262,14 +262,8 @@ void Renderer::build_attribs(BufferPosition *positions, BufferAttrib *attribs, c
 	}
 }
 
-void Renderer::draw_triangle(const Vertex *vertices)
+void Renderer::select_pipeline(std::vector<BufferPosition> *&positions, std::vector<BufferAttrib> *&attribs)
 {
-	BufferPosition pos[3];
-	BufferAttrib attr[3];
-	build_attribs(pos, attr, vertices, 3);
-
-	vector<BufferPosition> *positions;
-	vector<BufferAttrib> *attribs;
 	if (render_state.texture_mode != TextureMode::None)
 	{
 		if (last_surface.texture >= queue.opaque_textured_attrib.size())
@@ -286,13 +280,23 @@ void Renderer::draw_triangle(const Vertex *vertices)
 		positions = &queue.opaque_position;
 		attribs = &queue.opaque_attrib;
 	}
+}
 
-	positions->push_back(pos[0]);
-	positions->push_back(pos[1]);
-	positions->push_back(pos[2]);
-	attribs->push_back(attr[0]);
-	attribs->push_back(attr[1]);
-	attribs->push_back(attr[2]);
+void Renderer::draw_triangle(const Vertex *vertices)
+{
+	BufferPosition pos[3];
+	BufferAttrib attr[3];
+	build_attribs(pos, attr, vertices, 3);
+
+	vector<BufferPosition> *positions;
+	vector<BufferAttrib> *attribs;
+	select_pipeline(positions, attribs);
+
+	for (unsigned i = 0; i < 3; i++)
+	{
+		positions->push_back(pos[i]);
+		attribs->push_back(attr[i]);
+	}
 }
 
 void Renderer::draw_quad(const Vertex *vertices)
@@ -303,22 +307,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 	vector<BufferPosition> *positions;
 	vector<BufferAttrib> *attribs;
-	if (render_state.texture_mode != TextureMode::None)
-	{
-		if (last_surface.texture >= queue.opaque_textured_attrib.size())
-		{
-			queue.opaque_textured_position.resize(last_surface.texture + 1);
-			queue.opaque_textured_attrib.resize(last_surface.texture + 1);
-		}
-
-		positions = &queue.opaque_textured_position[last_surface.texture];
-		attribs = &queue.opaque_textured_attrib[last_surface.texture];
-	}
-	else
-	{
-		positions = &queue.opaque_position;
-		attribs = &queue.opaque_attrib;
-	}
+	select_pipeline(positions, attribs);
 
 	positions->push_back(pos[0]);
 	positions->push_back(pos[1]);
