@@ -21,7 +21,8 @@ void main()
         discard;
 
     vec4 color = texture(uTexture, vUV);
-    FragColor = vColor * color;
+    vec3 shaded = color.rgb * vColor.rgb * (255.0 / 128.0);
+    FragColor = vec4(shaded, color.a + vColor.a);
 #else
     FragColor = vColor;
 #endif

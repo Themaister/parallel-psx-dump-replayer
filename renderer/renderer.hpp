@@ -49,14 +49,24 @@ public:
 
 	inline void set_texture_mode(TextureMode mode)
 	{
-		texture_mode = mode;
+		render_state.texture_mode = mode;
 		atlas.set_texture_mode(mode);
 		allocator.set_texture_mode(mode);
 	}
 
 	inline void enable_semi_transparent(bool enable)
 	{
-		semi_transparent = enable;
+		render_state.semi_transparent = enable;
+	}
+
+	inline void set_force_mask_bit(bool enable)
+	{
+		render_state.force_mask_bit = enable;
+	}
+
+	inline void set_texture_color_modulate(bool enable)
+	{
+		render_state.texture_color_modulate = enable;
 	}
 
 	// Draw commands
@@ -81,9 +91,6 @@ private:
 	void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) override;
 	void clear_quad(const Rect &rect, FBColor color) override;
 
-	TextureMode texture_mode = TextureMode::None;
-	bool semi_transparent = false;
-
 	struct
 	{
 		Vulkan::ProgramHandle copy_to_vram;
@@ -106,6 +113,11 @@ private:
 		int draw_offset_y = 0;
 		unsigned palette_offset_x = 0;
 		unsigned palette_offset_y = 0;
+
+		TextureMode texture_mode = TextureMode::None;
+		bool semi_transparent = false;
+		bool force_mask_bit = false;
+		bool texture_color_modulate = false;
 	} render_state;
 
 	struct BufferPosition

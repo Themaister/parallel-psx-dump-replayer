@@ -255,20 +255,18 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	{
 		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
 		          vertices[i].w};
-		attr[i] = {0.0f, 0.0f, 0.0f, vertices[i].color};
+		attr[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
+
+		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
+			attr[i].color = 0x808080;
+
+		attr[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
 	}
 
 	vector<BufferPosition> *positions;
 	vector<BufferAttrib> *attribs;
-	if (texture_mode != TextureMode::None)
+	if (render_state.texture_mode != TextureMode::None)
 	{
-		for (unsigned i = 0; i < 3; i++)
-		{
-			attr[i].u = vertices[i].u * last_uv_scale_x;
-			attr[i].v = vertices[i].v * last_uv_scale_y;
-			attr[i].layer = float(last_surface.layer);
-		}
-
 		if (last_surface.texture >= queue.opaque_textured_attrib.size())
 		{
 			queue.opaque_textured_position.resize(last_surface.texture + 1);
@@ -301,20 +299,16 @@ void Renderer::draw_quad(const Vertex *vertices)
 	{
 		pos[i] = {vertices[i].x + render_state.draw_offset_x, vertices[i].y + render_state.draw_offset_y, z,
 		          vertices[i].w};
-		attr[i] = {0.0f, 0.0f, 0.0f, vertices[i].color};
+		attr[i] = {vertices[i].u * last_uv_scale_x, vertices[i].v * last_uv_scale_y, float(last_surface.layer), vertices[i].color & 0xffffffu};
+		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
+			attr[i].color = 0x808080;
+		attr[i].color |= render_state.force_mask_bit ? 0xff000000u : 0u;
 	}
 
 	vector<BufferPosition> *positions;
 	vector<BufferAttrib> *attribs;
-	if (texture_mode != TextureMode::None)
+	if (render_state.texture_mode != TextureMode::None)
 	{
-		for (unsigned i = 0; i < 4; i++)
-		{
-			attr[i].u = vertices[i].u * last_uv_scale_x;
-			attr[i].v = vertices[i].v * last_uv_scale_y;
-			attr[i].layer = float(last_surface.layer);
-		}
-
 		if (last_surface.texture >= queue.opaque_textured_attrib.size())
 		{
 			queue.opaque_textured_position.resize(last_surface.texture + 1);
