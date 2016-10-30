@@ -73,10 +73,10 @@ void Renderer::init_pipelines()
 #include "opaque.textured.frag.inc"
 	;
 	static const uint32_t opaque_semitrans_frag[] =
-#include "opaque.textured.semitrans.frag.inc"
+#include "semitrans.opaque.textured.frag.inc"
 	;
 	static const uint32_t semitrans_frag[] =
-#include "opaque.textured.trans.frag.inc"
+#include "semitrans.trans.textured.frag.inc"
 	;
 	static const uint32_t blit_vram_unscaled_comp[] =
 #include "blit_vram.unscaled.comp.inc"
