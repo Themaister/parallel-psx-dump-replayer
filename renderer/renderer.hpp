@@ -108,6 +108,7 @@ private:
 	struct
 	{
 		Vulkan::ProgramHandle copy_to_vram;
+		Vulkan::ProgramHandle copy_to_vram_masked;
 		Vulkan::ProgramHandle unscaled_quad_blitter;
 		Vulkan::ProgramHandle scaled_quad_blitter;
 		Vulkan::ProgramHandle resolve_to_scaled;

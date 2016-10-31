@@ -57,6 +57,9 @@ void Renderer::init_pipelines()
 	static const uint32_t copy_vram_comp[] =
 #include "copy_vram.comp.inc"
 	    ;
+	static const uint32_t copy_vram_masked_comp[] =
+#include "copy_vram.masked.comp.inc"
+	;
 	static const uint32_t resolve_to_scaled[] =
 #include "resolve.scaled.comp.inc"
 	    ;
@@ -126,6 +129,7 @@ void Renderer::init_pipelines()
 	pipelines.unscaled_quad_blitter =
 	    device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
+	pipelines.copy_to_vram_masked = device.create_program(copy_vram_masked_comp, sizeof(copy_vram_masked_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
@@ -839,7 +843,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	auto view = device.create_buffer_view(view_info);
 
 	ensure_command_buffer();
-	cmd->set_program(*pipelines.copy_to_vram);
+	cmd->set_program(render_state.mask_test ? *pipelines.copy_to_vram_masked : *pipelines.copy_to_vram);
 	cmd->set_storage_texture(0, 0, framebuffer->get_view());
 	cmd->set_buffer_view(0, 1, *view);
 

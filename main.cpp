@@ -45,7 +45,7 @@ int main()
 
 	uint16_t black[16 * 16];
 	for (auto &l : black)
-		l = 0x5555 | 0x8000;
+		l = 0x31 | 0x8000;
 
 	uint16_t palentry[4] = { 0x8000, 0x5555, 0x8000, 0x5555 };
 	uint16_t paltexture[4 * 8] = {
@@ -85,11 +85,11 @@ int main()
 		renderer.set_texture_offset(800, 0);
 		renderer.set_texture_window({ 0, 0, 8, 8 });
 		renderer.draw_quad(verts4);
-		renderer.set_mask_test(false);
 
 		renderer.set_semi_transparent(SemiTransparentMode::None);
 
-		renderer.copy_cpu_to_vram(black, { 34, 34, 16, 16 });
+		renderer.copy_cpu_to_vram(black, { 42, 42, 16, 16 });
+		renderer.set_mask_test(false);
 
 		renderer.scanout({ 0, 0, 128, 72 });
 		wsi.end_frame();
