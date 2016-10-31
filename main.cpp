@@ -45,7 +45,7 @@ int main()
 
 	uint16_t black[16 * 16];
 	for (auto &l : black)
-		l = 0x31 | 0x8000;
+		l = 31;
 
 	uint16_t palentry[4] = { 0x8000, 0x5555, 0x8000, 0x5555 };
 	uint16_t paltexture[4 * 8] = {
@@ -70,6 +70,7 @@ int main()
 		renderer.set_texture_mode(TextureMode::ABGR1555);
 		renderer.draw_triangle(verts3);
 
+		renderer.set_force_mask_bit(false);
 		renderer.copy_cpu_to_vram(palentry, { 512, 0, 4, 1 });
 		renderer.copy_cpu_to_vram(paltexture, { 512, 16, 4, 8 });
 		renderer.copy_cpu_to_vram(black, { 800, 0, 8, 8 });
@@ -80,15 +81,10 @@ int main()
 		renderer.draw_quad(verts4);
 
 		renderer.set_semi_transparent(SemiTransparentMode::None);
+
 		renderer.set_mask_test(true);
-		renderer.set_texture_mode(TextureMode::ABGR1555);
-		renderer.set_texture_offset(800, 0);
-		renderer.set_texture_window({ 0, 0, 8, 8 });
-		renderer.draw_quad(verts4);
-
-		renderer.set_semi_transparent(SemiTransparentMode::None);
-
-		renderer.copy_cpu_to_vram(black, { 42, 42, 16, 16 });
+		renderer.blit_vram({ 42, 42, 16, 16 }, {24, 24, 16, 16});
+		//renderer.copy_cpu_to_vram(black, { 42, 42, 16, 16 });
 		renderer.set_mask_test(false);
 
 		renderer.scanout({ 0, 0, 128, 72 });

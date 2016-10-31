@@ -96,6 +96,12 @@ void Renderer::init_pipelines()
 	static const uint32_t blit_vram_scaled_comp[] =
 #include "blit_vram.scaled.comp.inc"
 	    ;
+	static const uint32_t blit_vram_unscaled_masked_comp[] =
+#include "blit_vram.masked.unscaled.comp.inc"
+	    ;
+	static const uint32_t blit_vram_scaled_masked_comp[] =
+#include "blit_vram.masked.scaled.comp.inc"
+	    ;
 	static const uint32_t feedback_add_frag[] =
 #include "feedback.add.frag.inc"
 	    ;
@@ -133,6 +139,8 @@ void Renderer::init_pipelines()
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
+	pipelines.blit_vram_unscaled_masked = device.create_program(blit_vram_unscaled_masked_comp, sizeof(blit_vram_unscaled_masked_comp));
+	pipelines.blit_vram_scaled_masked = device.create_program(blit_vram_scaled_masked_comp, sizeof(blit_vram_scaled_masked_comp));
 	pipelines.opaque_flat =
 	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 	pipelines.opaque_textured = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
@@ -804,7 +812,7 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 
 	if (domain == Domain::Scaled)
 	{
-		cmd->set_program(*pipelines.blit_vram_scaled);
+		cmd->set_program(render_state.mask_test ? *pipelines.blit_vram_scaled_masked : *pipelines.blit_vram_scaled);
 		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
 		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
 		Push push = {
@@ -817,7 +825,7 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 	}
 	else
 	{
-		cmd->set_program(*pipelines.blit_vram_unscaled);
+		cmd->set_program(render_state.mask_test ? *pipelines.blit_vram_unscaled_masked : *pipelines.blit_vram_unscaled);
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 		Push push = {

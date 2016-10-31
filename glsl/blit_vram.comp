@@ -26,10 +26,22 @@ void main()
         uvec2 dst_coord = gl_GlobalInvocationID.xy + rect.dst_offset;
 #if defined(SCALED)
         vec4 value = texelFetch(uImage, ivec2(src_coord), 0);
+#ifdef MASKED
+        float fbalpha = texelFetch(uImage, ivec2(dst_coord), 0).a;
+        if (fbalpha < 0.5)
+            imageStore(uFramebuffer, ivec2(dst_coord), value);
+#else
         imageStore(uFramebuffer, ivec2(dst_coord), value);
+#endif
 #elif defined(UNSCALED)
         uint value = texelFetch(uImage, ivec2(src_coord), 0).x;
+#ifdef MASKED
+        uint fbvalue = texelFetch(uImage, ivec2(dst_coord), 0).x;
+        if ((fbvalue & 0x8000u) == 0u)
+            imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value));
+#else
         imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value));
+#endif
 #endif
     }
 }
