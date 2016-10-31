@@ -11,19 +11,25 @@ layout(set = 0, binding = 1) uniform usampler2D uImage;
 #error "Invalid defines."
 #endif
 
-layout(push_constant, std430) uniform Rect
+struct Rect
 {
-    uvec2 src_offset;
-    uvec2 dst_offset;
+    uvec4 offsets;
     uvec2 extent;
-} rect;
+    uvec2 padding;
+};
+
+layout(set = 1, binding = 0, std140) uniform Rects
+{
+    Rect rects[512];
+};
 
 void main()
 {
-    if (all(lessThan(gl_GlobalInvocationID.xy, rect.extent)))
+    if (all(lessThan(gl_GlobalInvocationID.xy, rects[gl_WorkGroupID.z].extent)))
     {
-        uvec2 src_coord = gl_GlobalInvocationID.xy + rect.src_offset;
-        uvec2 dst_coord = gl_GlobalInvocationID.xy + rect.dst_offset;
+        uvec4 offsets = rects[gl_WorkGroupID.z].offsets;
+        uvec2 src_coord = gl_GlobalInvocationID.xy + offsets.xy;
+        uvec2 dst_coord = gl_GlobalInvocationID.xy + offsets.zw;
 #if defined(SCALED)
         vec4 value = texelFetch(uImage, ivec2(src_coord), 0);
 #ifdef MASKED

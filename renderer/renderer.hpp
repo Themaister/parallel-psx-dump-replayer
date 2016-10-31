@@ -151,6 +151,14 @@ private:
 		uint32_t color;
 	};
 
+	struct BlitInfo
+	{
+		uint32_t src_offset[2];
+		uint32_t dst_offset[2];
+		uint32_t extent[2];
+		uint32_t padding[2];
+	};
+
 	struct SemiTransparentState
 	{
 		unsigned image_index;
@@ -188,6 +196,10 @@ private:
 
 		std::vector<VkRect2D> scaled_resolves;
 		std::vector<VkRect2D> unscaled_resolves;
+		std::vector<BlitInfo> scaled_blits;
+		std::vector<BlitInfo> scaled_masked_blits;
+		std::vector<BlitInfo> unscaled_blits;
+		std::vector<BlitInfo> unscaled_masked_blits;
 	} queue;
 	unsigned primitive_index = 0;
 	bool render_pass_is_feedback = false;
@@ -208,5 +220,7 @@ private:
 	std::vector<BufferVertex> *select_pipeline();
 
 	void flush_resolves();
+
+	void flush_blits();
 };
 }

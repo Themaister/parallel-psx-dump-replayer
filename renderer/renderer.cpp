@@ -250,7 +250,10 @@ void Renderer::hazard(StatusFlags flags)
 
 	// If we have out-standing jobs in the compute pipe, issue them into cmdbuffer before injecting the barrier.
 	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_FB_WRITE | STATUS_COMPUTE_SFB_READ | STATUS_COMPUTE_SFB_WRITE))
+	{
+		flush_blits();
 		flush_resolves();
+	}
 	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
 		flush_texture_allocator();
 
@@ -796,44 +799,82 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 		flush_texture_allocator();
 }
 
+void Renderer::flush_blits()
+{
+	const auto blit = [&](const std::vector<BlitInfo> &infos, Program &program, bool scaled) {
+		if (infos.empty())
+			return;
+
+		cmd->set_program(program);
+
+		if (scaled)
+		{
+			cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
+			cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
+		}
+		else
+		{
+			cmd->set_storage_texture(0, 0, framebuffer->get_view());
+			cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
+		}
+
+		unsigned size = infos.size();
+		unsigned scale = scaled ? scaling : 1u;
+		for (unsigned i = 0; i < size; i += 512)
+		{
+			unsigned to_blit = min(size - i, 512u);
+			void *ptr = cmd->allocate_constant_data(1, 0, to_blit * sizeof(BlitInfo));
+			memcpy(ptr, infos.data() + i, to_blit * sizeof(BlitInfo));
+			cmd->dispatch(scale, scale, to_blit);
+		}
+	};
+
+	blit(queue.scaled_blits, *pipelines.blit_vram_scaled, true);
+	blit(queue.scaled_masked_blits, *pipelines.blit_vram_scaled_masked, true);
+	blit(queue.unscaled_blits, *pipelines.blit_vram_unscaled, true);
+	blit(queue.unscaled_masked_blits, *pipelines.blit_vram_unscaled_masked, true);
+	queue.scaled_blits.clear();
+	queue.scaled_masked_blits.clear();
+	queue.unscaled_blits.clear();
+	queue.unscaled_masked_blits.clear();
+}
+
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
 {
 	VK_ASSERT(dst.width == src.width);
 	VK_ASSERT(dst.height == src.height);
 	auto domain = atlas.blit_vram(dst, src);
-	ensure_command_buffer();
-
-	struct Push
-	{
-		uint32_t src_offset[2];
-		uint32_t dst_offset[2];
-		uint32_t size[2];
-	};
 
 	if (domain == Domain::Scaled)
 	{
-		cmd->set_program(render_state.mask_test ? *pipelines.blit_vram_scaled_masked : *pipelines.blit_vram_scaled);
-		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
-		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
-		Push push = {
-			{ scaling * src.x, scaling * src.y },
-			{ scaling * dst.x, scaling * dst.y },
-			{ scaling * dst.width, scaling * dst.height },
-		};
-		cmd->push_constants(&push, 0, sizeof(push));
-		cmd->dispatch((scaling * dst.width + 7) >> 3, (scaling * dst.height + 7) >> 3, 1);
+		auto &q = render_state.mask_test ? queue.scaled_masked_blits : queue.scaled_blits;
+		unsigned width = dst.width;
+		unsigned height = dst.height;
+		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
+			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
+				q.push_back({
+					                                    { (x + src.x) * scaling, (y + src.y) * scaling },
+					                                    { (x + dst.x) * scaling, (y + dst.y) * scaling },
+					                                    { min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling },
+					                                    { 0, 0 },
+				                                    });
 	}
 	else
 	{
-		cmd->set_program(render_state.mask_test ? *pipelines.blit_vram_unscaled_masked : *pipelines.blit_vram_unscaled);
-		cmd->set_storage_texture(0, 0, framebuffer->get_view());
-		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
-		Push push = {
-			{ src.x, src.y }, { dst.x, dst.y }, { dst.width, dst.height },
-		};
-		cmd->push_constants(&push, 0, sizeof(push));
-		cmd->dispatch((dst.width + 7) >> 3, (dst.height + 7) >> 3, 1);
+		auto &q = render_state.mask_test ? queue.unscaled_masked_blits : queue.unscaled_blits;
+		unsigned width = dst.width;
+		unsigned height = dst.height;
+		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
+			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
+				q.push_back({
+					            { x + src.x, y + src.y },
+					            { x + dst.x, y + dst.y },
+					            { min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y) },
+					            { 0, 0 },
+				            });
 	}
+
+
 }
 
 void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
