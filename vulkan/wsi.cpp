@@ -10,7 +10,7 @@ namespace Vulkan
 bool WSI::alive()
 {
 	glfwPollEvents();
-	return glfwWindowShouldClose(window);
+	return !glfwWindowShouldClose(window);
 }
 
 static void fb_size_cb(GLFWwindow *window, int width, int height)
