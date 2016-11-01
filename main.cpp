@@ -162,7 +162,6 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 			renderer.set_texture_mode(TextureMode::Palette4bpp);
 			break;
 		}
-		renderer.set_texture_mode(TextureMode::ABGR1555);
 	}
 	else
 		renderer.set_texture_mode(TextureMode::None);
@@ -370,7 +369,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4);
 
-	FILE *file = fopen("/tmp/spyro.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 

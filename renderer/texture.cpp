@@ -50,11 +50,29 @@ void TextureAllocator::begin()
 
 	texture_count = 0;
 	max_layer_count = 0;
+	surface_map.clear();
 }
 
 TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y,
                                           unsigned pal_off_x, unsigned pal_off_y)
 {
+	Hasher h;
+	h.u32(static_cast<uint32_t>(domain));
+	if (domain != Domain::Scaled)
+		h.u32(static_cast<uint32_t>(texture_mode));
+	h.u32(rect.x);
+	h.u32(rect.y);
+	h.u32(rect.width);
+	h.u32(rect.height);
+	h.u32(off_x);
+	h.u32(off_y);
+	h.u32(pal_off_x);
+	h.u32(pal_off_y);
+	auto hash = h.get();
+	auto itr = surface_map.find(hash);
+	if (itr != ::end(surface_map))
+		return itr->second;
+
 	// Sizes are always POT, minimum 8, maximum 256 * max scaling (8).
 	unsigned xkey = trailing_zeroes(rect.width) - 3;
 	unsigned ykey = trailing_zeroes(rect.height) - 3;
@@ -75,10 +93,10 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 	const auto pack2x16 = [](uint32_t x, uint32_t y) { return x | (y << 16); };
 
 	const auto pack_mask = [](const Rect &rect) -> uint32_t {
-		uint32_t xmask = rect.width - 1;
-		uint32_t ymask = rect.height - 1;
-		uint32_t xshift = rect.x;
-		uint32_t yshift = rect.y;
+		uint8_t xmask = rect.width - 1;
+		uint8_t ymask = rect.height - 1;
+		uint8_t xshift = rect.x;
+		uint8_t yshift = rect.y;
 		return (xmask << 0) | (ymask << 8) | (xshift << 16) | (yshift << 24);
 	};
 
@@ -91,7 +109,9 @@ TextureSurface TextureAllocator::allocate(Domain domain, const Rect &rect, unsig
 	else
 		unscaled_blits[map].push_back({ pack2x16(off_x, off_y), 0, pack_mask(rect), layer });
 
-	return { unsigned(map), layer };
+	TextureSurface alloc = { unsigned(map), layer };
+	surface_map[hash] = alloc;
+	return alloc;
 }
 
 void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const ImageView &unscaled)
@@ -109,6 +129,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		info.height = heights[i];
 		info.layers = array_count[i];
 		images[i] = device.create_image(info);
+		LOG("Allocating %u pixels!\n", info.width * info.height * info.layers);
 		VK_ASSERT(images[i]);
 	}
 

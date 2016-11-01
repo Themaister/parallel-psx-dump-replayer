@@ -71,5 +71,7 @@ private:
 	Vulkan::ProgramHandle unscaled_blitter;
 	Vulkan::ProgramHandle pal4_blitter;
 	Vulkan::ProgramHandle pal8_blitter;
+
+	Vulkan::HashMap<TextureSurface> surface_map;
 };
 }
