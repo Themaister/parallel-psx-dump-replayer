@@ -109,6 +109,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		info.height = heights[i];
 		info.layers = array_count[i];
 		images[i] = device.create_image(info);
+		VK_ASSERT(images[i]);
 	}
 
 	const auto issue_blits = [this, cmd](const std::vector<BlitInfo> *infos) {

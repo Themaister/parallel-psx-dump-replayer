@@ -54,7 +54,17 @@ public:
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 	void blit_vram(const Rect &dst, const Rect &src);
 
-	void scanout(const Rect &rect);
+	void set_display_mode(const Rect &rect, bool)
+	{
+		render_state.display_mode = rect;
+	}
+
+	void toggle_display(bool enable)
+	{
+		render_state.display_on = enable;
+	}
+
+	void scanout();
 
 	inline void set_texture_mode(TextureMode mode)
 	{
@@ -132,6 +142,8 @@ private:
 
 	struct
 	{
+		Rect display_mode;
+		Rect draw_rect;
 		int draw_offset_x = 0;
 		int draw_offset_y = 0;
 		unsigned palette_offset_x = 0;
@@ -142,6 +154,7 @@ private:
 		bool force_mask_bit = false;
 		bool texture_color_modulate = false;
 		bool mask_test = false;
+		bool display_on = false;
 	} render_state;
 
 	struct BufferVertex
@@ -220,7 +233,7 @@ private:
 	std::vector<BufferVertex> *select_pipeline();
 
 	void flush_resolves();
-
 	void flush_blits();
+	void scanout(const Rect &rect);
 };
 }

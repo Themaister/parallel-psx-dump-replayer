@@ -67,7 +67,7 @@ struct CommandVertex
 {
 	float x, y, w;
 	uint32_t color;
-	uint32_t tx, ty;
+	uint8_t tx, ty;
 };
 
 struct RenderState
@@ -87,8 +87,8 @@ CommandVertex read_vertex(FILE *file)
 	buf.y = read_f32(file);
 	buf.w = read_f32(file);
 	buf.color = read_u32(file);
-	buf.tx = read_u32(file);
-	buf.ty = read_u32(file);
+	buf.tx = uint8_t(read_u32(file));
+	buf.ty = uint8_t(read_u32(file));
 	return buf;
 }
 
@@ -142,6 +142,52 @@ static void log_state(const RenderState &s)
             s.texture_blend_mode, s.depth_shift, s.dither ? "on" : "off", s.blend_mode);
 }
 
+static void set_renderer_state(Renderer &renderer, const RenderState &state)
+{
+	renderer.set_texture_color_modulate(state.texture_blend_mode == 2);
+	renderer.set_palette_offset(state.clut_x, state.clut_y);
+	renderer.set_texture_offset(state.texpage_x, state.texpage_y);
+	if (state.texture_blend_mode != 0)
+	{
+		switch (state.depth_shift)
+		{
+		default:
+		case 0:
+			renderer.set_texture_mode(TextureMode::ABGR1555);
+			break;
+		case 1:
+			renderer.set_texture_mode(TextureMode::Palette8bpp);
+			break;
+		case 2:
+			renderer.set_texture_mode(TextureMode::Palette4bpp);
+			break;
+		}
+		renderer.set_texture_mode(TextureMode::ABGR1555);
+	}
+	else
+		renderer.set_texture_mode(TextureMode::None);
+
+	switch (state.blend_mode)
+	{
+	default:
+		renderer.set_semi_transparent(SemiTransparentMode::None);
+		break;
+
+	case 0:
+		renderer.set_semi_transparent(SemiTransparentMode::Average);
+		break;
+	case 1:
+		renderer.set_semi_transparent(SemiTransparentMode::Add);
+		break;
+	case 2:
+		renderer.set_semi_transparent(SemiTransparentMode::Sub);
+		break;
+	case 3:
+		renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
+		break;
+	}
+}
+
 static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 {
 	auto op = read_u32(file);
@@ -158,133 +204,156 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 
 	case RSX_TEX_WINDOW:
 	{
-		fprintf(stderr, "TEX WINDOW\n");
 		auto tww = read_u32(file);
 		auto twh = read_u32(file);
 		auto twx = read_u32(file);
 		auto twy = read_u32(file);
-		fprintf(stderr, "  tww = %u, twh = %u, twx = %u, twy = %u\n", tww, twh, twx, twy);
+
+#if 0
+		auto tex_x_mask = ~(tww << 3);
+		auto tex_x_or = (twx & tww) << 3;
+		auto tex_y_mask = ~(twh << 3);
+		auto tex_y_or = (twy & twh) << 3;
+
+		auto width = 1 << (32 - leading_zeroes(tex_x_mask & 0xff));
+		auto height = 1 << (32 - leading_zeroes(tex_y_mask & 0xff));
+		VK_ASSERT(width <= 256);
+		VK_ASSERT(height <= 256);
+		renderer.set_texture_window({ tex_x_or, tex_y_or, width, height });
+#else
+		renderer.set_texture_window({ 0, 0, 256, 256 });
+#endif
+
 		break;
 	}
 
 	case RSX_MASK_SETTING:
 	{
-		fprintf(stderr, "MASK SETTING\n");
 		auto mask_set_or = read_u32(file);
 		auto mask_eval_and = read_u32(file);
-		fprintf(stderr, "  mask_set_or = %u, mask_eval_and = %u\n", mask_set_or, mask_eval_and);
 		break;
 	}
 
 	case RSX_DRAW_OFFSET:
 	{
-		fprintf(stderr, "DRAW OFFSET\n");
 		auto x = read_i32(file);
 		auto y = read_i32(file);
-		fprintf(stderr, "  x = %d, y = %d\n", x, y);
+
+		renderer.set_draw_offset(x, y);
 		break;
 	}
 
 	case RSX_DRAW_AREA:
 	{
-		fprintf(stderr, "DRAW AREA\n");
 		auto x0 = read_u32(file);
 		auto y0 = read_u32(file);
 		auto x1 = read_u32(file);
 		auto y1 = read_u32(file);
-		fprintf(stderr, "  x0 = %u, y0 = %u, x1 = %u, y1 = %u\n", x0, y0, x1, y1);
+
+		int width = x1 - x0 + 1;
+		int height = y1 - y0 + 1;
+		width = max(width, 0);
+		height = max(height, 0);
+		renderer.set_draw_rect({ x0, y0, unsigned(width), unsigned(height) });
 		break;
 	}
 
 	case RSX_DISPLAY_MODE:
 	{
-		fprintf(stderr, "DISPLAY MODE\n");
 		auto x = read_u32(file);
 		auto y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
 		auto depth_24bpp = read_u32(file);
-		fprintf(stderr, "  x = %u, y = %u, w = %u, h = %u, 24-bit %s\n", x, y, w, h, depth_24bpp ? "on" : "off");
+
+		renderer.set_display_mode({ x, y, w, h }, depth_24bpp != 0);
 		break;
 	}
 
 	case RSX_TRIANGLE:
 	{
-		fprintf(stderr, "TRIANGLE\n");
 		auto v0 = read_vertex(file);
 		auto v1 = read_vertex(file);
 		auto v2 = read_vertex(file);
 		auto state = read_state(file);
-		log_vertex(v0);
-		log_vertex(v1);
-		log_vertex(v2);
-		log_state(state);
+
+		Vertex vertices[3] = {
+			{ v0.x, v0.y, v0.w, v0.color, v0.tx, v0.ty },
+			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v2.ty },
+			{ v2.x, v2.y, v2.w, v2.color, v2.tx, v2.ty },
+		};
+
+		set_renderer_state(renderer, state);
+		renderer.draw_triangle(vertices);
 		break;
 	}
 
 	case RSX_QUAD:
 	{
-		fprintf(stderr, "QUAD\n");
 		auto v0 = read_vertex(file);
 		auto v1 = read_vertex(file);
 		auto v2 = read_vertex(file);
 		auto v3 = read_vertex(file);
 		auto state = read_state(file);
-		log_vertex(v0);
-		log_vertex(v1);
-		log_vertex(v2);
-		log_vertex(v3);
-		log_state(state);
+
+		Vertex vertices[4] = {
+			{ v0.x, v0.y, v0.w, v0.color, v0.tx, v0.ty },
+			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v2.ty },
+			{ v2.x, v2.y, v2.w, v2.color, v2.tx, v2.ty },
+			{ v3.x, v3.y, v3.w, v3.color, v3.tx, v3.ty },
+		};
+
+		set_renderer_state(renderer, state);
+		renderer.draw_quad(vertices);
 		break;
 	}
 
 	case RSX_LINE:
-		fprintf(stderr, "LINE\n");
 		read_line(file);
 		break;
 
 	case RSX_LOAD_IMAGE:
 	{
-		fprintf(stderr, "LOAD IMAGE\n");
 		auto x = read_u32(file);
 		auto y = read_u32(file);
 		auto width = read_u32(file);
 		auto height = read_u32(file);
-		fprintf(stderr, "  x = %u, y = %u, w = %u, h = %u\n", x, y, width, height);
-		fseek(file, width * height * sizeof(uint16_t), SEEK_CUR);
+		vector<uint16_t> tmp(width * height);
+		fread(tmp.data(), sizeof(uint16_t), width * height, file);
+
+		VK_ASSERT(width * height <= 0x10000);
+
+		renderer.copy_cpu_to_vram(tmp.data(), { x, y, width, height });
 		break;
 	}
 
 	case RSX_FILL_RECT:
 	{
-		fprintf(stderr, "FILL RECT\n");
 		auto color = read_u32(file);
 		auto x = read_u32(file);
 		auto y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
-		fprintf(stderr, "  color = 0x%x, x = %u, y = %u, w = %u, h = %u\n", color, x, y, w, h);
+		renderer.clear_rect({ x, y, w, h }, color);
 		break;
 	}
 
 	case RSX_COPY_RECT:
 	{
-		fprintf(stderr, "COPY RECT\n");
 		auto src_x = read_u32(file);
 		auto src_y = read_u32(file);
 		auto dst_x = read_u32(file);
 		auto dst_y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
-		fprintf(stderr, "  srcx = %u, srcy = %u, dstx = %u, dsty = %u, w = %u, h = %u\n", src_x, src_y, dst_x, dst_y, w, h);
+		renderer.blit_vram({ dst_x, dst_y, w, h }, { src_x, src_y, w, h });
 		break;
 	}
 
 	case RSX_TOGGLE_DISPLAY:
 	{
-		fprintf(stderr, "TOGGLE DISPLAY\n");
 		auto toggle = read_u32(file);
-		fprintf(stderr, "  Toggle %s\n", toggle ? "on" : "off");
+		renderer.toggle_display(toggle == 0);
 		break;
 	}
 
@@ -312,6 +381,7 @@ int main()
 	{
 		wsi.begin_frame();
 		while (read_command(file, renderer, eof));
+		renderer.scanout();
 		wsi.end_frame();
 	}
 }

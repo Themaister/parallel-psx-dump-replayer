@@ -163,6 +163,7 @@ void Renderer::init_pipelines()
 void Renderer::set_draw_rect(const Rect &rect)
 {
 	atlas.set_draw_rect(rect);
+	render_state.draw_rect = rect;
 }
 
 void Renderer::clear_rect(const Rect &rect, FBColor color)
@@ -175,8 +176,27 @@ void Renderer::set_texture_window(const Rect &rect)
 	atlas.set_texture_window(rect);
 }
 
+void Renderer::scanout()
+{
+	scanout(render_state.display_mode);
+}
+
 void Renderer::scanout(const Rect &rect)
 {
+	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
+	{
+		// Black screen, just flush out everything.
+		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+
+		ensure_command_buffer();
+		auto info = device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly);
+		cmd->begin_render_pass(info);
+		cmd->end_render_pass();
+		device.submit(cmd);
+		cmd.reset();
+		return;
+	}
+
 	atlas.read_fragment(Domain::Scaled, rect);
 
 	ensure_command_buffer();
@@ -256,8 +276,6 @@ void Renderer::hazard(StatusFlags flags)
 	}
 	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
 		flush_texture_allocator();
-
-	LOG("Hazard!\n");
 
 	VK_ASSERT(src_stages);
 	VK_ASSERT(dst_stages);
@@ -391,6 +409,9 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 
 void Renderer::draw_triangle(const Vertex *vertices)
 {
+	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
+		return;
+
 	BufferVertex vert[3];
 	build_attribs(vert, vertices, 3);
 	auto *out = select_pipeline();
@@ -419,6 +440,9 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 void Renderer::draw_quad(const Vertex *vertices)
 {
+	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
+		return;
+
 	BufferVertex vert[4];
 	build_attribs(vert, vertices, 4);
 	auto *out = select_pipeline();
@@ -916,6 +940,7 @@ Renderer::~Renderer()
 
 void Renderer::flush_texture_allocator()
 {
+	ensure_command_buffer();
 	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
 	unsigned num_textures = allocator.get_num_textures();
 	for (unsigned i = 0; i < num_textures; i++)
