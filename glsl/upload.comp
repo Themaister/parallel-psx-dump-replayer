@@ -45,11 +45,15 @@ vec4 abgr1555(uint value)
 uvec2 apply_window(uvec2 coord)
 {
     uvec4 masks = unpack4x8(infos[gl_WorkGroupID.z].window);
+#if 0
 #if defined(SCALED)
     masks.xy = (masks.xy << registers.scale) | ((1u << registers.scale) - 1u);
     masks.zw <<= registers.scale;
 #endif
-    return (coord.xy & masks.xy) | masks.zw;
+    return (coord.xy & masks.xy) + masks.zw;
+#endif
+    // Temporary hack while I figure out how to best solve texturing ...
+    return coord.xy + masks.zw;
 }
 
 void main()

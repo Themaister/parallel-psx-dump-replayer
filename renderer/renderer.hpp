@@ -143,6 +143,7 @@ private:
 	struct
 	{
 		Rect display_mode;
+      Rect texture_window;
 		Rect draw_rect;
 		int draw_offset_x = 0;
 		int draw_offset_y = 0;

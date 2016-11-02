@@ -185,7 +185,8 @@ bool WSI::init_swapchain(unsigned width, unsigned height)
 	else
 		swapchain_size = surface_properties.currentExtent;
 
-	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+	//VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
 	uint32_t desired_swapchain_images = surface_properties.minImageCount + 1;
 	if ((surface_properties.maxImageCount > 0) && (desired_swapchain_images > surface_properties.maxImageCount))

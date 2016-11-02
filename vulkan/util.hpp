@@ -34,4 +34,15 @@ inline void for_each_bit_range(uint32_t value, const T &func)
 		value &= ~((1u << (bit + range)) - 1);
 	}
 }
+
+inline uint32_t next_pow2(uint32_t v)
+{
+   v--;
+   v |= v >> 16;
+   v |= v >> 8;
+   v |= v >> 4;
+   v |= v >> 2;
+   v |= v >> 1;
+   return v + 1;
+}
 }

@@ -587,7 +587,7 @@ ChainDataAllocation Device::allocate_staging_data(VkDeviceSize size)
 
 uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)
 {
-	uint32_t desired, fallback;
+	uint32_t desired = 0, fallback = 0;
 	switch (domain)
 	{
 	case BufferDomain::Device:
@@ -631,7 +631,7 @@ uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)
 
 uint32_t Device::find_memory_type(ImageDomain domain, uint32_t mask)
 {
-	uint32_t desired, fallback;
+	uint32_t desired = 0, fallback = 0;
 	switch (domain)
 	{
 	case ImageDomain::Physical:

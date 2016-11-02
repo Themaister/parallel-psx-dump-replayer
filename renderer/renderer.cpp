@@ -174,6 +174,7 @@ void Renderer::clear_rect(const Rect &rect, FBColor color)
 void Renderer::set_texture_window(const Rect &rect)
 {
 	atlas.set_texture_window(rect);
+   render_state.texture_window = rect;
 }
 
 void Renderer::scanout()
@@ -364,6 +365,35 @@ float Renderer::allocate_depth()
 
 void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsigned count)
 {
+   unsigned min_u = 256;
+   unsigned max_u = 0;
+   unsigned min_v = 256;
+   unsigned max_v = 0;
+
+   // Temporary hack while I figure out how to best solve texturing ...
+	if (render_state.texture_mode != TextureMode::None)
+	{
+		for (unsigned i = 0; i < count; i++)
+		{
+			min_u = min<unsigned>(min_u, vertices[i].u);
+			max_u = max<unsigned>(max_u, vertices[i].u);
+			min_v = min<unsigned>(min_v, vertices[i].v);
+			max_v = max<unsigned>(max_v, vertices[i].v);
+		}
+
+      unsigned width = max_u - min_u + 1;
+      unsigned height = max_v - min_v + 1;
+      width = std::max(width, 8u);
+      height = std::max(height, 8u);
+
+      unsigned width_pow2 = next_pow2(width);
+      unsigned height_pow2 = next_pow2(height);
+
+      VK_ASSERT(min_u + width_pow2 <= FB_WIDTH);
+      VK_ASSERT(min_v + height_pow2 <= FB_HEIGHT);
+      atlas.set_texture_window({ min_u, min_v, width_pow2, height_pow2 });
+	}
+
 	float z = allocate_depth();
 	for (unsigned i = 0; i < count; i++)
 	{
@@ -371,8 +401,8 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			          vertices[i].y + render_state.draw_offset_y,
 			          z,
 			          vertices[i].w,
-			          vertices[i].u * last_uv_scale_x,
-			          vertices[i].v * last_uv_scale_y,
+			          (vertices[i].u - min_u) * last_uv_scale_x,
+			          (vertices[i].v - min_v) * last_uv_scale_y,
 			          float(last_surface.layer),
 			          vertices[i].color & 0xffffffu };
 

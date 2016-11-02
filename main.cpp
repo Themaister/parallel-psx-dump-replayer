@@ -363,7 +363,7 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 720);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4);
+	Renderer renderer(device, 2);
 
 	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
