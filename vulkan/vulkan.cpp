@@ -9,6 +9,8 @@
 
 using namespace std;
 
+#undef VULKAN_DEBUG
+
 namespace Vulkan
 {
 VulkanContext::VulkanContext(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,

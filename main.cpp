@@ -208,7 +208,6 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 		auto twx = read_u32(file);
 		auto twy = read_u32(file);
 
-#if 0
 		auto tex_x_mask = ~(tww << 3);
 		auto tex_x_or = (twx & tww) << 3;
 		auto tex_y_mask = ~(twh << 3);
@@ -219,9 +218,6 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 		VK_ASSERT(width <= 256);
 		VK_ASSERT(height <= 256);
 		renderer.set_texture_window({ tex_x_or, tex_y_or, width, height });
-#else
-		renderer.set_texture_window({ 0, 0, 256, 256 });
-#endif
 
 		break;
 	}
@@ -278,7 +274,7 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 
 		Vertex vertices[3] = {
 			{ v0.x, v0.y, v0.w, v0.color, v0.tx, v0.ty },
-			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v2.ty },
+			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v1.ty },
 			{ v2.x, v2.y, v2.w, v2.color, v2.tx, v2.ty },
 		};
 
@@ -297,7 +293,7 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 
 		Vertex vertices[4] = {
 			{ v0.x, v0.y, v0.w, v0.color, v0.tx, v0.ty },
-			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v2.ty },
+			{ v1.x, v1.y, v1.w, v1.color, v1.tx, v1.ty },
 			{ v2.x, v2.y, v2.w, v2.color, v2.tx, v2.ty },
 			{ v3.x, v3.y, v3.w, v3.color, v3.tx, v3.ty },
 		};

@@ -178,8 +178,8 @@ void Renderer::set_texture_window(const Rect &rect)
 
 void Renderer::scanout()
 {
-	//scanout(render_state.display_mode);
-	scanout({ 0, 0, FB_WIDTH, FB_HEIGHT });
+	scanout(render_state.display_mode);
+	//scanout({ 0, 0, FB_WIDTH, FB_HEIGHT });
 }
 
 void Renderer::scanout(const Rect &rect)
