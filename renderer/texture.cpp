@@ -129,7 +129,7 @@ void TextureAllocator::end(CommandBuffer *cmd, const ImageView &scaled, const Im
 		info.height = heights[i];
 		info.layers = array_count[i];
 		images[i] = device.create_image(info);
-		LOG("Allocating %u pixels!\n", info.width * info.height * info.layers);
+		//LOG("Allocating %u pixels!\n", info.width * info.height * info.layers);
 		VK_ASSERT(images[i]);
 	}
 

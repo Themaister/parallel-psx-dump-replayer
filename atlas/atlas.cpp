@@ -112,8 +112,8 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
 	unsigned write_domains = 0;
-	unsigned hazard_domains;
-	unsigned resolve_domains;
+	unsigned hazard_domains = 0;
+	unsigned resolve_domains = 0;
 	if (domain == Domain::Unscaled)
 	{
 		hazard_domains = STATUS_FB_WRITE | STATUS_FB_READ;
@@ -165,8 +165,8 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
 	unsigned write_domains = 0;
-	unsigned hazard_domains;
-	unsigned resolve_domains;
+	unsigned hazard_domains = 0;
+	unsigned resolve_domains = 0;
 	if (domain == Domain::Unscaled)
 	{
 		hazard_domains = STATUS_FB_WRITE;
