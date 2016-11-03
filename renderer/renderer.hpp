@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include "atlas.hpp"
 #include "device.hpp"
 #include "texture.hpp"
@@ -98,6 +99,19 @@ public:
 	void draw_triangle(const Vertex *vertices);
 	void draw_quad(const Vertex *vertices);
 
+	void reset_counters()
+	{
+		memset(&counters, 0, sizeof(counters));
+	}
+
+	struct
+	{
+		unsigned render_passes = 0;
+		unsigned draw_calls = 0;
+		unsigned texture_flushes = 0;
+		unsigned vertices = 0;
+	} counters;
+
 private:
 	Vulkan::Device &device;
 	unsigned scaling;
@@ -136,6 +150,7 @@ private:
 		Vulkan::ProgramHandle semi_transparent_masked_sub;
 		Vulkan::ProgramHandle semi_transparent_masked_add_quarter;
 	} pipelines;
+
 
 	void init_pipelines();
 	void ensure_command_buffer();

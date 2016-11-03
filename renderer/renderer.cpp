@@ -225,6 +225,8 @@ void Renderer::scanout(const Rect &rect)
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+	counters.draw_calls++;
+	counters.vertices += 4;
 	cmd->draw(4);
 	cmd->end_render_pass();
 
@@ -571,6 +573,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	flush_texture_allocator();
 
+	counters.render_passes++;
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
 
@@ -610,6 +613,8 @@ void Renderer::render_opaque_primitives()
 
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
+	counters.draw_calls++;
+	counters.vertices += queue.opaque.size();
 	cmd->draw(queue.opaque.size());
 }
 
@@ -760,6 +765,8 @@ void Renderer::render_semi_transparent_primitives()
 		    (last_state != queue.semi_transparent_state[i]))
 		{
 			unsigned to_draw = i - last_draw_offset;
+			counters.draw_calls++;
+			counters.vertices += to_draw * 3;
 			cmd->draw(to_draw * 3, 1, last_draw_offset * 3, 0);
 			last_draw_offset = i;
 
@@ -769,6 +776,8 @@ void Renderer::render_semi_transparent_primitives()
 	}
 
 	unsigned to_draw = prims - last_draw_offset;
+	counters.draw_calls++;
+	counters.vertices += to_draw * 3;
 	cmd->draw(to_draw * 3, 1, last_draw_offset * 3, 0);
 }
 
@@ -799,6 +808,8 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		counters.draw_calls++;
+		counters.vertices += vertices.size();
 		cmd->draw(vertices.size());
 	}
 }
@@ -830,6 +841,8 @@ void Renderer::render_opaque_texture_primitives()
 
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+		counters.draw_calls++;
+		counters.vertices += vertices.size();
 		cmd->draw(vertices.size());
 	}
 }
@@ -971,6 +984,7 @@ Renderer::~Renderer()
 
 void Renderer::flush_texture_allocator()
 {
+	counters.texture_flushes++;
 	ensure_command_buffer();
 	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
 	unsigned num_textures = allocator.get_num_textures();

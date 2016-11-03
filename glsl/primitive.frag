@@ -23,7 +23,7 @@ void main()
     // In this pass, only accept opaque pixels.
     if (all(equal(NNColor, vec4(0.0))) || NNColor.a > 0.5)
         discard;
-#elif defined(OPAQUE)
+#elif defined(OPAQUE) || defined(SEMI_TRANS)
     if (all(equal(NNColor, vec4(0.0))))
         discard;
 #elif !defined(SEMI_TRANS)

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <vector>
+#include <renderer.hpp>
 
 using namespace PSX;
 using namespace std;
@@ -162,28 +163,31 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 			renderer.set_texture_mode(TextureMode::Palette4bpp);
 			break;
 		}
+
+		switch (state.blend_mode)
+		{
+		default:
+			renderer.set_semi_transparent(SemiTransparentMode::None);
+			break;
+
+		case 0:
+			renderer.set_semi_transparent(SemiTransparentMode::Average);
+			break;
+		case 1:
+			renderer.set_semi_transparent(SemiTransparentMode::Add);
+			break;
+		case 2:
+			renderer.set_semi_transparent(SemiTransparentMode::Sub);
+			break;
+		case 3:
+			renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
+			break;
+		}
 	}
 	else
-		renderer.set_texture_mode(TextureMode::None);
-
-	switch (state.blend_mode)
 	{
-	default:
+		renderer.set_texture_mode(TextureMode::None);
 		renderer.set_semi_transparent(SemiTransparentMode::None);
-		break;
-
-	case 0:
-		renderer.set_semi_transparent(SemiTransparentMode::Average);
-		break;
-	case 1:
-		renderer.set_semi_transparent(SemiTransparentMode::Add);
-		break;
-	case 2:
-		renderer.set_semi_transparent(SemiTransparentMode::Sub);
-		break;
-	case 3:
-		renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
-		break;
 	}
 }
 
@@ -358,6 +362,13 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 	return true;
 }
 
+static double gettime()
+{
+	timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + 1e-9 * ts.tv_nsec;
+}
+
 int main()
 {
 	WSI wsi;
@@ -372,11 +383,25 @@ int main()
 	read_tag(file);
 
 	bool eof = false;
+	unsigned frames = 0;
+	double total_time = 0.0;
 	while (!eof && wsi.alive())
 	{
+		double start = gettime();
 		wsi.begin_frame();
+		renderer.reset_counters();
 		while (read_command(file, renderer, eof));
 		renderer.scanout();
 		wsi.end_frame();
+		double end = gettime();
+		total_time += end - start;
+		frames++;
+
+		LOG("Render passes: %u\n", renderer.counters.render_passes);
+		LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+		LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
+		LOG("Vertices: %u\n", renderer.counters.vertices);
 	}
+
+	LOG("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);
 }
