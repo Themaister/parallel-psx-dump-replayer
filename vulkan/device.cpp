@@ -641,7 +641,7 @@ uint32_t Device::find_memory_type(ImageDomain domain, uint32_t mask)
 
 	case ImageDomain::Transient:
 		desired = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
-		fallback = 0;
+		fallback = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		break;
 	}
 
