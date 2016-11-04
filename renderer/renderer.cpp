@@ -403,8 +403,8 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			          vertices[i].y + render_state.draw_offset_y,
 			          z,
 			          vertices[i].w,
-			          (vertices[i].u - min_u) * last_uv_scale_x,
-			          (vertices[i].v - min_v) * last_uv_scale_y,
+			          int(vertices[i].u - min_u) * last_uv_scale_x,
+			          int(vertices[i].v - min_v) * last_uv_scale_y,
 			          float(last_surface.layer),
 			          vertices[i].color & 0xffffffu };
 
@@ -445,6 +445,8 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
 		return;
 
+	counters.native_draw_calls++;
+
 	BufferVertex vert[3];
 	build_attribs(vert, vertices, 3);
 	auto *out = select_pipeline();
@@ -475,6 +477,8 @@ void Renderer::draw_quad(const Vertex *vertices)
 {
 	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
 		return;
+
+	counters.native_draw_calls++;
 
 	BufferVertex vert[4];
 	build_attribs(vert, vertices, 4);
@@ -869,6 +873,7 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 
 void Renderer::flush_blits()
 {
+	ensure_command_buffer();
 	const auto blit = [&](const std::vector<BlitInfo> &infos, Program &program, bool scaled) {
 		if (infos.empty())
 			return;

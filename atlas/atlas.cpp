@@ -1,5 +1,6 @@
 #include "atlas.hpp"
 #include <algorithm>
+#include <assert.h>
 
 using namespace std;
 
@@ -111,6 +112,11 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
+	assert(xbegin < NUM_BLOCKS_X);
+	assert(xend < NUM_BLOCKS_X);
+	assert(ybegin < NUM_BLOCKS_Y);
+	assert(yend < NUM_BLOCKS_Y);
+
 	unsigned write_domains = 0;
 	unsigned hazard_domains = 0;
 	unsigned resolve_domains = 0;
@@ -164,6 +170,11 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
+	assert(xbegin < NUM_BLOCKS_X);
+	assert(xend < NUM_BLOCKS_X);
+	assert(ybegin < NUM_BLOCKS_Y);
+	assert(yend < NUM_BLOCKS_Y);
+
 	unsigned write_domains = 0;
 	unsigned hazard_domains = 0;
 	unsigned resolve_domains = 0;
@@ -215,6 +226,11 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 	unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
+
+	assert(xbegin < NUM_BLOCKS_X);
+	assert(xend < NUM_BLOCKS_X);
+	assert(ybegin < NUM_BLOCKS_Y);
+	assert(yend < NUM_BLOCKS_Y);
 
 	// If we need to see a "clean" version
 	// of a framebuffer domain, we need to see

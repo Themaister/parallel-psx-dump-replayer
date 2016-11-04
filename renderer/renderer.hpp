@@ -110,6 +110,7 @@ public:
 		unsigned draw_calls = 0;
 		unsigned texture_flushes = 0;
 		unsigned vertices = 0;
+		unsigned native_draw_calls = 0;
 	} counters;
 
 private:

@@ -253,6 +253,9 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 		int height = y1 - y0 + 1;
 		width = max(width, 0);
 		height = max(height, 0);
+
+		width = min(width, int(FB_WIDTH - x0));
+		height = min(height, int(FB_HEIGHT - y0));
 		renderer.set_draw_rect({ x0, y0, unsigned(width), unsigned(height) });
 		break;
 	}
@@ -376,7 +379,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4);
 
-	FILE *file = fopen("/tmp/spyro.rsx", "rb");
+	FILE *file = fopen("/tmp/ff.rsx", "rb");
 	if (!file)
 		return 1;
 

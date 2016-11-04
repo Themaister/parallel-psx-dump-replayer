@@ -214,6 +214,7 @@ void CommandBuffer::begin_context()
 	memset(cookies, 0, sizeof(cookies));
 	memset(secondary_cookies, 0, sizeof(secondary_cookies));
 	memset(&index, 0, sizeof(index));
+	memset(vbo_buffers, 0, sizeof(vbo_buffers));
 }
 
 void CommandBuffer::begin_compute()
