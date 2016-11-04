@@ -185,8 +185,22 @@ bool WSI::init_swapchain(unsigned width, unsigned height)
 	else
 		swapchain_size = surface_properties.currentExtent;
 
-	//VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
-	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+	uint32_t num_present_modes;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &num_present_modes, nullptr);
+	vector<VkPresentModeKHR> present_modes(num_present_modes);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &num_present_modes, present_modes.data());
+
+	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+#if 0
+	for (uint32_t i = 0; i < num_present_modes; i++)
+	{
+		if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR || present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			swapchain_present_mode = present_modes[i];
+			break;
+		}
+	}
+#endif
 
 	uint32_t desired_swapchain_images = surface_properties.minImageCount + 1;
 	if ((surface_properties.maxImageCount > 0) && (desired_swapchain_images > surface_properties.maxImageCount))
