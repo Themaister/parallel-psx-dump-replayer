@@ -14,6 +14,7 @@
 #include "vulkan.hpp"
 #include <memory>
 #include <vector>
+#include "fence.hpp"
 
 namespace Vulkan
 {
@@ -36,7 +37,7 @@ public:
 	void flush_frame();
 	void wait_idle();
 	CommandBufferHandle request_command_buffer();
-	void submit(CommandBufferHandle cmd);
+	void submit(CommandBufferHandle cmd, Fence *fence = nullptr);
 
 	VkDevice get_device()
 	{
@@ -103,6 +104,8 @@ public:
 		return gpu_props;
 	}
 
+	void wait_for_fence(const Fence &fence);
+
 private:
 	VkInstance instance = VK_NULL_HANDLE;
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
@@ -141,13 +144,14 @@ private:
 		std::vector<VkImage> destroyed_images;
 		std::vector<VkBuffer> destroyed_buffers;
 		std::vector<CommandBufferHandle> submissions;
+		std::vector<std::shared_ptr<FenceHolder>> fences;
 		bool swapchain_touched = false;
 	};
 	VkSemaphore wsi_acquire = VK_NULL_HANDLE;
 	VkSemaphore wsi_release = VK_NULL_HANDLE;
 	CommandBufferHandle staging_cmd;
 	void begin_staging();
-	void submit_queue();
+	void submit_queue(Fence *fence);
 
 	PerFrame &frame()
 	{

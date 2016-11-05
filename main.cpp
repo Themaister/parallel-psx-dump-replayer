@@ -7,6 +7,7 @@
 #include <string.h>
 #include <vector>
 #include <renderer.hpp>
+#include "stb_image_write.h"
 
 using namespace PSX;
 using namespace std;
@@ -372,14 +373,33 @@ static double gettime()
 	return ts.tv_sec + 1e-9 * ts.tv_nsec;
 }
 
+static void dump_to_file(Device &device, Renderer &renderer, unsigned index)
+{
+	unsigned width, height;
+	auto buffer = renderer.scanout_to_buffer(width, height);
+	if (!buffer)
+		return;
+
+	char path[1024];
+	snprintf(path, sizeof(path), "/tmp/test-%06u.bmp", index);
+
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
+	for (unsigned i = 0; i < width * height; i++)
+		data[i] |= 0xff000000u;
+
+	if (!stbi_write_bmp(path, width, height, 4, data))
+		LOG("Failed to write image.");
+	device.unmap_host_buffer(*buffer);
+}
+
 int main()
 {
 	WSI wsi;
 	wsi.init(1280, 720);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4);
+	Renderer renderer(device, 1);
 
-	FILE *file = fopen("/tmp/ff.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -395,6 +415,8 @@ int main()
 		renderer.reset_counters();
 		while (read_command(file, renderer, eof));
 		renderer.scanout();
+
+		dump_to_file(device, renderer, frames);
 		wsi.end_frame();
 		double end = gettime();
 		total_time += end - start;

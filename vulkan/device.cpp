@@ -233,7 +233,7 @@ void Device::init_stock_samplers()
 	}
 }
 
-void Device::submit(CommandBufferHandle cmd)
+void Device::submit(CommandBufferHandle cmd, Fence *fence)
 {
 	if (staging_cmd)
 	{
@@ -246,9 +246,12 @@ void Device::submit(CommandBufferHandle cmd)
 	frame().cmd_pool.signal_submitted(cmd->get_command_buffer());
 	vkEndCommandBuffer(cmd->get_command_buffer());
 	frame().submissions.push_back(move(cmd));
+
+	if (fence)
+		submit_queue(fence);
 }
 
-void Device::submit_queue()
+void Device::submit_queue(Fence *fence)
 {
 	frame().ubo_chain.flush();
 	frame().vbo_chain.flush();
@@ -307,11 +310,19 @@ void Device::submit_queue()
 		}
 		last_cmd = cmds.size();
 	}
+	VkFence cleared_fence = frame().fence_manager.request_cleared_fence();
 	VkResult result =
-	    vkQueueSubmit(queue, submits.size(), submits.data(), frame().fence_manager.request_cleared_fence());
+	    vkQueueSubmit(queue, submits.size(), submits.data(), cleared_fence);
 	if (result != VK_SUCCESS)
 		LOG("vkQueueSubmit failed.\n");
 	frame().submissions.clear();
+
+	if (fence)
+	{
+		auto ptr = make_shared<FenceHolder>(this, cleared_fence);
+		*fence = ptr;
+		frame().fences.push_back(move(ptr));
+	}
 }
 
 void Device::flush_frame()
@@ -324,7 +335,7 @@ void Device::flush_frame()
 		staging_cmd.reset();
 	}
 
-	submit_queue();
+	submit_queue(nullptr);
 }
 
 void Device::begin_staging()
@@ -546,6 +557,7 @@ void Device::PerFrame::begin()
 	destroyed_images.clear();
 	destroyed_buffers.clear();
 	allocations.clear();
+	fences.clear();
 
 	swapchain_touched = false;
 }
@@ -1124,5 +1136,12 @@ RenderPassInfo Device::get_swapchain_render_pass(SwapchainRenderPass style)
 		break;
 	}
 	return info;
+}
+
+void Device::wait_for_fence(const Fence &fence)
+{
+	auto locked_fence = fence.lock();
+	if (locked_fence)
+		vkWaitForFences(device, 1, &locked_fence->get_fence(), true, UINT64_MAX);
 }
 }

@@ -183,6 +183,33 @@ void Renderer::scanout()
 	//scanout({ 0, 0, FB_WIDTH, FB_HEIGHT });
 }
 
+BufferHandle Renderer::scanout_to_buffer(unsigned &width, unsigned &height)
+{
+	auto &rect = render_state.display_mode;
+	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
+		return nullptr;
+
+	atlas.read_compute(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+	ensure_command_buffer();
+
+	cmd->full_barrier();
+	auto buffer = device.create_buffer({ BufferDomain::CachedHost, scaling * scaling *  rect.width * rect.height * 4, 0 }, nullptr);
+	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, { int(scaling * rect.x), int(scaling * rect.y), 0 },
+	                          { scaling * rect.width, scaling * rect.height, 1 }, 0, 0, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
+
+	// Create a write-after-read dependency chain.
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+	             VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_HOST_READ_BIT);
+
+	Fence fence;
+	device.submit(cmd, &fence);
+	cmd.reset();
+	device.wait_for_fence(fence);
+	width = scaling * rect.width;
+	height = scaling * rect.height;
+	return buffer;
+}
+
 void Renderer::scanout(const Rect &rect)
 {
 	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)

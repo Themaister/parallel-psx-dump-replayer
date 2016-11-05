@@ -66,6 +66,7 @@ public:
 	}
 
 	void scanout();
+	Vulkan::BufferHandle scanout_to_buffer(unsigned &width, unsigned &height);
 
 	inline void set_texture_mode(TextureMode mode)
 	{
