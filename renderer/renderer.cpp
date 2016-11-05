@@ -186,9 +186,7 @@ void Renderer::scanout(const Rect &rect)
 	if (render_state.bpp24)
 	{
 		auto tmp = rect;
-		tmp.width = ((tmp.x + tmp.width) * 3 + 1) / 2;
-		tmp.x = (tmp.x * 3) / 2;
-		tmp.width -= tmp.x;
+		tmp.width = (tmp.width * 3 + 1) / 2;
 		tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
 		atlas.read_fragment(Domain::Unscaled, tmp);
 	}
@@ -280,6 +278,13 @@ void Renderer::hazard(StatusFlags flags)
 		dst_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		dst_access |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
 		              VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	}
+
+	// 24-bpp scanout hazard
+	if (flags & STATUS_COMPUTE_FB_WRITE)
+	{
+		dst_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dst_access |= VK_ACCESS_SHADER_READ_BIT;
 	}
 
 	dst_stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;

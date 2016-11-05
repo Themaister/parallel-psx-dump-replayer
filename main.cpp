@@ -421,7 +421,7 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 720);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4);
+	Renderer renderer(device, 8);
 
 	FILE *file = fopen("/tmp/ff.rsx", "rb");
 	if (!file)
