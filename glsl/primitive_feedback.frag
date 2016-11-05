@@ -1,22 +1,31 @@
 #version 310 es
 precision mediump float;
 
-layout(location = 0) in mediump vec4 vColor;
-layout(location = 1) in mediump vec3 vUV;
-layout(set = 0, binding = 0, input_attachment_index = 0) uniform mediump subpassInput uFramebuffer;
-layout(set = 0, binding = 1) uniform mediump sampler2DArray uTextureNN;
-layout(location = 0) out vec4 FragColor;
+#include "common.h"
+#include "primitive.h"
+
+layout(set = 1, binding = 0, input_attachment_index = 0) uniform mediump subpassInput uFeedbackFramebuffer;
 
 void main()
 {
+#ifdef VRAM_ATLAS
+    vec4 NNColor = sample_vram_atlas(ivec2(vUV));
+#else
     vec4 NNColor = texture(uTextureNN, vUV);
+#endif
     if (all(equal(NNColor, vec4(0.0))))
         discard;
 
+#ifdef VRAM_ATLAS
+    vec4 color = sample_vram_bilinear(NNColor);
+    //vec4 color = NNColor;
+#else
     vec4 color = NNColor;
+#endif
+
     vec3 shaded = color.rgb * vColor.rgb * (255.0 / 128.0);
 
-    vec4 fbcolor = subpassLoad(uFramebuffer);
+    vec4 fbcolor = subpassLoad(uFeedbackFramebuffer);
     if (fbcolor.a > 0.5)
         discard;
 

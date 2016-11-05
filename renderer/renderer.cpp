@@ -720,7 +720,7 @@ void Renderer::render_semi_transparent_primitives()
 			{
 				cmd->set_program(*pipelines.semi_transparent_masked_add);
 				cmd->pixel_barrier();
-				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
+				cmd->set_input_attachment(1, 0, scaled_framebuffer->get_view());
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
