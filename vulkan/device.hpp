@@ -50,7 +50,7 @@ public:
 	ProgramHandle create_program(const uint32_t *compute_data, size_t compute_size);
 	void bake_program(Program &program);
 
-	void *map_host_buffer(Buffer &buffer, MaliSDK::MemoryAccessFlags access);
+	void *map_host_buffer(Buffer &buffer, MemoryAccessFlags access);
 	void unmap_host_buffer(const Buffer &buffer);
 
 	BufferHandle create_buffer(const BufferCreateInfo &info, const void *initial);
@@ -67,7 +67,7 @@ public:
 	void destroy_pipeline(VkPipeline pipeline);
 	void destroy_sampler(VkSampler sampler);
 	void destroy_framebuffer(VkFramebuffer framebuffer);
-	void free_memory(const MaliSDK::DeviceAllocation &alloc);
+	void free_memory(const DeviceAllocation &alloc);
 
 	VkSemaphore set_acquire(VkSemaphore acquire);
 	VkSemaphore set_release(VkSemaphore release);
@@ -111,7 +111,7 @@ private:
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
 	VkDevice device = VK_NULL_HANDLE;
 	VkQueue queue = VK_NULL_HANDLE;
-	MaliSDK::DeviceAllocator allocator;
+	DeviceAllocator allocator;
 	uint64_t cookie = 0;
 
 	VkPhysicalDeviceMemoryProperties mem_props;
@@ -120,7 +120,7 @@ private:
 
 	struct PerFrame
 	{
-		PerFrame(Device *device, uint32_t queue_family_index);
+		PerFrame(Device *device, GlobalAllocator &global, uint32_t queue_family_index);
 		~PerFrame();
 		void operator=(const PerFrame &) = delete;
 		PerFrame(const PerFrame &) = delete;
@@ -129,13 +129,14 @@ private:
 		void begin();
 
 		VkDevice device;
+		GlobalAllocator &global_allocator;
 		CommandPool cmd_pool;
 		ImageHandle backbuffer;
 		FenceManager fence_manager;
 
 		ChainAllocator vbo_chain, ibo_chain, ubo_chain, staging_chain;
 
-		std::vector<MaliSDK::DeviceAllocation> allocations;
+		std::vector<DeviceAllocation> allocations;
 		std::vector<VkFramebuffer> destroyed_framebuffers;
 		std::vector<VkSampler> destroyed_samplers;
 		std::vector<VkPipeline> destroyed_pipelines;

@@ -1,13 +1,3 @@
-/*
- * This confidential and proprietary software may be used only as
- * authorised by a licensing agreement from ARM Limited
- * (C) COPYRIGHT 2016 ARM Limited
- *     ALL RIGHTS RESERVED
- * The entire notice above must be reproduced on all authorised
- * copies and copies may only be made to the extent permitted
- * by a licensing agreement from ARM Limited.
- */
-
 #include "memory_allocator.hpp"
 #include <algorithm>
 #include <stdio.h>
@@ -15,37 +5,15 @@
 
 using namespace std;
 
-namespace MaliSDK
+namespace Vulkan
 {
 
-#ifdef VULKAN_TEST
-#define MEMORY_ASSERT(x) \
-	do                   \
-	{                    \
-		if (!(x))        \
-			throw #x;    \
-	} while (0)
-#else
 #define MEMORY_ASSERT(x) ((void)0)
-#endif
-
-#ifdef VULKAN_TEST
-static uint32_t globalCookie = 0;
-#endif
 
 void DeviceAllocation::freeImmediate()
 {
 	if (!pAlloc)
 		return;
-
-#ifdef VULKAN_TEST
-	if (cookie && pHostBase)
-	{
-		auto *pPtr = reinterpret_cast<uint32_t *>(pHostBase);
-		for (unsigned i = 0; i < (size >> 2); i++)
-			MEMORY_ASSERT(pPtr[i] == cookie);
-	}
-#endif
 
 	pAlloc->free(this);
 	pAlloc = nullptr;
@@ -54,38 +22,27 @@ void DeviceAllocation::freeImmediate()
 	offset = 0;
 }
 
+void DeviceAllocation::freeImmediate(GlobalAllocator &allocator)
+{
+	if (pAlloc)
+		freeImmediate();
+	else if (base)
+	{
+		allocator.freeNoRecycle(size, memoryType, base, pHostBase);
+		base = {};
+	}
+}
+
 void DeviceAllocation::freeGlobal(GlobalAllocator &allocator, uint32_t size, uint32_t memoryType)
 {
 	if (base)
 	{
-#ifdef VULKAN_TEST
-		if (cookie && pHostBase)
-		{
-			auto *pPtr = reinterpret_cast<uint32_t *>(pHostBase);
-			for (unsigned i = 0; i < (size >> 2); i++)
-				MEMORY_ASSERT(pPtr[i] == cookie);
-		}
-#endif
-
 		allocator.free(size, memoryType, base, pHostBase);
 		base = {};
 		mask = 0;
 		offset = 0;
 	}
 }
-
-#ifdef VULKAN_TEST
-void DeviceAllocation::initCookie()
-{
-	if (pHostBase)
-	{
-		uint32_t *ptr = reinterpret_cast<uint32_t *>(pHostBase);
-		cookie = ++globalCookie;
-		for (unsigned i = 0; i < (size >> 2); i++)
-			ptr[i] = cookie;
-	}
-}
-#endif
 
 void Block::allocate(uint32_t numBlocks, DeviceAllocation *pBlock)
 {
@@ -154,34 +111,28 @@ bool ClassAllocator::allocate(uint32_t size, AllocationTiling tiling, DeviceAllo
 		MEMORY_ASSERT(itr);
 		MEMORY_ASSERT(index >= (numBlocks - 1));
 
-		auto &heap = itr->storage;
+		auto &heap = *itr;
 		suballocate(numBlocks, maskedTilingMode, memoryType, heap, pAlloc);
 		unsigned newIndex = heap.heap.getLongestRun() - 1;
 
 		if (heap.heap.full())
 		{
-			m.fullHeaps.moveToFront(m.heaps[index], itr);
+			m.fullHeaps.move_to_front(m.heaps[index], itr);
 			if (!m.heaps[index].begin())
 				m.heapAvailabilityMask &= ~(1u << index);
 		}
 		else if (newIndex != index)
 		{
 			auto &newHeap = m.heaps[newIndex];
-			newHeap.moveToFront(m.heaps[index], itr);
+			newHeap.move_to_front(m.heaps[index], itr);
 			m.heapAvailabilityMask |= 1u << newIndex;
 			if (!m.heaps[index].begin())
 				m.heapAvailabilityMask &= ~(1u << index);
 		}
 
-		pAlloc->pHeap = itr;
+		pAlloc->heap = itr;
 		pAlloc->hierarchical = hierarchical;
 
-#ifdef VULKAN_TEST
-		if (hierarchical)
-			hierOccupiedSize += popcount(pAlloc->mask) * subBlockSize;
-		else
-			occupiedSize += popcount(pAlloc->mask) * subBlockSize;
-#endif
 		return true;
 	}
 
@@ -190,7 +141,7 @@ bool ClassAllocator::allocate(uint32_t size, AllocationTiling tiling, DeviceAllo
 	if (!pNode)
 		return false;
 
-	auto &heap = pNode->storage;
+	auto &heap = *pNode;
 	uint32_t allocSize = subBlockSize * Block::NumSubBlocks;
 
 	if (pParent)
@@ -215,26 +166,19 @@ bool ClassAllocator::allocate(uint32_t size, AllocationTiling tiling, DeviceAllo
 	// This cannot fail.
 	suballocate(numBlocks, maskedTilingMode, memoryType, heap, pAlloc);
 
-	pAlloc->pHeap = pNode;
+	pAlloc->heap = pNode;
 	if (heap.heap.full())
 	{
-		m.fullHeaps.insertFront(pNode);
+		m.fullHeaps.insert_front(pNode);
 	}
 	else
 	{
 		unsigned newIndex = heap.heap.getLongestRun() - 1;
-		m.heaps[newIndex].insertFront(pNode);
+		m.heaps[newIndex].insert_front(pNode);
 		m.heapAvailabilityMask |= 1u << newIndex;
 	}
 
 	pAlloc->hierarchical = hierarchical;
-
-#ifdef VULKAN_TEST
-	if (hierarchical)
-		hierOccupiedSize += popcount(pAlloc->mask) * subBlockSize;
-	else
-		occupiedSize += popcount(pAlloc->mask) * subBlockSize;
-#endif
 
 	return true;
 }
@@ -258,27 +202,13 @@ ClassAllocator::~ClassAllocator()
 
 void ClassAllocator::free(DeviceAllocation *pAlloc)
 {
-	auto *pHeap = pAlloc->pHeap;
-	auto &block = pHeap->storage.heap;
+	auto *pHeap = &*pAlloc->heap;
+	auto &block = pHeap->heap;
 	bool wasFull = block.full();
 	auto &m = tilingModes[pAlloc->tiling];
 
 #ifdef MEMORY_ALLOCATOR_THREAD_SAFE
 	lock_guard<mutex> holder{ lock };
-#endif
-
-#ifdef VULKAN_TEST
-	uint32_t used = popcount(pAlloc->mask) * subBlockSize;
-	if (pAlloc->hierarchical)
-	{
-		MEMORY_ASSERT(used <= hierOccupiedSize);
-		hierOccupiedSize -= used;
-	}
-	else
-	{
-		MEMORY_ASSERT(used <= occupiedSize);
-		occupiedSize -= used;
-	}
 #endif
 
 	unsigned index = block.getLongestRun() - 1;
@@ -289,9 +219,9 @@ void ClassAllocator::free(DeviceAllocation *pAlloc)
 	{
 		// Our mini-heap is completely freed, free to higher level allocator.
 		if (pParent)
-			pHeap->storage.allocation.freeImmediate();
+			pHeap->allocation.freeImmediate();
 		else
-			pHeap->storage.allocation.freeGlobal(*pGlobalAllocator, subBlockSize * Block::NumSubBlocks, memoryType);
+			pHeap->allocation.freeGlobal(*pGlobalAllocator, subBlockSize * Block::NumSubBlocks, memoryType);
 
 		if (wasFull)
 			m.fullHeaps.erase(pHeap);
@@ -306,12 +236,12 @@ void ClassAllocator::free(DeviceAllocation *pAlloc)
 	}
 	else if (wasFull)
 	{
-		m.heaps[newIndex].moveToFront(m.fullHeaps, pHeap);
+		m.heaps[newIndex].move_to_front(m.fullHeaps, pHeap);
 		m.heapAvailabilityMask |= 1u << newIndex;
 	}
 	else if (index != newIndex)
 	{
-		m.heaps[newIndex].moveToFront(m.heaps[index], pHeap);
+		m.heaps[newIndex].move_to_front(m.heaps[index], pHeap);
 		m.heapAvailabilityMask |= 1u << newIndex;
 		if (!m.heaps[index].begin())
 			m.heapAvailabilityMask &= ~(1u << index);
@@ -335,10 +265,6 @@ bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mod
 			}
 
 			bool ret = c.allocate(size, mode, pAlloc, false);
-#ifdef VULKAN_TEST
-			if (ret)
-				pAlloc->initCookie();
-#endif
 			if (ret)
 			{
 				uint32_t alignedOffset = (pAlloc->offset + alignment - 1) & ~(alignment - 1);
@@ -350,8 +276,13 @@ bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mod
 		}
 	}
 
-	MEMORY_ASSERT(0 && "Too large allocation!");
-	return false;
+	// Fall back to global allocation, do not recycle.
+	if (!pGlobalAllocator->allocate(size, memoryType, &pAlloc->base, &pAlloc->pHostBase))
+		return false;
+	pAlloc->pAlloc = nullptr;
+	pAlloc->memoryType = memoryType;
+	pAlloc->size = size;
+	return true;
 }
 
 Allocator::Allocator()
@@ -364,46 +295,11 @@ Allocator::Allocator()
 	get_class_allocator(MEMORY_CLASS_LARGE).setTilingMask(0);
 	get_class_allocator(MEMORY_CLASS_HUGE).setTilingMask(0);
 
-	get_class_allocator(MEMORY_CLASS_SMALL).setSubBlockSize(256);
-	get_class_allocator(MEMORY_CLASS_MEDIUM).setSubBlockSize(256 * Block::NumSubBlocks); // 8K
-	get_class_allocator(MEMORY_CLASS_LARGE).setSubBlockSize(256 * Block::NumSubBlocks * Block::NumSubBlocks); // 256K
+	get_class_allocator(MEMORY_CLASS_SMALL).setSubBlockSize(64);
+	get_class_allocator(MEMORY_CLASS_MEDIUM).setSubBlockSize(64 * Block::NumSubBlocks); // 2K
+	get_class_allocator(MEMORY_CLASS_LARGE).setSubBlockSize(64 * Block::NumSubBlocks * Block::NumSubBlocks); // 64K
 	get_class_allocator(MEMORY_CLASS_HUGE)
-	    .setSubBlockSize(256 * Block::NumSubBlocks * Block::NumSubBlocks * Block::NumSubBlocks / 2); // 4M
-}
-
-bool Mallocator::allocate(uint32_t size, uint32_t memoryType, Memory *pMemory, uint8_t **ppHostMemory)
-{
-	auto itr = find_if(begin(blocks), end(blocks),
-	                   [=](const Allocation &alloc) { return size == alloc.size && memoryType == alloc.type; });
-
-	if (itr != end(blocks))
-	{
-		*pMemory = itr->memory;
-		*ppHostMemory = reinterpret_cast<uint8_t *>(itr->memory);
-		blocks.erase(itr);
-		return true;
-	}
-
-	*ppHostMemory = static_cast<uint8_t *>(malloc(size));
-	*pMemory = reinterpret_cast<Memory>(*ppHostMemory);
-	if (*ppHostMemory)
-		return true;
-	else
-	{
-		// TODO: Scavenge other blocks ...
-		return false;
-	}
-}
-
-void Mallocator::free(uint32_t size, uint32_t memoryType, Memory memory, uint8_t *)
-{
-	blocks.push_back({ memory, size, memoryType });
-}
-
-Mallocator::~Mallocator()
-{
-	for (auto &block : blocks)
-		::free(reinterpret_cast<void *>(block.memory));
+	    .setSubBlockSize(64 * Block::NumSubBlocks * Block::NumSubBlocks * Block::NumSubBlocks); // 2M
 }
 
 void DeviceAllocator::init(VkPhysicalDevice gpu, VkDevice vkdevice)
@@ -457,6 +353,18 @@ void DeviceAllocator::free(uint32_t size, uint32_t memoryType, Memory memory, ui
 	lock_guard<mutex> holder{ *heap.lock };
 #endif
 	heap.blocks.push_back({ reinterpret_cast<VkDeviceMemory>(memory), pHostMemory, size, memoryType });
+}
+
+void DeviceAllocator::freeNoRecycle(uint32_t size, uint32_t memoryType, Memory memory, uint8_t *pHostMemory)
+{
+	auto &heap = heaps[memProps.memoryTypes[memoryType].heapIndex];
+#ifdef MEMORY_ALLOCATOR_THREAD_SAFE
+	lock_guard<mutex> holder{ *heap.lock };
+#endif
+	if (pHostMemory)
+		vkUnmapMemory(device, reinterpret_cast<VkDeviceMemory>(memory));
+	vkFreeMemory(device, reinterpret_cast<VkDeviceMemory>(memory), nullptr);
+	heap.size -= size;
 }
 
 void DeviceAllocator::garbageCollect()

@@ -63,7 +63,7 @@ struct BufferCreateInfo
 class Buffer : public IntrusivePtrEnabled<Buffer>, public Cookie
 {
 public:
-	Buffer(Device *device, VkBuffer buffer, const MaliSDK::DeviceAllocation &alloc, const BufferCreateInfo &info);
+	Buffer(Device *device, VkBuffer buffer, const DeviceAllocation &alloc, const BufferCreateInfo &info);
 	~Buffer();
 
 	VkBuffer get_buffer() const
@@ -76,12 +76,12 @@ public:
 		return info;
 	}
 
-	MaliSDK::DeviceAllocation &get_allocation()
+	DeviceAllocation &get_allocation()
 	{
 		return alloc;
 	}
 
-	const MaliSDK::DeviceAllocation &get_allocation() const
+	const DeviceAllocation &get_allocation() const
 	{
 		return alloc;
 	}
@@ -89,7 +89,7 @@ public:
 private:
 	Device *device;
 	VkBuffer buffer;
-	MaliSDK::DeviceAllocation alloc;
+	DeviceAllocation alloc;
 	BufferCreateInfo info;
 };
 using BufferHandle = IntrusivePtr<Buffer>;

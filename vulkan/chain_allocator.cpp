@@ -11,7 +11,7 @@ ChainAllocator::ChainAllocator(Device *device, VkDeviceSize block_size, VkDevice
     , usage(usage)
 {
 	buffers.push_back(device->create_buffer({ BufferDomain::Host, block_size, usage }, nullptr));
-	host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
+	host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MEMORY_ACCESS_WRITE));
 }
 
 ChainAllocator::~ChainAllocator()
@@ -40,7 +40,7 @@ ChainDataAllocation ChainAllocator::allocate(VkDeviceSize size)
 	if (chain_index >= buffers.size())
 	{
 		buffers.push_back(device->create_buffer({ BufferDomain::Host, block_size, usage }, nullptr));
-		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
+		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MEMORY_ACCESS_WRITE));
 	}
 
 	ChainDataAllocation alloc = {};
@@ -64,7 +64,7 @@ void ChainAllocator::flush()
 	{
 		// FIXME: Add explicit flush.
 		device->unmap_host_buffer(*buffers[i]);
-		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MaliSDK::MEMORY_ACCESS_WRITE));
+		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MEMORY_ACCESS_WRITE));
 	}
 	start_flush_index = chain_index;
 

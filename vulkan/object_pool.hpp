@@ -61,7 +61,7 @@ struct IntrusiveListEnabled
 };
 
 template <typename T>
-class WeakList
+class IntrusiveList
 {
 public:
 	void clear()
@@ -72,7 +72,7 @@ public:
 	class Iterator
 	{
 	public:
-		friend class WeakList<T>;
+		friend class IntrusiveList<T>;
 		Iterator(IntrusiveListEnabled<T> *node)
 		    : node(node)
 		{
@@ -165,7 +165,7 @@ public:
 		head = node;
 	}
 
-	void move_to_front(WeakList<T> &other, Iterator itr)
+	void move_to_front(IntrusiveList<T> &other, Iterator itr)
 	{
 		other.erase(itr);
 		insert_front(itr);

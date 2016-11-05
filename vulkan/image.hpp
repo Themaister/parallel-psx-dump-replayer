@@ -254,7 +254,7 @@ struct ImageCreateInfo
 class Image : public IntrusivePtrEnabled<Image>, public Cookie
 {
 public:
-	Image(Device *device, VkImage image, VkImageView default_view, const MaliSDK::DeviceAllocation &alloc,
+	Image(Device *device, VkImage image, VkImageView default_view, const DeviceAllocation &alloc,
 	      const ImageCreateInfo &info);
 	~Image();
 	Image(Image &&) = delete;
@@ -337,7 +337,7 @@ public:
 		return access_flags;
 	}
 
-	const MaliSDK::DeviceAllocation &get_allocation() const
+	const DeviceAllocation &get_allocation() const
 	{
 		return alloc;
 	}
@@ -346,7 +346,7 @@ private:
 	Device *device;
 	VkImage image;
 	ImageViewHandle view;
-	MaliSDK::DeviceAllocation alloc;
+	DeviceAllocation alloc;
 	ImageCreateInfo create_info;
 
 	VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL;

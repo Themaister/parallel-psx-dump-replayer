@@ -13,7 +13,7 @@ Device::Device()
 {
 }
 
-void *Device::map_host_buffer(Buffer &buffer, MaliSDK::MemoryAccessFlags access)
+void *Device::map_host_buffer(Buffer &buffer, MemoryAccessFlags access)
 {
 	void *host = allocator.mapMemory(&buffer.get_allocation(), access);
 	return host;
@@ -405,7 +405,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 
 	for (auto &image : swapchain_images)
 	{
-		auto frame = unique_ptr<PerFrame>(new PerFrame(this, queue_family_index));
+		auto frame = unique_ptr<PerFrame>(new PerFrame(this, allocator, queue_family_index));
 
 		VkImageViewCreateInfo view_info = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		view_info.image = image;
@@ -424,13 +424,14 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 			LOG("Failed to create view for backbuffer.");
 
-		frame->backbuffer = make_handle<Image>(this, image, image_view, MaliSDK::DeviceAllocation{}, info);
+		frame->backbuffer = make_handle<Image>(this, image, image_view, DeviceAllocation{}, info);
 		per_frame.emplace_back(move(frame));
 	}
 }
 
-Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
+Device::PerFrame::PerFrame(Device *device, GlobalAllocator &global, uint32_t queue_family_index)
     : device(device->get_device())
+      , global_allocator(global)
     , cmd_pool(device->get_device(), queue_family_index)
     , fence_manager(device->get_device())
     , vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
@@ -441,7 +442,7 @@ Device::PerFrame::PerFrame(Device *device, uint32_t queue_family_index)
 {
 }
 
-void Device::free_memory(const MaliSDK::DeviceAllocation &alloc)
+void Device::free_memory(const DeviceAllocation &alloc)
 {
 	frame().allocations.push_back(alloc);
 }
@@ -556,7 +557,7 @@ void Device::PerFrame::begin()
 	for (auto &buffer : destroyed_buffers)
 		vkDestroyBuffer(device, buffer, nullptr);
 	for (auto &alloc : allocations)
-		alloc.freeImmediate();
+		alloc.freeImmediate(global_allocator);
 
 	destroyed_framebuffers.clear();
 	destroyed_samplers.clear();
@@ -797,7 +798,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 {
 	VkImage image;
 	VkMemoryRequirements reqs;
-	MaliSDK::DeviceAllocation allocation;
+    DeviceAllocation allocation;
 
 	VkImageCreateInfo info = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 	info.format = create_info.format;
@@ -830,7 +831,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	vkGetImageMemoryRequirements(device, image, &reqs);
 
 	uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
-	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, MaliSDK::ALLOCATION_TILING_OPTIMAL, &allocation))
+	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, ALLOCATION_TILING_OPTIMAL, &allocation))
 	{
 		vkDestroyImage(device, image, nullptr);
 		return nullptr;
@@ -838,7 +839,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 	if (vkBindImageMemory(device, image, allocation.getDeviceMemory(), allocation.getOffset()) != VK_SUCCESS)
 	{
-		allocation.freeImmediate();
+		allocation.freeImmediate(allocator);
 		vkDestroyImage(device, image, nullptr);
 		return nullptr;
 	}
@@ -868,7 +869,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
 		{
-			allocation.freeImmediate();
+			allocation.freeImmediate(allocator);
 			vkDestroyImage(device, image, nullptr);
 			return nullptr;
 		}
@@ -973,7 +974,7 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 {
 	VkBuffer buffer;
 	VkMemoryRequirements reqs;
-	MaliSDK::DeviceAllocation allocation;
+	DeviceAllocation allocation;
 
 	VkBufferCreateInfo info = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	info.size = create_info.size;
@@ -985,7 +986,7 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 	vkGetBufferMemoryRequirements(device, buffer, &reqs);
 
 	uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
-	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, MaliSDK::ALLOCATION_TILING_LINEAR, &allocation))
+	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, ALLOCATION_TILING_LINEAR, &allocation))
 	{
 		vkDestroyBuffer(device, buffer, nullptr);
 		return nullptr;
@@ -993,7 +994,7 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 
 	if (vkBindBufferMemory(device, buffer, allocation.getDeviceMemory(), allocation.getOffset()) != VK_SUCCESS)
 	{
-		allocation.freeImmediate();
+		allocation.freeImmediate(allocator);
 		vkDestroyBuffer(device, buffer, nullptr);
 		return nullptr;
 	}
@@ -1015,7 +1016,7 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 	}
 	else if (initial)
 	{
-		void *ptr = allocator.mapMemory(&allocation, MaliSDK::MEMORY_ACCESS_WRITE);
+		void *ptr = allocator.mapMemory(&allocation, MEMORY_ACCESS_WRITE);
 		if (!ptr)
 			return nullptr;
 		memcpy(ptr, initial, create_info.size);

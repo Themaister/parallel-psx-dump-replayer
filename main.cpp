@@ -202,7 +202,7 @@ static void dump_to_file(Device &device, Renderer &renderer, unsigned index, uns
 	char path[1024];
 	snprintf(path, sizeof(path), "/tmp/test-%06u-%06u.bmp", index, subindex);
 
-	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
 	for (unsigned i = 0; i < width * height; i++)
 		data[i] |= 0xff000000u;
 
@@ -221,7 +221,7 @@ static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index
 	char path[1024];
 	snprintf(path, sizeof(path), "/tmp/test-vram-%06u.bmp", index);
 
-	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
 	for (unsigned i = 0; i < width * height; i++)
 		data[i] |= 0xff000000u;
 
@@ -416,9 +416,9 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 8);
+	Renderer renderer(device, 4);
 
-	FILE *file = fopen("/tmp/spyro.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 

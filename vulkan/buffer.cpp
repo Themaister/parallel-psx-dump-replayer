@@ -3,7 +3,7 @@
 
 namespace Vulkan
 {
-Buffer::Buffer(Device *device, VkBuffer buffer, const MaliSDK::DeviceAllocation &alloc, const BufferCreateInfo &info)
+Buffer::Buffer(Device *device, VkBuffer buffer, const DeviceAllocation &alloc, const BufferCreateInfo &info)
     : Cookie(device)
     , device(device)
     , buffer(buffer)

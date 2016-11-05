@@ -19,7 +19,7 @@ ImageView::~ImageView()
 	device->destroy_image_view(view);
 }
 
-Image::Image(Device *device, VkImage image, VkImageView default_view, const MaliSDK::DeviceAllocation &alloc,
+Image::Image(Device *device, VkImage image, VkImageView default_view, const DeviceAllocation &alloc,
              const ImageCreateInfo &create_info)
     : Cookie(device)
     , device(device)

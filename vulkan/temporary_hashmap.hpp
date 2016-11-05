@@ -118,11 +118,11 @@ public:
 	}
 
 private:
-	WeakList<T> rings[RingSize];
+	IntrusiveList<T> rings[RingSize];
 	ObjectPool<T> object_pool;
 	unsigned index = 0;
-	HashMap<typename WeakList<T>::Iterator> hashmap;
-	std::vector<typename WeakList<T>::Iterator> vacants;
+	HashMap<typename IntrusiveList<T>::Iterator> hashmap;
+	std::vector<typename IntrusiveList<T>::Iterator> vacants;
 
 	template <bool reuse>
 	struct ReuseTag
