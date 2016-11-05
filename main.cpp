@@ -326,12 +326,6 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 
 		set_renderer_state(renderer, state);
 		renderer.draw_triangle(vertices);
-
-		if (frame == 100)
-		{
-			LOG("Dumping draw call: %u\n", draw_call);
-			dump_to_file(device, renderer, frame, draw_call);
-		}
 		draw_call++;
 
 		break;
@@ -354,12 +348,6 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 
 		set_renderer_state(renderer, state);
 		renderer.draw_quad(vertices);
-
-		if (frame == 100)
-		{
-			LOG("Dumping draw call: %u\n", draw_call);
-			dump_to_file(device, renderer, frame, draw_call);
-		}
 		draw_call++;
 
 		break;
@@ -433,9 +421,9 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 720);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 1);
+	Renderer renderer(device, 8);
 
-	FILE *file = fopen("/tmp/crash.rsx", "rb");
+	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -453,7 +441,6 @@ int main()
 		wsi.begin_frame();
 		renderer.reset_counters();
 		while (read_command(file, device, renderer, eof, frames, draw_call));
-		dump_vram_to_file(device, renderer, frames);
 		renderer.scanout();
 
 		wsi.end_frame();

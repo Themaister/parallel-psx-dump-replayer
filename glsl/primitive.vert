@@ -2,8 +2,12 @@
 layout(location = 0) in vec4 Position;
 layout(location = 1) in vec4 Color;
 #ifdef TEXTURED
-layout(location = 2) in vec3 UV;
-layout(location = 1) out mediump vec3 vUV;
+    layout(location = 2) in vec3 UV;
+    layout(location = 1) out vec3 vUV;
+    #ifdef VRAM_ATLAS
+        layout(location = 3) in mediump ivec3 Param;
+        layout(location = 2) flat out mediump ivec3 vParam;
+    #endif
 #endif
 layout(location = 0) out mediump vec4 vColor;
 
@@ -15,5 +19,10 @@ void main()
     vColor = Color;
 #ifdef TEXTURED
     vUV = UV;
+    #ifdef VRAM_ATLAS
+        vParam = Param;
+    #else
+        #error ":v"
+    #endif
 #endif
 }

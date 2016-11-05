@@ -364,6 +364,20 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 	unsigned min_v = 256;
 	unsigned max_v = 0;
 
+	unsigned shift;
+	switch (render_state.texture_mode)
+	{
+	case TextureMode::Palette4bpp:
+		shift = 2;
+		break;
+	case TextureMode::Palette8bpp:
+		shift = 1;
+		break;
+	default:
+		shift = 0;
+		break;
+	}
+
 	// Temporary hack while I figure out how to best solve texturing ...
 	if (render_state.texture_mode != TextureMode::None)
 	{
@@ -383,22 +397,40 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 		unsigned width_pow2 = next_pow2(width);
 		unsigned height_pow2 = next_pow2(height);
 
+#ifdef VRAM_ATLAS
+		width_pow2 = min(width_pow2, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
+		height_pow2 = min(height_pow2, FB_HEIGHT - (render_state.texture_offset_y + min_v));
+#endif
+
 		VK_ASSERT(min_u + width_pow2 <= FB_WIDTH);
 		VK_ASSERT(min_v + height_pow2 <= FB_HEIGHT);
 		atlas.set_texture_window({min_u, min_v, width_pow2, height_pow2});
 	}
 
 	float z = allocate_depth();
+
+
 	for (unsigned i = 0; i < count; i++)
 	{
 		output[i] = {vertices[i].x + render_state.draw_offset_x,
 		             vertices[i].y + render_state.draw_offset_y,
 		             z,
 		             vertices[i].w,
-		             int(vertices[i].u - min_u) * last_uv_scale_x,
+#ifdef VRAM_ATLAS
+		             float(vertices[i].u + (render_state.texture_offset_x << shift)),
+		             float(vertices[i].v + (render_state.texture_offset_y)),
+#else
+					 int(vertices[i].u - min_u) * last_uv_scale_x,
 		             int(vertices[i].v - min_v) * last_uv_scale_y,
 		             float(last_surface.layer),
-		             vertices[i].color & 0xffffffu};
+#endif
+		             vertices[i].color & 0xffffffu,
+#ifdef VRAM_ATLAS
+					 int16_t(render_state.palette_offset_x),
+					 int16_t(render_state.palette_offset_y),
+					 int16_t(shift),
+#endif
+		};
 
 		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
 			output[i].color = 0x808080;
@@ -516,6 +548,21 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	float z = allocate_depth();
 	atlas.set_texture_mode(old);
 
+#ifdef VRAM_ATLAS
+	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos1 = {
+		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)
+	};
+	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f,
+	                     fbcolor_to_rgba8(color)};
+	BufferVertex pos3 = {float(rect.x) + float(rect.width),
+	                     float(rect.y) + float(rect.height),
+	                     z,
+	                     1.0f,
+	                     0.0f,
+	                     0.0f,
+	                     fbcolor_to_rgba8(color)};
+#else
 	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
 	BufferVertex pos1 = {
 		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)
@@ -530,6 +577,7 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	                     0.0f,
 	                     0.0f,
 	                     fbcolor_to_rgba8(color)};
+#endif
 	queue.opaque.push_back(pos0);
 	queue.opaque.push_back(pos1);
 	queue.opaque.push_back(pos2);
@@ -630,7 +678,12 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+#ifdef VRAM_ATLAS
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+#else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
+#endif
 
 	auto size = queue.semi_transparent.size() * sizeof(BufferVertex);
 	void *verts = cmd->allocate_vertex_data(0, size, sizeof(BufferVertex));
@@ -639,7 +692,11 @@ void Renderer::render_semi_transparent_primitives()
 	auto last_state = queue.semi_transparent_state[0];
 
 	const auto set_state = [&](const SemiTransparentState &state) {
+#ifndef VRAM_ATLAS
 		cmd->set_texture(0, 1, queue.textures[state.image_index]->get_view(), StockSampler::NearestWrap);
+#else
+		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+#endif
 
 		switch (state.semi_transparent)
 		{
@@ -648,8 +705,10 @@ void Renderer::render_semi_transparent_primitives()
 			// For opaque primitives which are just masked, we can make use of fixed function blending.
 			cmd->set_blend_enable(true);
 			cmd->set_program(state.textured ? *pipelines.opaque_textured : *pipelines.opaque_flat);
+#ifndef VRAM_ATLAS
 			if (state.textured)
 				cmd->set_texture(0, 0, queue.textures[state.image_index]->get_view(), StockSampler::LinearWrap);
+#endif
 			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
 			                       VK_BLEND_FACTOR_DST_ALPHA, VK_BLEND_FACTOR_DST_ALPHA);
@@ -788,7 +847,12 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+#ifdef VRAM_ATLAS
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+#else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
+#endif
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
@@ -802,8 +866,12 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 		for (auto i = vertices.size(); i; i--)
 			*vert++ = vertices[i - 1];
 
+#ifndef VRAM_ATLAS
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+#else
+		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+#endif
 		counters.draw_calls++;
 		counters.vertices += vertices.size();
 		cmd->draw(vertices.size());
@@ -821,7 +889,12 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
+#ifdef VRAM_ATLAS
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+#else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
+#endif
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
@@ -835,8 +908,12 @@ void Renderer::render_opaque_texture_primitives()
 		for (auto i = vertices.size(); i; i--)
 			*vert++ = vertices[i - 1];
 
+#ifndef VRAM_ATLAS
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
 		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
+#else
+		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+#endif
 		counters.draw_calls++;
 		counters.vertices += vertices.size();
 		cmd->draw(vertices.size());
@@ -845,6 +922,7 @@ void Renderer::render_opaque_texture_primitives()
 
 void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
 {
+#ifndef VRAM_ATLAS
 	if (domain == Domain::Scaled)
 	{
 		last_surface = allocator.allocate(
@@ -861,6 +939,14 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 
 	if (allocator.get_max_layer_count() >= MAX_LAYERS)
 		flush_texture_allocator();
+#else
+	(void)domain;
+	(void)rect;
+	(void)off_x;
+	(void)off_y;
+	last_surface.texture = 0;
+	last_surface.layer = 0;
+#endif
 }
 
 void Renderer::flush_blits()

@@ -43,6 +43,8 @@ public:
 	inline void set_texture_offset(unsigned x, unsigned y)
 	{
 		atlas.set_texture_offset(x, y);
+		render_state.texture_offset_x = x;
+		render_state.texture_offset_y = y;
 	}
 
 	inline void set_palette_offset(unsigned x, unsigned y)
@@ -167,6 +169,8 @@ private:
 		int draw_offset_y = 0;
 		unsigned palette_offset_x = 0;
 		unsigned palette_offset_y = 0;
+		unsigned texture_offset_x = 0;
+		unsigned texture_offset_y = 0;
 
 		TextureMode texture_mode = TextureMode::None;
 		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
@@ -179,8 +183,15 @@ private:
 	struct BufferVertex
 	{
 		float x, y, z, w;
-		float u, v, layer;
+		float u, v;
+#ifndef VRAM_ATLAS
+		float layer;
+#endif
 		uint32_t color;
+
+#ifdef VRAM_ATLAS
+		int16_t pal_x, pal_y, shift;
+#endif
 	};
 
 	struct BlitInfo
