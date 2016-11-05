@@ -8,6 +8,9 @@ static const uint32_t quad_vert[] =
 static const uint32_t scaled_quad_frag[] =
 #include "scaled.quad.frag.inc"
 ;
+static const uint32_t bpp24_quad_frag[] =
+#include "bpp24.quad.frag.inc"
+;
 static const uint32_t unscaled_quad_frag[] =
 #include "unscaled.quad.frag.inc"
 ;

@@ -57,9 +57,10 @@ public:
 	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
 	void blit_vram(const Rect &dst, const Rect &src);
 
-	void set_display_mode(const Rect &rect, bool)
+	void set_display_mode(const Rect &rect, bool bpp24)
 	{
 		render_state.display_mode = rect;
+		render_state.bpp24 = bpp24;
 	}
 
 	void toggle_display(bool enable)
@@ -140,6 +141,7 @@ private:
 		Vulkan::ProgramHandle copy_to_vram_masked;
 		Vulkan::ProgramHandle unscaled_quad_blitter;
 		Vulkan::ProgramHandle scaled_quad_blitter;
+		Vulkan::ProgramHandle bpp24_quad_blitter;
 		Vulkan::ProgramHandle resolve_to_scaled;
 		Vulkan::ProgramHandle resolve_to_unscaled;
 		Vulkan::ProgramHandle blit_vram_unscaled;
@@ -178,19 +180,21 @@ private:
 		bool texture_color_modulate = false;
 		bool mask_test = false;
 		bool display_on = false;
+		bool bpp24 = false;
 	} render_state;
 
 	struct BufferVertex
 	{
 		float x, y, z, w;
-		float u, v;
 #ifndef VRAM_ATLAS
+		float u, v;
 		float layer;
 #endif
 		uint32_t color;
 
 #ifdef VRAM_ATLAS
 		int16_t pal_x, pal_y, shift;
+		int8_t u, v, base_uv_x, base_uv_y;
 #endif
 	};
 

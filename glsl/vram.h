@@ -3,6 +3,7 @@
 
 layout(location = 1) in highp vec2 vUV;
 layout(location = 2) flat in mediump ivec3 vParam;
+layout(location = 3) flat in mediump ivec2 vBaseUV;
 layout(set = 0, binding = 0) uniform mediump usampler2D uFramebuffer;
 
 vec4 sample_vram_atlas(ivec2 uv)
@@ -18,7 +19,7 @@ vec4 sample_vram_atlas(ivec2 uv)
         int phase = coord.x & ((1 << shift) - 1);
         int align = bpp * phase;
         coord.x >>= shift;
-        int value = int(texelFetch(uFramebuffer, coord & ivec2(1023, 511), 0).x);
+        int value = int(texelFetch(uFramebuffer, (vBaseUV + coord) & ivec2(1023, 511), 0).x);
         int mask = (1 << bpp) - 1;
         value = (value >> align) & mask;
 
@@ -26,7 +27,7 @@ vec4 sample_vram_atlas(ivec2 uv)
         coord = params.xy;
     }
     else
-        coord = uv;
+        coord = vBaseUV + uv;
 
     return abgr1555(texelFetch(uFramebuffer, coord & ivec2(1023, 511), 0).x);
 }

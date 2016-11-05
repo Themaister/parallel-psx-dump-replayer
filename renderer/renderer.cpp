@@ -64,6 +64,8 @@ void Renderer::init_pipelines()
 
 	pipelines.scaled_quad_blitter =
 		device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
+	pipelines.bpp24_quad_blitter =
+		device.create_program(quad_vert, sizeof(quad_vert), bpp24_quad_frag, sizeof(bpp24_quad_frag));
 	pipelines.unscaled_quad_blitter =
 		device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
@@ -181,13 +183,33 @@ void Renderer::scanout(const Rect &rect)
 		return;
 	}
 
-	atlas.read_fragment(Domain::Scaled, rect);
+	if (render_state.bpp24)
+	{
+		auto tmp = rect;
+		tmp.width = ((tmp.x + tmp.width) * 3 + 1) / 2;
+		tmp.x = (tmp.x * 3) / 2;
+		tmp.width -= tmp.x;
+		tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
+		atlas.read_fragment(Domain::Unscaled, tmp);
+	}
+	else
+		atlas.read_fragment(Domain::Scaled, rect);
 
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
 	cmd->set_quad_state();
-	cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
-	cmd->set_program(*pipelines.scaled_quad_blitter);
+
+	if (render_state.bpp24)
+	{
+		cmd->set_program(*pipelines.bpp24_quad_blitter);
+		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
+	}
+	else
+	{
+		cmd->set_program(*pipelines.scaled_quad_blitter);
+		cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
+	}
+
 	int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
 	*data++ = -128;
 	*data++ = -128;
@@ -416,10 +438,7 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 		             vertices[i].y + render_state.draw_offset_y,
 		             z,
 		             vertices[i].w,
-#ifdef VRAM_ATLAS
-		             float(vertices[i].u + (render_state.texture_offset_x << shift)),
-		             float(vertices[i].v + (render_state.texture_offset_y)),
-#else
+#ifndef VRAM_ATLAS
 					 int(vertices[i].u - min_u) * last_uv_scale_x,
 		             int(vertices[i].v - min_v) * last_uv_scale_y,
 		             float(last_surface.layer),
@@ -429,6 +448,10 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 					 int16_t(render_state.palette_offset_x),
 					 int16_t(render_state.palette_offset_y),
 					 int16_t(shift),
+					 int8_t(vertices[i].u),
+					 int8_t(vertices[i].v),
+					 int8_t(render_state.texture_offset_x / 64u),
+		             int8_t(render_state.texture_offset_y / 256u),
 #endif
 		};
 
@@ -549,18 +572,16 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	atlas.set_texture_mode(old);
 
 #ifdef VRAM_ATLAS
-	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color)};
 	BufferVertex pos1 = {
-		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)
+		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color)
 	};
-	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f,
+	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f,
 	                     fbcolor_to_rgba8(color)};
 	BufferVertex pos3 = {float(rect.x) + float(rect.width),
 	                     float(rect.y) + float(rect.height),
 	                     z,
 	                     1.0f,
-	                     0.0f,
-	                     0.0f,
 	                     fbcolor_to_rgba8(color)};
 #else
 	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
@@ -679,7 +700,7 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
@@ -848,7 +869,7 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
@@ -890,7 +911,7 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));

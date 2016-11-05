@@ -4,9 +4,10 @@ layout(location = 1) in vec4 Color;
 #ifdef TEXTURED
     #ifdef VRAM_ATLAS
         layout(location = 1) out highp vec2 vUV;
-        layout(location = 2) in vec2 UV;
+        layout(location = 2) in uvec4 UV;
         layout(location = 3) in mediump ivec3 Param;
         layout(location = 2) flat out mediump ivec3 vParam;
+        layout(location = 3) flat out highp ivec2 vBaseUV;
     #else
         layout(location = 1) out highp vec3 vUV;
         layout(location = 2) in vec3 UV;
@@ -21,11 +22,12 @@ void main()
     gl_Position = vec4(Position.xy / FB_SIZE * 2.0 - 1.0, Position.z, 1.0) * Position.w;
     vColor = Color;
 #ifdef TEXTURED
-    vUV = UV;
     #ifdef VRAM_ATLAS
+        vUV = vec2(UV.xy);
         vParam = Param;
+        vBaseUV = ivec2(64, 256) * ivec2(UV.zw);
     #else
-        #error ":v"
+        vUV = UV;
     #endif
 #endif
 }
