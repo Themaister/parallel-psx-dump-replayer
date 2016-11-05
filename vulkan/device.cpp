@@ -506,7 +506,12 @@ void Device::wait_idle()
 
 	vkDeviceWaitIdle(device);
 	for (auto &frame : per_frame)
+	{
+		// Avoid double-wait-on-semaphore scenarios.
+		bool touched_swapchain = frame->swapchain_touched;
 		frame->begin();
+		frame->swapchain_touched = touched_swapchain;
+	}
 }
 
 void Device::begin_frame(unsigned index)

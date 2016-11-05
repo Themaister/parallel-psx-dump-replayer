@@ -383,6 +383,7 @@ static void dump_to_file(Device &device, Renderer &renderer, unsigned index)
 	char path[1024];
 	snprintf(path, sizeof(path), "/tmp/test-%06u.bmp", index);
 
+	device.wait_idle();
 	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
 	for (unsigned i = 0; i < width * height; i++)
 		data[i] |= 0xff000000u;
