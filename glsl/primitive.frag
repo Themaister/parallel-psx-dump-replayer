@@ -34,8 +34,8 @@ void main()
         vec4 color = NNColor;
     #else
         #ifdef VRAM_ATLAS
-            vec4 color = sample_vram_bilinear(NNColor);
-            //vec4 color = NNColor;
+            //vec4 color = sample_vram_bilinear(NNColor);
+            vec4 color = NNColor;
         #else
             vec4 color = texture(uTexture, vUV);
         #endif
@@ -45,4 +45,7 @@ void main()
 #else
     FragColor = vColor;
 #endif
+
+    FragColor.rgb += textureLod(uDitherLUT, gl_FragCoord.xy * 0.25, 0.0).xxx - 4.0 / 255.0;
+    FragColor.rgb = quantize_abgr1555(FragColor.rgb);
 }

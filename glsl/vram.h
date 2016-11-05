@@ -1,15 +1,18 @@
 #ifndef VRAM_H
 #define VRAM_H
 
-layout(location = 1) in highp vec2 vUV;
+layout(location = 1) in mediump vec2 vUV;
 layout(location = 2) flat in mediump ivec3 vParam;
 layout(location = 3) flat in mediump ivec2 vBaseUV;
+layout(location = 4) flat in mediump ivec4 vWindow;
 layout(set = 0, binding = 0) uniform mediump usampler2D uFramebuffer;
 
 vec4 sample_vram_atlas(ivec2 uv)
 {
     ivec3 params = vParam;
     int shift = params.z;
+
+    uv = (uv & vWindow.xy) | vWindow.zw;
 
     ivec2 coord;
     if (shift != 0)

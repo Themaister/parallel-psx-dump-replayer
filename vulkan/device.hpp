@@ -4,6 +4,7 @@
 #include "chain_allocator.hpp"
 #include "command_buffer.hpp"
 #include "command_pool.hpp"
+#include "fence.hpp"
 #include "fence_manager.hpp"
 #include "hashmap.hpp"
 #include "image.hpp"
@@ -14,7 +15,6 @@
 #include "vulkan.hpp"
 #include <memory>
 #include <vector>
-#include "fence.hpp"
 
 namespace Vulkan
 {

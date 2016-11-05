@@ -10,8 +10,8 @@ class FenceHolder
 {
 public:
 	FenceHolder(Device *device, VkFence fence)
-		: device(device),
-		  fence(fence)
+	    : device(device)
+	    , fence(fence)
 	{
 	}
 
@@ -26,5 +26,4 @@ private:
 };
 
 using Fence = std::weak_ptr<FenceHolder>;
-
 }

@@ -311,8 +311,7 @@ void Device::submit_queue(Fence *fence)
 		last_cmd = cmds.size();
 	}
 	VkFence cleared_fence = frame().fence_manager.request_cleared_fence();
-	VkResult result =
-	    vkQueueSubmit(queue, submits.size(), submits.data(), cleared_fence);
+	VkResult result = vkQueueSubmit(queue, submits.size(), submits.data(), cleared_fence);
 	if (result != VK_SUCCESS)
 		LOG("vkQueueSubmit failed.\n");
 	frame().submissions.clear();

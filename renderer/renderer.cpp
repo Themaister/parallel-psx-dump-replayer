@@ -1,7 +1,6 @@
 #include "renderer.hpp"
-#include <cstring>
 #include "renderer_pipelines.hpp"
-
+#include <cstring>
 
 using namespace Vulkan;
 using namespace std;
@@ -9,9 +8,9 @@ using namespace std;
 namespace PSX
 {
 Renderer::Renderer(Device &device, unsigned scaling)
-	: device(device),
-	  scaling(scaling),
-	  allocator(device)
+    : device(device)
+    , scaling(scaling)
+    , allocator(device)
 {
 	auto info = ImageCreateInfo::render_target(FB_WIDTH, FB_HEIGHT, VK_FORMAT_R32_UINT);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
@@ -43,6 +42,13 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	cmd->full_barrier();
 	device.submit(cmd);
 	cmd.reset();
+
+	auto dither_info = ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8_UNORM);
+	// This lut is biased with 4 to be able to use UNORM easily.
+	static const uint8_t dither_lut_data[16] = { 0, 4, 1, 5, 6, 2, 7, 3, 1, 5, 0, 4, 7, 3, 6, 2 };
+
+	ImageInitialData dither_initial = { dither_lut_data };
+	dither_lut = device.create_image(dither_info, &dither_initial);
 }
 
 void Renderer::init_pipelines()
@@ -63,22 +69,22 @@ void Renderer::init_pipelines()
 	}
 
 	pipelines.scaled_quad_blitter =
-		device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
+	    device.create_program(quad_vert, sizeof(quad_vert), scaled_quad_frag, sizeof(scaled_quad_frag));
 	pipelines.bpp24_quad_blitter =
-		device.create_program(quad_vert, sizeof(quad_vert), bpp24_quad_frag, sizeof(bpp24_quad_frag));
+	    device.create_program(quad_vert, sizeof(quad_vert), bpp24_quad_frag, sizeof(bpp24_quad_frag));
 	pipelines.unscaled_quad_blitter =
-		device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
+	    device.create_program(quad_vert, sizeof(quad_vert), unscaled_quad_frag, sizeof(unscaled_quad_frag));
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.copy_to_vram_masked = device.create_program(copy_vram_masked_comp, sizeof(copy_vram_masked_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
-	pipelines.blit_vram_unscaled_masked = device.create_program(blit_vram_unscaled_masked_comp,
-	                                                            sizeof(blit_vram_unscaled_masked_comp));
-	pipelines.blit_vram_scaled_masked = device.create_program(blit_vram_scaled_masked_comp,
-	                                                          sizeof(blit_vram_scaled_masked_comp));
+	pipelines.blit_vram_unscaled_masked =
+	    device.create_program(blit_vram_unscaled_masked_comp, sizeof(blit_vram_unscaled_masked_comp));
+	pipelines.blit_vram_scaled_masked =
+	    device.create_program(blit_vram_scaled_masked_comp, sizeof(blit_vram_scaled_masked_comp));
 	pipelines.opaque_flat =
-		device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
+	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 	pipelines.opaque_textured = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
 	                                                  opaque_textured_frag, sizeof(opaque_textured_frag));
 	pipelines.opaque_semi_transparent = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
@@ -88,12 +94,12 @@ void Renderer::init_pipelines()
 	pipelines.semi_transparent_masked_add = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
 	                                                              feedback_add_frag, sizeof(feedback_add_frag));
 	pipelines.semi_transparent_masked_average = device.create_program(
-		opaque_textured_vert, sizeof(opaque_textured_vert), feedback_avg_frag, sizeof(feedback_avg_frag));
+	    opaque_textured_vert, sizeof(opaque_textured_vert), feedback_avg_frag, sizeof(feedback_avg_frag));
 	pipelines.semi_transparent_masked_sub = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
 	                                                              feedback_sub_frag, sizeof(feedback_sub_frag));
 	pipelines.semi_transparent_masked_add_quarter =
-		device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_add_quarter_frag,
-		                      sizeof(feedback_add_quarter_frag));
+	    device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_add_quarter_frag,
+	                          sizeof(feedback_add_quarter_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -107,10 +113,19 @@ void Renderer::clear_rect(const Rect &rect, FBColor color)
 	atlas.clear_rect(rect, color);
 }
 
-void Renderer::set_texture_window(const Rect &rect)
+Rect Renderer::compute_window_rect(const TextureWindow &window)
 {
-	atlas.set_texture_window(rect);
-	render_state.texture_window = rect;
+	unsigned mask_bits_x = 32 - leading_zeroes(window.mask_x);
+	unsigned mask_bits_y = 32 - leading_zeroes(window.mask_y);
+	unsigned x = window.or_x & ~((1u << mask_bits_x) - 1);
+	unsigned y = window.or_y & ~((1u << mask_bits_y) - 1);
+	return { x, y, (1u << mask_bits_x) - 1, (1u << mask_bits_y) - 1 };
+}
+
+void Renderer::set_texture_window(const TextureWindow &window)
+{
+	render_state.texture_window = window;
+	render_state.cached_window_rect = compute_window_rect(window);
 }
 
 void Renderer::scanout()
@@ -124,14 +139,14 @@ BufferHandle Renderer::scanout_vram_to_buffer(unsigned &width, unsigned &height)
 	atlas.read_transfer(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
 	ensure_command_buffer();
 
-	auto buffer = device.create_buffer({BufferDomain::CachedHost, scaling * scaling * FB_WIDTH * FB_HEIGHT * 4, 0},
-	                                   nullptr);
-	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, {0, 0, 0},
-	                          {scaling * FB_WIDTH, scaling * FB_HEIGHT, 1}, 0, 0,
-	                          {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1});
+	auto buffer =
+	    device.create_buffer({ BufferDomain::CachedHost, scaling * scaling * FB_WIDTH * FB_HEIGHT * 4, 0 }, nullptr);
+	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, { 0, 0, 0 },
+	                          { scaling * FB_WIDTH, scaling * FB_HEIGHT, 1 }, 0, 0,
+	                          { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
 
-	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-	             VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+	             VK_ACCESS_HOST_READ_BIT);
 
 	device.submit(cmd);
 	cmd.reset();
@@ -150,14 +165,14 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 	atlas.read_transfer(Domain::Scaled, rect);
 	ensure_command_buffer();
 
-	auto buffer = device.create_buffer({BufferDomain::CachedHost, scaling * scaling * rect.width * rect.height * 4, 0},
-	                                   nullptr);
-	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, {int(scaling * rect.x), int(scaling * rect.y), 0},
-	                          {scaling * rect.width, scaling * rect.height, 1}, 0, 0,
-	                          {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1});
+	auto buffer = device.create_buffer(
+	    { BufferDomain::CachedHost, scaling * scaling * rect.width * rect.height * 4, 0 }, nullptr);
+	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, { int(scaling * rect.x), int(scaling * rect.y), 0 },
+	                          { scaling * rect.width, scaling * rect.height, 1 }, 0, 0,
+	                          { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
 
-	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-	             VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+	             VK_ACCESS_HOST_READ_BIT);
 
 	device.submit(cmd);
 	cmd.reset();
@@ -172,7 +187,7 @@ void Renderer::scanout(const Rect &rect)
 	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
 	{
 		// Black screen, just flush out everything.
-		atlas.read_fragment(Domain::Scaled, {0, 0, FB_WIDTH, FB_HEIGHT});
+		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
 
 		ensure_command_buffer();
 		auto info = device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly);
@@ -222,8 +237,8 @@ void Renderer::scanout(const Rect &rect)
 		float offset[2];
 		float scale[2];
 	};
-	Push push = {{float(rect.x) / FB_WIDTH,     float(rect.y) / FB_HEIGHT},
-	             {float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT}};
+	Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
@@ -324,7 +339,7 @@ void Renderer::flush_resolves()
 		{
 			unsigned to_run = min(size - i, 1024u);
 
-			Push push = {{1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT)}, scaling};
+			Push push = { { 1.0f / (scaling * FB_WIDTH), 1.0f / (scaling * FB_HEIGHT) }, scaling };
 			cmd->push_constants(&push, 0, sizeof(push));
 			void *ptr = cmd->allocate_constant_data(1, 0, to_run * sizeof(VkRect2D));
 			memcpy(ptr, queue.scaled_resolves.data() + i, to_run * sizeof(VkRect2D));
@@ -344,7 +359,7 @@ void Renderer::flush_resolves()
 		{
 			unsigned to_run = min(size - i, 1024u);
 
-			Push push = {{1.0f / FB_WIDTH, 1.0f / FB_HEIGHT}, 1u};
+			Push push = { { 1.0f / FB_WIDTH, 1.0f / FB_HEIGHT }, 1u };
 			cmd->push_constants(&push, 0, sizeof(push));
 			void *ptr = cmd->allocate_constant_data(1, 0, to_run * sizeof(VkRect2D));
 			memcpy(ptr, queue.unscaled_resolves.data() + i, to_run * sizeof(VkRect2D));
@@ -359,11 +374,9 @@ void Renderer::flush_resolves()
 void Renderer::resolve(Domain target_domain, unsigned x, unsigned y)
 {
 	if (target_domain == Domain::Scaled)
-		queue.scaled_resolves.push_back({{int(x),      int(y)},
-		                                 {BLOCK_WIDTH, BLOCK_HEIGHT}});
+		queue.scaled_resolves.push_back({ { int(x), int(y) }, { BLOCK_WIDTH, BLOCK_HEIGHT } });
 	else
-		queue.unscaled_resolves.push_back({{int(x),      int(y)},
-		                                   {BLOCK_WIDTH, BLOCK_HEIGHT}});
+		queue.unscaled_resolves.push_back({ { int(x), int(y) }, { BLOCK_WIDTH, BLOCK_HEIGHT } });
 }
 
 void Renderer::ensure_command_buffer()
@@ -408,55 +421,68 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 	// Temporary hack while I figure out how to best solve texturing ...
 	if (render_state.texture_mode != TextureMode::None)
 	{
-		for (unsigned i = 0; i < count; i++)
+		if (render_state.texture_window.mask_x == 0xffu && render_state.texture_window.mask_y == 0xffu)
 		{
-			min_u = min<unsigned>(min_u, vertices[i].u);
-			max_u = max<unsigned>(max_u, vertices[i].u);
-			min_v = min<unsigned>(min_v, vertices[i].v);
-			max_v = max<unsigned>(max_v, vertices[i].v);
-		}
+			// If we're not using texture window, we're likely accessing a small subset of the texture.
+			for (unsigned i = 0; i < count; i++)
+			{
+				min_u = min<unsigned>(min_u, vertices[i].u);
+				max_u = max<unsigned>(max_u, vertices[i].u + 1); // Account for bilinear.
+				min_v = min<unsigned>(min_v, vertices[i].v);
+				max_v = max<unsigned>(max_v, vertices[i].v + 1);
+			}
 
-		unsigned width = max_u - min_u + 1;
-		unsigned height = max_v - min_v + 1;
-		width = std::max(width, 8u);
-		height = std::max(height, 8u);
+			// We wrap around at page-end for bilinear, clamp the end.
+			max_u = min(max_u, 255u);
+			max_v = min(max_v, 255u);
 
-		unsigned width_pow2 = next_pow2(width);
-		unsigned height_pow2 = next_pow2(height);
+			unsigned width = max_u - min_u + 1;
+			unsigned height = max_v - min_v + 1;
+			width = std::max(width, 8u);
+			height = std::max(height, 8u);
 
 #ifdef VRAM_ATLAS
-		width_pow2 = min(width_pow2, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
-		height_pow2 = min(height_pow2, FB_HEIGHT - (render_state.texture_offset_y + min_v));
+			width = min(width, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
+			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
 #endif
 
-		VK_ASSERT(min_u + width_pow2 <= FB_WIDTH);
-		VK_ASSERT(min_v + height_pow2 <= FB_HEIGHT);
-		atlas.set_texture_window({min_u, min_v, width_pow2, height_pow2});
+			VK_ASSERT(min_u + width_pow2 <= FB_WIDTH);
+			VK_ASSERT(min_v + height_pow2 <= FB_HEIGHT);
+
+			atlas.set_texture_window({ min_u, min_v, width, height });
+		}
+		else
+		{
+			// If we have a masked texture window, assume this is the true rect we should use.
+			auto effective_rect = render_state.cached_window_rect;
+			VK_ASSERT(render_state.texture_offset_x + (effective_rect.width >> shift) <= FB_WIDTH);
+			atlas.set_texture_window(effective_rect);
+		}
 	}
 
 	float z = allocate_depth();
-
-
 	for (unsigned i = 0; i < count; i++)
 	{
-		output[i] = {vertices[i].x + render_state.draw_offset_x,
-		             vertices[i].y + render_state.draw_offset_y,
-		             z,
-		             vertices[i].w,
+		output[i] = {
+			vertices[i].x + render_state.draw_offset_x,
+			vertices[i].y + render_state.draw_offset_y,
+			z,
+			vertices[i].w,
 #ifndef VRAM_ATLAS
-					 int(vertices[i].u - min_u) * last_uv_scale_x,
-		             int(vertices[i].v - min_v) * last_uv_scale_y,
-		             float(last_surface.layer),
+			int(vertices[i].u - min_u) * last_uv_scale_x,
+			int(vertices[i].v - min_v) * last_uv_scale_y,
+			float(last_surface.layer),
 #endif
-		             vertices[i].color & 0xffffffu,
+			vertices[i].color & 0xffffffu,
 #ifdef VRAM_ATLAS
-					 int16_t(render_state.palette_offset_x),
-					 int16_t(render_state.palette_offset_y),
-					 int16_t(shift),
-					 int8_t(vertices[i].u),
-					 int8_t(vertices[i].v),
-					 int8_t(render_state.texture_offset_x / 64u),
-		             int8_t(render_state.texture_offset_y / 256u),
+			render_state.texture_window,
+			int16_t(render_state.palette_offset_x),
+			int16_t(render_state.palette_offset_y),
+			int16_t(shift),
+			int8_t(vertices[i].u),
+			int8_t(vertices[i].v),
+			int8_t(render_state.texture_offset_x / 64u),
+			int8_t(render_state.texture_offset_y / 256u),
 #endif
 		};
 
@@ -514,9 +540,9 @@ void Renderer::draw_triangle(const Vertex *vertices)
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
 		queue.semi_transparent_state.push_back(
-			{last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-			                       SemiTransparentMode::None,
-			 render_state.texture_mode != TextureMode::None, render_state.mask_test});
+		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
+		                                                                             SemiTransparentMode::None,
+		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
 		if (render_state.mask_test && render_state.texture_mode != TextureMode::None &&
@@ -555,13 +581,13 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
 		queue.semi_transparent_state.push_back(
-			{last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-			                       SemiTransparentMode::None,
-			 render_state.texture_mode != TextureMode::None, render_state.mask_test});
+		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
+		                                                                             SemiTransparentMode::None,
+		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 		queue.semi_transparent_state.push_back(
-			{last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-			                       SemiTransparentMode::None,
-			 render_state.texture_mode != TextureMode::None, render_state.mask_test});
+		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
+		                                                                             SemiTransparentMode::None,
+		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
 		if (render_state.mask_test && render_state.texture_mode != TextureMode::None &&
@@ -577,32 +603,26 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	atlas.set_texture_mode(old);
 
 #ifdef VRAM_ATLAS
-	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color)};
-	BufferVertex pos1 = {
-		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color)
-	};
-	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f,
-	                     fbcolor_to_rgba8(color)};
-	BufferVertex pos3 = {float(rect.x) + float(rect.width),
-	                     float(rect.y) + float(rect.height),
-	                     z,
-	                     1.0f,
-	                     fbcolor_to_rgba8(color)};
+	BufferVertex pos0 = { float(rect.x), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color) };
+	BufferVertex pos1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color) };
+	BufferVertex pos2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, fbcolor_to_rgba8(color) };
+	BufferVertex pos3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f,
+		                  fbcolor_to_rgba8(color) };
 #else
-	BufferVertex pos0 = {float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)};
+	BufferVertex pos0 = { float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color) };
 	BufferVertex pos1 = {
 		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)
 	};
-	BufferVertex pos2 = {float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f, 0.0f,
-	                     fbcolor_to_rgba8(color)};
-	BufferVertex pos3 = {float(rect.x) + float(rect.width),
-	                     float(rect.y) + float(rect.height),
-	                     z,
-	                     1.0f,
-	                     0.0f,
-	                     0.0f,
-	                     0.0f,
-	                     fbcolor_to_rgba8(color)};
+	BufferVertex pos2 = { float(rect.x),          float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f, 0.0f,
+		                  fbcolor_to_rgba8(color) };
+	BufferVertex pos3 = { float(rect.x) + float(rect.width),
+		                  float(rect.y) + float(rect.height),
+		                  z,
+		                  1.0f,
+		                  0.0f,
+		                  0.0f,
+		                  0.0f,
+		                  fbcolor_to_rgba8(color) };
 #endif
 	queue.opaque.push_back(pos0);
 	queue.opaque.push_back(pos1);
@@ -618,7 +638,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	bool is_clear = atlas.render_pass_is_clear();
 
 	RenderPassInfo info = {};
-	info.clear_depth_stencil = {1.0f, 0};
+	info.clear_depth_stencil = { 1.0f, 0 };
 	info.color_attachments[0] = &scaled_framebuffer->get_view();
 	info.depth_stencil = &depth->get_view();
 	info.num_color_attachments = 1;
@@ -638,14 +658,15 @@ void Renderer::flush_render_pass(const Rect &rect)
 	else
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
 
-	info.render_area.offset = {int(rect.x * scaling), int(rect.y * scaling)};
-	info.render_area.extent = {rect.width * scaling, rect.height * scaling};
+	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
+	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
 
 	flush_texture_allocator();
 
 	counters.render_passes++;
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
+	cmd->set_texture(0, 2, dither_lut->get_view(), StockSampler::NearestWrap);
 
 	render_opaque_primitives();
 	render_opaque_texture_primitives();
@@ -658,7 +679,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
 	reset_queue();
 }
@@ -674,7 +695,7 @@ void Renderer::render_opaque_primitives()
 
 	// Render flat-shaded primitives.
 	auto *vert = static_cast<BufferVertex *>(
-		cmd->allocate_vertex_data(0, queue.opaque.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+	    cmd->allocate_vertex_data(0, queue.opaque.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
 	for (auto i = queue.opaque.size(); i; i--)
 		*vert++ = queue.opaque[i - 1];
 
@@ -707,6 +728,7 @@ void Renderer::render_semi_transparent_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -776,7 +798,7 @@ void Renderer::render_semi_transparent_primitives()
 			}
 			else
 			{
-				static const float rgba[4] = {0.5f, 0.5f, 0.5f, 0.5f};
+				static const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
 				cmd->set_program(*pipelines.semi_transparent);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_constants(rgba);
@@ -822,7 +844,7 @@ void Renderer::render_semi_transparent_primitives()
 			}
 			else
 			{
-				static const float rgba[4] = {0.25f, 0.25f, 0.25f, 1.0f};
+				static const float rgba[4] = { 0.25f, 0.25f, 0.25f, 1.0f };
 				cmd->set_program(*pipelines.semi_transparent);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_constants(rgba);
@@ -876,6 +898,7 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -888,7 +911,7 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 
 		// Render opaque textured primitives.
 		auto *vert = static_cast<BufferVertex *>(
-			cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
 		for (auto i = vertices.size(); i; i--)
 			*vert++ = vertices[i - 1];
 
@@ -918,6 +941,7 @@ void Renderer::render_opaque_texture_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -930,7 +954,7 @@ void Renderer::render_opaque_texture_primitives()
 
 		// Render opaque textured primitives.
 		auto *vert = static_cast<BufferVertex *>(
-			cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
 		for (auto i = vertices.size(); i; i--)
 			*vert++ = vertices[i - 1];
 
@@ -951,8 +975,8 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 	if (domain == Domain::Scaled)
 	{
 		last_surface = allocator.allocate(
-			domain, {scaling * rect.x, scaling * rect.y, scaling * rect.width, scaling * rect.height},
-			scaling * off_x, scaling * off_y, render_state.palette_offset_x, render_state.palette_offset_y);
+		    domain, { scaling * rect.x, scaling * rect.y, scaling * rect.width, scaling * rect.height },
+		    scaling * off_x, scaling * off_y, render_state.palette_offset_x, render_state.palette_offset_y);
 	}
 	else
 		last_surface = allocator.allocate(domain, rect, off_x, off_y, render_state.palette_offset_x,
@@ -1021,11 +1045,11 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
 			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
 				q.push_back({
-					            {(x + src.x) * scaling,                 (y + src.y) * scaling},
-					            {(x + dst.x) * scaling,                 (y + dst.y) * scaling},
-					            {min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling},
-					            {0,                                     0},
-				            });
+				    { (x + src.x) * scaling, (y + src.y) * scaling },
+				    { (x + dst.x) * scaling, (y + dst.y) * scaling },
+				    { min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling },
+				    { 0, 0 },
+				});
 	}
 	else
 	{
@@ -1035,14 +1059,12 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
 			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
 				q.push_back({
-					            {x + src.x,                   y + src.y},
-					            {x + dst.x,                   y + dst.y},
-					            {min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y)},
-					            {0,                           0},
-				            });
+				    { x + src.x, y + src.y },
+				    { x + dst.x, y + dst.y },
+				    { min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y) },
+				    { 0, 0 },
+				});
 	}
-
-
 }
 
 void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
@@ -1051,7 +1073,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);
 
 	// TODO: Chain allocate this.
-	auto buffer = device.create_buffer({BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT}, data);
+	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, data);
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
 	view_info.offset = 0;
@@ -1069,7 +1091,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 		Rect rect;
 		uint32_t offset;
 	};
-	Push push = {rect, 0};
+	Push push = { rect, 0 };
 	cmd->push_constants(&push, 0, sizeof(push));
 
 	// TODO: Batch up work.

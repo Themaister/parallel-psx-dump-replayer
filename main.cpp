@@ -1,13 +1,13 @@
 #include "device.hpp"
 #include "renderer/renderer.hpp"
+#include "stb_image_write.h"
 #include "wsi.hpp"
 #include <cmath>
 #include <random>
+#include <renderer.hpp>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
-#include <renderer.hpp>
-#include "stb_image_write.h"
 
 using namespace PSX;
 using namespace std;
@@ -15,21 +15,21 @@ using namespace Vulkan;
 
 enum
 {
-   RSX_END = 0,
-   RSX_PREPARE_FRAME,
-   RSX_FINALIZE_FRAME,
-   RSX_TEX_WINDOW,
-   RSX_MASK_SETTING,
-   RSX_DRAW_OFFSET,
-   RSX_DRAW_AREA,
-   RSX_DISPLAY_MODE,
-   RSX_TRIANGLE,
-   RSX_QUAD,
-   RSX_LINE,
-   RSX_LOAD_IMAGE,
-   RSX_FILL_RECT,
-   RSX_COPY_RECT,
-   RSX_TOGGLE_DISPLAY
+	RSX_END = 0,
+	RSX_PREPARE_FRAME,
+	RSX_FINALIZE_FRAME,
+	RSX_TEX_WINDOW,
+	RSX_MASK_SETTING,
+	RSX_DRAW_OFFSET,
+	RSX_DRAW_AREA,
+	RSX_DISPLAY_MODE,
+	RSX_TRIANGLE,
+	RSX_QUAD,
+	RSX_LINE,
+	RSX_LOAD_IMAGE,
+	RSX_FILL_RECT,
+	RSX_COPY_RECT,
+	RSX_TOGGLE_DISPLAY
 };
 
 static void read_tag(FILE *file)
@@ -132,16 +132,16 @@ CommandLine read_line(FILE *file)
 
 static void log_vertex(const CommandVertex &v)
 {
-	fprintf(stderr, "  x = %.1f, y = %.1f, w = %.1f, c = 0x%x, u = %u, v = %u\n",
-            v.x, v.y, v.w, v.color, v.tx, v.ty);
+	fprintf(stderr, "  x = %.1f, y = %.1f, w = %.1f, c = 0x%x, u = %u, v = %u\n", v.x, v.y, v.w, v.color, v.tx, v.ty);
 }
 
 static void log_state(const RenderState &s)
 {
-	fprintf(stderr, " Page = (%u, %u), CLUT = (%u, %u), texture_blend_mode = %u, depth_shift = %u, dither = %s, blend_mode = %u\n",
-            s.texpage_x, s.texpage_y,
-            s.clut_x, s.clut_y,
-            s.texture_blend_mode, s.depth_shift, s.dither ? "on" : "off", s.blend_mode);
+	fprintf(
+	    stderr,
+	    " Page = (%u, %u), CLUT = (%u, %u), texture_blend_mode = %u, depth_shift = %u, dither = %s, blend_mode = %u\n",
+	    s.texpage_x, s.texpage_y, s.clut_x, s.clut_y, s.texture_blend_mode, s.depth_shift, s.dither ? "on" : "off",
+	    s.blend_mode);
 }
 
 static void set_renderer_state(Renderer &renderer, const RenderState &state)
@@ -230,7 +230,8 @@ static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index
 	device.unmap_host_buffer(*buffer);
 }
 
-static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &eof, unsigned &frame, unsigned &draw_call)
+static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &eof, unsigned &frame,
+                         unsigned &draw_call)
 {
 	auto op = read_u32(file);
 	eof = false;
@@ -252,16 +253,11 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto twy = read_u32(file);
 
 		auto tex_x_mask = ~(tww << 3);
-		auto tex_x_or = (twx & tww) << 3;
 		auto tex_y_mask = ~(twh << 3);
+		auto tex_x_or = (twx & tww) << 3;
 		auto tex_y_or = (twy & twh) << 3;
 
-		auto width = 1 << (32 - leading_zeroes(tex_x_mask & 0xff));
-		auto height = 1 << (32 - leading_zeroes(tex_y_mask & 0xff));
-		VK_ASSERT(width <= 256);
-		VK_ASSERT(height <= 256);
-		renderer.set_texture_window({ tex_x_or, tex_y_or, width, height });
-
+		renderer.set_texture_window({ uint8_t(tex_x_mask), uint8_t(tex_y_mask), uint8_t(tex_x_or), uint8_t(tex_y_or) });
 		break;
 	}
 
@@ -415,15 +411,14 @@ static double gettime()
 	return ts.tv_sec + 1e-9 * ts.tv_nsec;
 }
 
-
 int main()
 {
 	WSI wsi;
-	wsi.init(1280, 720);
+	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 8);
 
-	FILE *file = fopen("/tmp/ff.rsx", "rb");
+	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -440,7 +435,8 @@ int main()
 		double start = gettime();
 		wsi.begin_frame();
 		renderer.reset_counters();
-		while (read_command(file, device, renderer, eof, frames, draw_call));
+		while (read_command(file, device, renderer, eof, frames, draw_call))
+			;
 		renderer.scanout();
 
 		wsi.end_frame();

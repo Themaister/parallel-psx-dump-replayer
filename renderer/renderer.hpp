@@ -1,11 +1,11 @@
 #pragma once
 
-#include <string.h>
 #include "atlas.hpp"
 #include "device.hpp"
 #include "texture.hpp"
 #include "vulkan.hpp"
 #include "wsi.hpp"
+#include <string.h>
 
 namespace PSX
 {
@@ -15,6 +15,11 @@ struct Vertex
 	float x, y, w;
 	uint32_t color;
 	uint8_t u, v;
+};
+
+struct TextureWindow
+{
+	uint8_t mask_x, mask_y, or_x, or_y;
 };
 
 enum class SemiTransparentMode
@@ -39,7 +44,7 @@ public:
 		render_state.draw_offset_y = y;
 	}
 
-	void set_texture_window(const Rect &rect);
+	void set_texture_window(const TextureWindow &rect);
 	inline void set_texture_offset(unsigned x, unsigned y)
 	{
 		atlas.set_texture_offset(x, y);
@@ -158,6 +163,7 @@ private:
 		Vulkan::ProgramHandle semi_transparent_masked_add_quarter;
 	} pipelines;
 
+	Vulkan::ImageHandle dither_lut;
 
 	void init_pipelines();
 	void ensure_command_buffer();
@@ -165,7 +171,8 @@ private:
 	struct
 	{
 		Rect display_mode;
-      Rect texture_window;
+		TextureWindow texture_window;
+		Rect cached_window_rect;
 		Rect draw_rect;
 		int draw_offset_x = 0;
 		int draw_offset_y = 0;
@@ -193,6 +200,7 @@ private:
 		uint32_t color;
 
 #ifdef VRAM_ATLAS
+		TextureWindow window;
 		int16_t pal_x, pal_y, shift;
 		int8_t u, v, base_uv_x, base_uv_y;
 #endif
@@ -269,5 +277,7 @@ private:
 	void flush_resolves();
 	void flush_blits();
 	void scanout(const Rect &rect);
+
+	Rect compute_window_rect(const TextureWindow &window);
 };
 }
