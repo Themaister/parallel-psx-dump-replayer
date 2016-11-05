@@ -35,6 +35,12 @@ public:
 		vacants.push_back(ptr);
 	}
 
+	void clear()
+	{
+		vacants.clear();
+		memory.clear();
+	}
+
 private:
 	std::vector<T *> vacants;
 	struct MallocDeleter

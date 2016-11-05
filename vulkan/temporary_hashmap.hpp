@@ -2,7 +2,7 @@
 
 #include "hashmap.hpp"
 #include "object_pool.hpp"
-#include <stack>
+#include <vector>
 
 namespace Vulkan
 {
@@ -50,6 +50,11 @@ public:
 			ring.clear();
 		}
 		hashmap.clear();
+
+		for (auto &vacant : vacants)
+			object_pool.free(static_cast<T *>(&*vacant));
+		vacants.clear();
+		object_pool.clear();
 	}
 
 	void begin_frame()
@@ -84,7 +89,7 @@ public:
 	template <typename... P>
 	void make_vacant(P &&... p)
 	{
-		vacants.push(object_pool.allocate(std::forward<P>(p)...));
+		vacants.push_back(object_pool.allocate(std::forward<P>(p)...));
 	}
 
 	T *request_vacant(Hash hash)
@@ -92,8 +97,8 @@ public:
 		if (vacants.empty())
 			return nullptr;
 
-		auto top = vacants.top();
-		vacants.pop();
+		auto top = vacants.back();
+		vacants.pop_back();
 		top->set_index(index);
 		top->set_hash(hash);
 		hashmap[hash] = top;
@@ -117,7 +122,7 @@ private:
 	ObjectPool<T> object_pool;
 	unsigned index = 0;
 	HashMap<typename WeakList<T>::Iterator> hashmap;
-	std::stack<typename WeakList<T>::Iterator> vacants;
+	std::vector<typename WeakList<T>::Iterator> vacants;
 
 	template <bool reuse>
 	struct ReuseTag
@@ -131,7 +136,7 @@ private:
 
 	void free_object(T *object, const ReuseTag<true> &)
 	{
-		vacants.push(object);
+		vacants.push_back(object);
 	}
 };
 }

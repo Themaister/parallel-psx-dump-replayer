@@ -192,7 +192,45 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	}
 }
 
-static bool read_command(FILE *file, Renderer &renderer, bool &eof)
+static void dump_to_file(Device &device, Renderer &renderer, unsigned index, unsigned subindex)
+{
+	unsigned width, height;
+	auto buffer = renderer.scanout_to_buffer(true, width, height);
+	if (!buffer)
+		return;
+
+	char path[1024];
+	snprintf(path, sizeof(path), "/tmp/test-%06u-%06u.bmp", index, subindex);
+
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
+	for (unsigned i = 0; i < width * height; i++)
+		data[i] |= 0xff000000u;
+
+	if (!stbi_write_bmp(path, width, height, 4, data))
+		LOG("Failed to write image.");
+	device.unmap_host_buffer(*buffer);
+}
+
+static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index)
+{
+	unsigned width, height;
+	auto buffer = renderer.scanout_vram_to_buffer(width, height);
+	if (!buffer)
+		return;
+
+	char path[1024];
+	snprintf(path, sizeof(path), "/tmp/test-vram-%06u.bmp", index);
+
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
+	for (unsigned i = 0; i < width * height; i++)
+		data[i] |= 0xff000000u;
+
+	if (!stbi_write_bmp(path, width, height, 4, data))
+		LOG("Failed to write image.");
+	device.unmap_host_buffer(*buffer);
+}
+
+static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &eof, unsigned &frame, unsigned &draw_call)
 {
 	auto op = read_u32(file);
 	eof = false;
@@ -288,6 +326,14 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 
 		set_renderer_state(renderer, state);
 		renderer.draw_triangle(vertices);
+
+		if (frame == 100)
+		{
+			LOG("Dumping draw call: %u\n", draw_call);
+			dump_to_file(device, renderer, frame, draw_call);
+		}
+		draw_call++;
+
 		break;
 	}
 
@@ -308,6 +354,14 @@ static bool read_command(FILE *file, Renderer &renderer, bool &eof)
 
 		set_renderer_state(renderer, state);
 		renderer.draw_quad(vertices);
+
+		if (frame == 100)
+		{
+			LOG("Dumping draw call: %u\n", draw_call);
+			dump_to_file(device, renderer, frame, draw_call);
+		}
+		draw_call++;
+
 		break;
 	}
 
@@ -373,25 +427,6 @@ static double gettime()
 	return ts.tv_sec + 1e-9 * ts.tv_nsec;
 }
 
-static void dump_to_file(Device &device, Renderer &renderer, unsigned index)
-{
-	unsigned width, height;
-	auto buffer = renderer.scanout_to_buffer(width, height);
-	if (!buffer)
-		return;
-
-	char path[1024];
-	snprintf(path, sizeof(path), "/tmp/test-%06u.bmp", index);
-
-	device.wait_idle();
-	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MaliSDK::MEMORY_ACCESS_READ));
-	for (unsigned i = 0; i < width * height; i++)
-		data[i] |= 0xff000000u;
-
-	if (!stbi_write_bmp(path, width, height, 4, data))
-		LOG("Failed to write image.");
-	device.unmap_host_buffer(*buffer);
-}
 
 int main()
 {
@@ -408,25 +443,28 @@ int main()
 
 	bool eof = false;
 	unsigned frames = 0;
+	unsigned draw_call = 0;
 	double total_time = 0.0;
 	while (!eof && wsi.alive())
 	{
+		draw_call = 0;
+
 		double start = gettime();
 		wsi.begin_frame();
 		renderer.reset_counters();
-		while (read_command(file, renderer, eof));
+		while (read_command(file, device, renderer, eof, frames, draw_call));
+		dump_vram_to_file(device, renderer, frames);
 		renderer.scanout();
 
-		dump_to_file(device, renderer, frames);
 		wsi.end_frame();
 		double end = gettime();
 		total_time += end - start;
 		frames++;
 
-		LOG("Render passes: %u\n", renderer.counters.render_passes);
-		LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-		LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
-		LOG("Vertices: %u\n", renderer.counters.vertices);
+		//LOG("Render passes: %u\n", renderer.counters.render_passes);
+		//LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+		//LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
+		//LOG("Vertices: %u\n", renderer.counters.vertices);
 	}
 
 	LOG("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);

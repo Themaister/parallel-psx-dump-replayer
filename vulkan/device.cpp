@@ -512,6 +512,11 @@ void Device::wait_idle()
 		frame->begin();
 		frame->swapchain_touched = touched_swapchain;
 	}
+
+	framebuffer_allocator.clear();
+	transient_allocator.clear();
+	for (auto &allocator : descriptor_set_allocators)
+		allocator.second->clear();
 }
 
 void Device::begin_frame(unsigned index)

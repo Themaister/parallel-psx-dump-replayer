@@ -117,15 +117,21 @@ pair<VkDescriptorSet, bool> DescriptorSetAllocator::find(Hash hash)
 	return { set_nodes.request_vacant(hash)->set, false };
 }
 
-DescriptorSetAllocator::~DescriptorSetAllocator()
+void DescriptorSetAllocator::clear()
 {
-	if (set_layout != VK_NULL_HANDLE)
-		vkDestroyDescriptorSetLayout(device->get_device(), set_layout, nullptr);
-
+	set_nodes.clear();
 	for (auto &pool : pools)
 	{
 		vkResetDescriptorPool(device->get_device(), pool, 0);
 		vkDestroyDescriptorPool(device->get_device(), pool, nullptr);
 	}
+	pools.clear();
+}
+
+DescriptorSetAllocator::~DescriptorSetAllocator()
+{
+	if (set_layout != VK_NULL_HANDLE)
+		vkDestroyDescriptorSetLayout(device->get_device(), set_layout, nullptr);
+	clear();
 }
 }

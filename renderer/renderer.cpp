@@ -117,9 +117,31 @@ void Renderer::scanout()
 	//scanout({ 0, 0, FB_WIDTH, FB_HEIGHT });
 }
 
-BufferHandle Renderer::scanout_to_buffer(unsigned &width, unsigned &height)
+BufferHandle Renderer::scanout_vram_to_buffer(unsigned &width, unsigned &height)
 {
-	auto &rect = render_state.display_mode;
+	atlas.read_transfer(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+	ensure_command_buffer();
+
+	auto buffer = device.create_buffer({BufferDomain::CachedHost, scaling * scaling * FB_WIDTH * FB_HEIGHT * 4, 0},
+	                                   nullptr);
+	cmd->copy_image_to_buffer(*buffer, *scaled_framebuffer, 0, {0, 0, 0},
+	                          {scaling * FB_WIDTH, scaling * FB_HEIGHT, 1}, 0, 0,
+	                          {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1});
+
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+	             VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+
+	device.submit(cmd);
+	cmd.reset();
+	device.wait_idle();
+	width = FB_WIDTH * scaling;
+	height = FB_HEIGHT * scaling;
+	return buffer;
+}
+
+BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsigned &height)
+{
+	auto &rect = draw_area ? render_state.draw_rect : render_state.display_mode;
 	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
 		return nullptr;
 

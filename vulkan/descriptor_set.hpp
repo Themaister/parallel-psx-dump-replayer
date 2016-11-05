@@ -40,6 +40,8 @@ public:
 		return set_layout;
 	}
 
+	void clear();
+
 private:
 	struct DescriptorSetNode : TemporaryHashmapEnabled<DescriptorSetNode>, IntrusiveListEnabled<DescriptorSetNode>
 	{
