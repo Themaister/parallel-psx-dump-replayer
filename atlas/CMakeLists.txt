@@ -1,2 +1,5 @@
 add_library(atlas STATIC atlas.cpp)
 target_include_directories(atlas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+if (VRAM_ATLAS)
+    target_compile_definitions(atlas PUBLIC VRAM_ATLAS=1)
+endif()

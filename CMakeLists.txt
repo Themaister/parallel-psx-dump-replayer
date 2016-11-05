@@ -6,6 +6,8 @@ if (CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-missing-field-initializers")
 endif()
 
+option(VRAM_ATLAS "Use VRAM atlas approach." ON)
+
 add_subdirectory(vulkan)
 add_subdirectory(glsl)
 add_subdirectory(atlas)

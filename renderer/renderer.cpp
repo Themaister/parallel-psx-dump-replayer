@@ -922,7 +922,6 @@ void Renderer::render_opaque_texture_primitives()
 
 void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
 {
-#ifndef VRAM_ATLAS
 	if (domain == Domain::Scaled)
 	{
 		last_surface = allocator.allocate(
@@ -939,14 +938,6 @@ void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, u
 
 	if (allocator.get_max_layer_count() >= MAX_LAYERS)
 		flush_texture_allocator();
-#else
-	(void)domain;
-	(void)rect;
-	(void)off_x;
-	(void)off_y;
-	last_surface.texture = 0;
-	last_surface.layer = 0;
-#endif
 }
 
 void Renderer::flush_blits()

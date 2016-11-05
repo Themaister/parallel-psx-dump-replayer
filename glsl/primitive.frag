@@ -2,10 +2,12 @@
 precision mediump float;
 precision mediump int;
 
+#include "common.h"
+
 layout(location = 0) in mediump vec4 vColor;
 #ifdef TEXTURED
-    layout(location = 1) in highp vec3 vUV;
     #ifdef VRAM_ATLAS
+        layout(location = 1) in highp vec2 vUV;
         layout(location = 2) flat in mediump ivec3 vParam;
         layout(set = 0, binding = 0) uniform mediump usampler2D uFramebuffer;
     #else
@@ -14,18 +16,14 @@ layout(location = 0) in mediump vec4 vColor;
             layout(set = 0, binding = 0) uniform mediump sampler2DArray uTexture;
         #endif
         layout(set = 0, binding = 1) uniform mediump sampler2DArray uTextureNN;
+        layout(location = 1) in highp vec3 vUV;
     #endif
 #endif
 layout(location = 0) out vec4 FragColor;
 
 #if defined(VRAM_ATLAS) && defined(TEXTURED)
-vec4 abgr1555(uint value)
-{
-    uvec4 ucolor = (uvec4(value) >> uvec4(0u, 5u, 10u, 15u)) & uvec4(31u, 31u, 31u, 1u);
-    return vec4(ucolor) / vec4(31.0, 31.0, 31.0, 1.0);
-}
 
-vec4 sample_vram_atlas()
+vec4 sample_vram_atlas(ivec2 uv)
 {
     ivec3 params = vParam;
     int shift = params.z;
@@ -34,7 +32,7 @@ vec4 sample_vram_atlas()
     if (shift != 0)
     {
         int bpp = 16 >> shift;
-        coord = ivec2(vUV.xy);
+        coord = ivec2(uv);
         int phase = coord.x & ((1 << shift) - 1);
         int align = bpp * phase;
         coord.x >>= shift;
@@ -46,9 +44,23 @@ vec4 sample_vram_atlas()
         coord = params.xy;
     }
     else
-        coord = ivec2(vUV.xy);
+        coord = uv;
 
     return abgr1555(texelFetch(uFramebuffer, coord & ivec2(1023, 511), 0).x);
+}
+
+vec4 sample_vram_bilinear(vec4 NNColor)
+{
+    vec2 base = vUV;
+    ivec2 ibase = ivec2(base);
+    vec4 c01 = sample_vram_atlas(ibase + ivec2(0, 1));
+    vec4 c10 = sample_vram_atlas(ibase + ivec2(1, 0));
+    vec4 c11 = sample_vram_atlas(ibase + ivec2(1, 1));
+    float u = fract(base.x);
+    float v = fract(base.y);
+    vec4 x0 = mix(NNColor, c10, u);
+    vec4 x1 = mix(c01, c11, u);
+    return mix(x0, x1, v);
 }
 #endif
 
@@ -56,7 +68,7 @@ void main()
 {
 #ifdef TEXTURED
     #ifdef VRAM_ATLAS
-        vec4 NNColor = sample_vram_atlas();
+        vec4 NNColor = sample_vram_atlas(ivec2(vUV));
     #else
         vec4 NNColor = texture(uTextureNN, vUV);
     #endif
@@ -81,7 +93,8 @@ void main()
         vec4 color = NNColor;
     #else
         #ifdef VRAM_ATLAS
-            vec4 color = NNColor;
+            vec4 color = sample_vram_bilinear(NNColor);
+            //vec4 color = NNColor;
         #else
             vec4 color = texture(uTexture, vUV);
         #endif

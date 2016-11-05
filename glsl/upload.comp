@@ -1,6 +1,8 @@
 #version 310 es
 layout(local_size_x = 8, local_size_y = 8) in;
 
+#include "common.h"
+
 #if defined(SCALED)
 layout(set = 0, binding = 0) uniform sampler2D uFramebuffer;
 #else
@@ -26,21 +28,6 @@ layout(std430, push_constant) uniform PushMe
     uint scale;
 } registers;
 
-uvec2 unpack2x16(uint x)
-{
-    return uvec2(x & 0xffffu, x >> 16u);
-}
-
-uvec4 unpack4x8(uint x)
-{
-    return (uvec4(x) >> uvec4(0u, 8u, 16u, 24u)) & 0xffu;
-}
-
-vec4 abgr1555(uint value)
-{
-    uvec4 ucolor = (uvec4(value) >> uvec4(0u, 5u, 10u, 15u)) & uvec4(31u, 31u, 31u, 1u);
-    return vec4(ucolor) / vec4(31.0, 31.0, 31.0, 1.0);
-}
 
 uvec2 apply_window(uvec2 coord)
 {
