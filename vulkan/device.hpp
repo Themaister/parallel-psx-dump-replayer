@@ -32,6 +32,7 @@ public:
 	~Device();
 	void set_context(const Context &context);
 	void init_swapchain(const std::vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format);
+	void init_virtual_swapchain(unsigned num_swapchain_images);
 
 	void begin_frame(unsigned index);
 	void flush_frame();

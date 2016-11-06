@@ -389,6 +389,22 @@ Device::~Device()
 		frame->cleanup();
 }
 
+void Device::init_virtual_swapchain(unsigned num_swapchain_images)
+{
+	wait_idle();
+
+	// Clear out caches which might contain stale data from now on.
+	framebuffer_allocator.clear();
+	transient_allocator.clear();
+
+	for (auto &frame : per_frame)
+		frame->cleanup();
+	per_frame.clear();
+
+	for (unsigned i = 0; i < num_swapchain_images; i++)
+		per_frame.emplace_back(new PerFrame(this, allocator, queue_family_index));
+}
+
 void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format)
 {
 	wait_idle();
