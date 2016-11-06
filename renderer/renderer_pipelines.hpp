@@ -74,4 +74,16 @@ static const uint32_t feedback_sub_frag[] =
 static const uint32_t feedback_add_quarter_frag[] =
 #include "feedback.add_quarter.frag.inc"
     ;
+static const uint32_t feedback_flat_add_frag[] =
+#include "feedback.flat.add.frag.inc"
+    ;
+static const uint32_t feedback_flat_avg_frag[] =
+#include "feedback.flat.avg.frag.inc"
+    ;
+static const uint32_t feedback_flat_sub_frag[] =
+#include "feedback.flat.sub.frag.inc"
+    ;
+static const uint32_t feedback_flat_add_quarter_frag[] =
+#include "feedback.flat.add_quarter.frag.inc"
+    ;
 }

@@ -47,5 +47,5 @@ void main()
 #endif
 
     FragColor.rgb += textureLod(uDitherLUT, gl_FragCoord.xy * 0.25, 0.0).xxx - 4.0 / 255.0;
-    FragColor.rgb = quantize_abgr1555(FragColor.rgb);
+    FragColor.rgb = quantize_bgr555(FragColor.rgb);
 }

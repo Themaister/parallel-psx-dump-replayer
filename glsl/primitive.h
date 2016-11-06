@@ -16,7 +16,7 @@ layout(location = 0) in mediump vec4 vColor;
 layout(location = 0) out vec4 FragColor;
 layout(set = 0, binding = 2) uniform sampler2D uDitherLUT;
 
-vec3 quantize_abgr1555(vec3 color)
+vec3 quantize_bgr555(vec3 color)
 {
 	return round(color * 31.0) / 31.0;
 }

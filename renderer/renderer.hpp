@@ -161,6 +161,10 @@ private:
 		Vulkan::ProgramHandle semi_transparent_masked_average;
 		Vulkan::ProgramHandle semi_transparent_masked_sub;
 		Vulkan::ProgramHandle semi_transparent_masked_add_quarter;
+		Vulkan::ProgramHandle flat_masked_add;
+		Vulkan::ProgramHandle flat_masked_average;
+		Vulkan::ProgramHandle flat_masked_sub;
+		Vulkan::ProgramHandle flat_masked_add_quarter;
 	} pipelines;
 
 	Vulkan::ImageHandle dither_lut;
