@@ -164,31 +164,28 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 			renderer.set_texture_mode(TextureMode::Palette4bpp);
 			break;
 		}
-
-		switch (state.blend_mode)
-		{
-		default:
-			renderer.set_semi_transparent(SemiTransparentMode::None);
-			break;
-
-		case 0:
-			renderer.set_semi_transparent(SemiTransparentMode::Average);
-			break;
-		case 1:
-			renderer.set_semi_transparent(SemiTransparentMode::Add);
-			break;
-		case 2:
-			renderer.set_semi_transparent(SemiTransparentMode::Sub);
-			break;
-		case 3:
-			renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
-			break;
-		}
 	}
 	else
-	{
 		renderer.set_texture_mode(TextureMode::None);
+
+	switch (state.blend_mode)
+	{
+	default:
 		renderer.set_semi_transparent(SemiTransparentMode::None);
+		break;
+
+	case 0:
+		renderer.set_semi_transparent(SemiTransparentMode::Average);
+		break;
+	case 1:
+		renderer.set_semi_transparent(SemiTransparentMode::Add);
+		break;
+	case 2:
+		renderer.set_semi_transparent(SemiTransparentMode::Sub);
+		break;
+	case 3:
+		renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
+		break;
 	}
 }
 
@@ -418,7 +415,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4);
 
-	FILE *file = fopen("/tmp/crash.rsx", "rb");
+	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)
 		return 1;
 

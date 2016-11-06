@@ -514,6 +514,12 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 			return &queue.opaque_textured[last_surface.texture];
 		}
 	}
+	else if (render_state.semi_transparent != SemiTransparentMode::None)
+	{
+		if (last_surface.texture >= queue.semi_transparent_opaque.size())
+			queue.semi_transparent_opaque.resize(last_surface.texture + 1);
+		return &queue.semi_transparent_opaque[last_surface.texture];
+	}
 	else
 		return &queue.opaque;
 }
@@ -534,19 +540,17 @@ void Renderer::draw_triangle(const Vertex *vertices)
 			out->push_back(vert[i]);
 	}
 
-	if (render_state.mask_test ||
-	    (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None))
+	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
+		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
 		queue.semi_transparent_state.push_back(
-		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-		                                                                             SemiTransparentMode::None,
+		    { last_texture, render_state.semi_transparent,
 		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
-		if (render_state.mask_test && render_state.texture_mode != TextureMode::None &&
-		    render_state.semi_transparent != SemiTransparentMode::None)
+		if (render_state.mask_test && render_state.semi_transparent != SemiTransparentMode::None)
 			render_pass_is_feedback = true;
 	}
 }
@@ -571,9 +575,9 @@ void Renderer::draw_quad(const Vertex *vertices)
 		out->push_back(vert[1]);
 	}
 
-	if (render_state.mask_test ||
-	    (render_state.texture_mode != TextureMode::None && render_state.semi_transparent != SemiTransparentMode::None))
+	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
+		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		queue.semi_transparent.push_back(vert[0]);
 		queue.semi_transparent.push_back(vert[1]);
 		queue.semi_transparent.push_back(vert[2]);
@@ -581,17 +585,14 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
 		queue.semi_transparent_state.push_back(
-		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-		                                                                             SemiTransparentMode::None,
+		    { last_texture, render_state.semi_transparent,
 		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 		queue.semi_transparent_state.push_back(
-		    { last_surface.texture, render_state.texture_mode != TextureMode::None ? render_state.semi_transparent :
-		                                                                             SemiTransparentMode::None,
+		    { last_texture, render_state.semi_transparent,
 		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
-		if (render_state.mask_test && render_state.texture_mode != TextureMode::None &&
-		    render_state.semi_transparent != SemiTransparentMode::None)
+		if (render_state.mask_test && render_state.semi_transparent != SemiTransparentMode::None)
 			render_pass_is_feedback = true;
 	}
 }
@@ -766,6 +767,7 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
+				VK_ASSERT(state.textured);
 				cmd->set_program(*pipelines.semi_transparent_masked_add);
 				cmd->pixel_barrier();
 				cmd->set_input_attachment(1, 0, scaled_framebuffer->get_view());
@@ -776,7 +778,7 @@ void Renderer::render_semi_transparent_primitives()
 			}
 			else
 			{
-				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_program(state.textured ? *pipelines.semi_transparent : *pipelines.opaque_flat);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
@@ -788,6 +790,7 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
+				VK_ASSERT(state.textured);
 				cmd->set_program(*pipelines.semi_transparent_masked_average);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
@@ -799,7 +802,7 @@ void Renderer::render_semi_transparent_primitives()
 			else
 			{
 				static const float rgba[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
-				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_program(state.textured ? *pipelines.semi_transparent : *pipelines.opaque_flat);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_constants(rgba);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -812,6 +815,7 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
+				VK_ASSERT(state.textured);
 				cmd->set_program(*pipelines.semi_transparent_masked_sub);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
@@ -822,7 +826,7 @@ void Renderer::render_semi_transparent_primitives()
 			}
 			else
 			{
-				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_program(state.textured ? *pipelines.semi_transparent : *pipelines.opaque_flat);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_op(VK_BLEND_OP_REVERSE_SUBTRACT, VK_BLEND_OP_ADD);
 				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
@@ -834,6 +838,7 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
+				VK_ASSERT(state.textured);
 				cmd->set_program(*pipelines.semi_transparent_masked_add_quarter);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
@@ -845,7 +850,7 @@ void Renderer::render_semi_transparent_primitives()
 			else
 			{
 				static const float rgba[4] = { 0.25f, 0.25f, 0.25f, 1.0f };
-				cmd->set_program(*pipelines.semi_transparent);
+				cmd->set_program(state.textured ? *pipelines.semi_transparent : *pipelines.opaque_flat);
 				cmd->set_blend_enable(true);
 				cmd->set_blend_constants(rgba);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
