@@ -14,7 +14,7 @@ using namespace std;
 namespace Vulkan
 {
 Context::Context(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
-                             uint32_t device_ext_count)
+                 uint32_t device_ext_count)
     : owned_instance(true)
     , owned_device(true)
 {
@@ -41,8 +41,7 @@ bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
 	return vulkan_symbol_wrapper_load_global_symbols();
 }
 
-Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue,
-                             uint32_t queue_family)
+Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue, uint32_t queue_family)
     : device(device)
     , instance(instance)
     , gpu(gpu)
@@ -59,9 +58,9 @@ Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQ
 }
 
 Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
-                             const char **required_device_extensions, unsigned num_required_device_extensions,
-                             const char **required_device_layers, unsigned num_required_device_layers,
-                             const VkPhysicalDeviceFeatures *required_features)
+                 const char **required_device_extensions, unsigned num_required_device_extensions,
+                 const char **required_device_layers, unsigned num_required_device_layers,
+                 const VkPhysicalDeviceFeatures *required_features)
     : instance(instance)
     , owned_instance(false)
     , owned_device(true)
@@ -179,9 +178,8 @@ bool Context::create_instance(const char **instance_ext, uint32_t instance_ext_c
 }
 
 bool Context::create_device(VkPhysicalDevice gpu, VkSurfaceKHR surface, const char **required_device_extensions,
-                                  unsigned num_required_device_extensions, const char **required_device_layers,
-                                  unsigned num_required_device_layers,
-                                  const VkPhysicalDeviceFeatures *required_features)
+                            unsigned num_required_device_extensions, const char **required_device_layers,
+                            unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features)
 {
 	if (gpu == VK_NULL_HANDLE)
 	{

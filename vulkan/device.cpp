@@ -447,7 +447,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 
 Device::PerFrame::PerFrame(Device *device, GlobalAllocator &global, uint32_t queue_family_index)
     : device(device->get_device())
-      , global_allocator(global)
+    , global_allocator(global)
     , cmd_pool(device->get_device(), queue_family_index)
     , fence_manager(device->get_device())
     , vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
@@ -814,7 +814,7 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 {
 	VkImage image;
 	VkMemoryRequirements reqs;
-    DeviceAllocation allocation;
+	DeviceAllocation allocation;
 
 	VkImageCreateInfo info = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 	info.format = create_info.format;

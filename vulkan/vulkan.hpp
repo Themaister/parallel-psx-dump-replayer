@@ -50,13 +50,11 @@ namespace Vulkan
 class Context
 {
 public:
-	Context(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
-	              uint32_t device_ext_count);
+	Context(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext, uint32_t device_ext_count);
 	Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue, uint32_t queue_family);
-	Context(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
-	              const char **required_device_extensions, unsigned num_required_device_extensions,
-	              const char **required_device_layers, unsigned num_required_device_layers,
-	              const VkPhysicalDeviceFeatures *required_features);
+	Context(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface, const char **required_device_extensions,
+	        unsigned num_required_device_extensions, const char **required_device_layers,
+	        unsigned num_required_device_layers, const VkPhysicalDeviceFeatures *required_features);
 
 	Context(const Context &) = delete;
 	void operator=(const Context &) = delete;

@@ -1,0 +1,6 @@
+add_library(vulkan-wsi STATIC wsi.cpp)
+target_link_libraries(vulkan-wsi vulkan)
+target_include_directories(vulkan-wsi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(vulkan-wsi PUBLIC HAVE_GLFW)
+find_package(glfw3)
+target_link_libraries(vulkan-wsi vulkan-symbols glfw)

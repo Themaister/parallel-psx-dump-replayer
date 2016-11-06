@@ -6,6 +6,7 @@ if (CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-missing-field-initializers")
 endif()
 
+option(VULKAN_WSI "Enable Vulkan WSI." ON)
 option(VRAM_ATLAS "Use VRAM atlas approach." ON)
 
 add_subdirectory(vulkan)

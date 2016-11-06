@@ -19,13 +19,13 @@ add_library(vulkan
         render_pass.cpp
         buffer.cpp
         chain_allocator.cpp
-        memory_allocator.cpp
-        wsi.cpp)
+        memory_allocator.cpp)
 
-find_package(glfw3)
-target_link_libraries(vulkan vulkan-symbols glfw)
 target_include_directories(vulkan PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(vulkan PRIVATE HAVE_GLFW VULKAN_DEBUG)
+target_compile_definitions(vulkan PUBLIC VULKAN_DEBUG)
+
+add_subdirectory(wsi)
 
 add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
 target_link_libraries(vulkan spirv-cross-core)
+target_link_libraries(vulkan vulkan-symbols)

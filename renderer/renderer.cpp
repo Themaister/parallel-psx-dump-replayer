@@ -101,15 +101,15 @@ void Renderer::init_pipelines()
 	    device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert), feedback_add_quarter_frag,
 	                          sizeof(feedback_add_quarter_frag));
 
-	pipelines.flat_masked_add = device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert),
-	                                                              feedback_add_frag, sizeof(feedback_add_frag));
-	pipelines.flat_masked_average = device.create_program(
-		opaque_flat_vert, sizeof(opaque_flat_vert), feedback_flat_avg_frag, sizeof(feedback_flat_avg_frag));
+	pipelines.flat_masked_add =
+	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), feedback_add_frag, sizeof(feedback_add_frag));
+	pipelines.flat_masked_average = device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert),
+	                                                      feedback_flat_avg_frag, sizeof(feedback_flat_avg_frag));
 	pipelines.flat_masked_sub = device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert),
-	                                                              feedback_flat_sub_frag, sizeof(feedback_flat_sub_frag));
+	                                                  feedback_flat_sub_frag, sizeof(feedback_flat_sub_frag));
 	pipelines.flat_masked_add_quarter =
-		device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), feedback_flat_add_quarter_frag,
-		                      sizeof(feedback_flat_add_quarter_frag));
+	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), feedback_flat_add_quarter_frag,
+	                          sizeof(feedback_flat_add_quarter_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -456,9 +456,6 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
 #endif
 
-			VK_ASSERT(min_u + width_pow2 <= FB_WIDTH);
-			VK_ASSERT(min_v + height_pow2 <= FB_HEIGHT);
-
 			atlas.set_texture_window({ min_u, min_v, width, height });
 		}
 		else
@@ -555,9 +552,9 @@ void Renderer::draw_triangle(const Vertex *vertices)
 		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
-		queue.semi_transparent_state.push_back(
-		    { last_texture, render_state.semi_transparent,
-		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
+		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		                                         render_state.texture_mode != TextureMode::None,
+		                                         render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
 		if (render_state.mask_test && render_state.semi_transparent != SemiTransparentMode::None)
@@ -594,12 +591,12 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[3]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
-		queue.semi_transparent_state.push_back(
-		    { last_texture, render_state.semi_transparent,
-		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
-		queue.semi_transparent_state.push_back(
-		    { last_texture, render_state.semi_transparent,
-		      render_state.texture_mode != TextureMode::None, render_state.mask_test });
+		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		                                         render_state.texture_mode != TextureMode::None,
+		                                         render_state.mask_test });
+		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		                                         render_state.texture_mode != TextureMode::None,
+		                                         render_state.mask_test });
 
 		// We've hit the dragon path, we'll need programmable blending for this render pass.
 		if (render_state.mask_test && render_state.semi_transparent != SemiTransparentMode::None)
@@ -777,7 +774,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_add : *pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_program(state.textured ? *pipelines.flat_masked_add :
+				                                  *pipelines.semi_transparent_masked_add_quarter);
 				cmd->pixel_barrier();
 				cmd->set_input_attachment(1, 0, scaled_framebuffer->get_view());
 				cmd->set_blend_enable(false);
@@ -799,7 +797,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_average : *pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_program(state.textured ? *pipelines.flat_masked_average :
+				                                  *pipelines.semi_transparent_masked_add_quarter);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
@@ -823,7 +822,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_sub : *pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_program(state.textured ? *pipelines.flat_masked_sub :
+				                                  *pipelines.semi_transparent_masked_add_quarter);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
@@ -845,7 +845,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_add_quarter : *pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_program(state.textured ? *pipelines.flat_masked_add_quarter :
+				                                  *pipelines.semi_transparent_masked_add_quarter);
 				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
@@ -1085,28 +1086,54 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 
 	// TODO: Chain allocate this.
 	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, data);
+
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
-	view_info.offset = 0;
-	view_info.range = size;
-	view_info.format = VK_FORMAT_R16_UINT;
-	auto view = device.create_buffer_view(view_info);
-
-	ensure_command_buffer();
-	cmd->set_program(render_state.mask_test ? *pipelines.copy_to_vram_masked : *pipelines.copy_to_vram);
-	cmd->set_storage_texture(0, 0, framebuffer->get_view());
-	cmd->set_buffer_view(0, 1, *view);
 
 	struct Push
 	{
 		Rect rect;
 		uint32_t offset;
 	};
-	Push push = { rect, 0 };
-	cmd->push_constants(&push, 0, sizeof(push));
 
-	// TODO: Batch up work.
-	cmd->dispatch((rect.width + 7) >> 3, (rect.height + 7) >> 3, 1);
+	ensure_command_buffer();
+	cmd->set_program(render_state.mask_test ? *pipelines.copy_to_vram_masked : *pipelines.copy_to_vram);
+	cmd->set_storage_texture(0, 0, framebuffer->get_view());
+
+	// Vulkan minimum limit, for large buffer views, split up the work.
+	if (rect.width * rect.height > 0x10000)
+	{
+		for (unsigned y = 0; y < rect.height; y += BLOCK_HEIGHT)
+		{
+			unsigned y_size = min(rect.height - y, BLOCK_HEIGHT);
+			view_info.offset = y * rect.width * sizeof(uint16_t);
+			view_info.range = y_size * rect.width * sizeof(uint16_t);
+			view_info.format = VK_FORMAT_R16_UINT;
+			auto view = device.create_buffer_view(view_info);
+
+			Rect small_rect = { rect.x, rect.y + y, rect.width, y_size };
+
+			cmd->set_buffer_view(0, 1, *view);
+			Push push = { small_rect, 0 };
+			cmd->push_constants(&push, 0, sizeof(push));
+			cmd->dispatch((small_rect.width + 7) >> 3, (small_rect.height + 7) >> 3, 1);
+		}
+	}
+	else
+	{
+		view_info.offset = 0;
+		view_info.range = size;
+		view_info.format = VK_FORMAT_R16_UINT;
+		auto view = device.create_buffer_view(view_info);
+
+		cmd->set_buffer_view(0, 1, *view);
+
+		Push push = { rect, 0 };
+		cmd->push_constants(&push, 0, sizeof(push));
+
+		// TODO: Batch up work.
+		cmd->dispatch((rect.width + 7) >> 3, (rect.height + 7) >> 3, 1);
+	}
 }
 
 Renderer::~Renderer()

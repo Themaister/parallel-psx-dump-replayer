@@ -1,7 +1,10 @@
 #include "device.hpp"
 #include "renderer/renderer.hpp"
 #include "stb_image_write.h"
+
+#ifdef VULKAN_WSI
 #include "wsi.hpp"
+#endif
 #include <cmath>
 #include <random>
 #include <renderer.hpp>
@@ -358,8 +361,6 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto height = read_u32(file);
 		vector<uint16_t> tmp(width * height);
 		fread(tmp.data(), sizeof(uint16_t), width * height, file);
-
-		VK_ASSERT(width * height <= 0x10000);
 
 		renderer.copy_cpu_to_vram(tmp.data(), { x, y, width, height });
 		break;

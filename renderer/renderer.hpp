@@ -4,7 +4,11 @@
 #include "device.hpp"
 #include "texture.hpp"
 #include "vulkan.hpp"
+
+#ifdef VULKAN_WSI
 #include "wsi.hpp"
+#endif
+
 #include <string.h>
 
 namespace PSX
