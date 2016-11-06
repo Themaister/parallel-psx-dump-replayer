@@ -7,8 +7,8 @@ namespace PSX
 {
 struct TextureSurface
 {
-	unsigned texture;
-	unsigned layer;
+	unsigned texture = 0;
+	unsigned layer = 0;
 };
 
 struct BlitInfo

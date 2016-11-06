@@ -632,22 +632,34 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 	{
 		if (render_state.semi_transparent != SemiTransparentMode::None)
 		{
+#ifdef VRAM_ATLAS
+			return &queue.semi_transparent_opaque;
+#else
 			if (last_surface.texture >= queue.semi_transparent_opaque.size())
 				queue.semi_transparent_opaque.resize(last_surface.texture + 1);
 			return &queue.semi_transparent_opaque[last_surface.texture];
+#endif
 		}
 		else
 		{
+#ifdef VRAM_ATLAS
+			return &queue.opaque_textured;
+#else
 			if (last_surface.texture >= queue.opaque_textured.size())
 				queue.opaque_textured.resize(last_surface.texture + 1);
 			return &queue.opaque_textured[last_surface.texture];
+#endif
 		}
 	}
 	else if (render_state.semi_transparent != SemiTransparentMode::None)
 	{
+#ifdef VRAM_ATLAS
+		return &queue.semi_transparent_opaque;
+#else
 		if (last_surface.texture >= queue.semi_transparent_opaque.size())
 			queue.semi_transparent_opaque.resize(last_surface.texture + 1);
 		return &queue.semi_transparent_opaque[last_surface.texture];
+#endif
 	}
 	else
 		return &queue.opaque;
@@ -1020,7 +1032,13 @@ void Renderer::render_semi_transparent_primitives()
 
 void Renderer::render_semi_transparent_opaque_texture_primitives()
 {
+#ifdef VRAM_ATLAS
+	const unsigned num_textures = 1;
+	if (queue.semi_transparent_opaque.empty())
+		return;
+#else
 	unsigned num_textures = queue.semi_transparent_opaque.size();
+#endif
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
@@ -1039,7 +1057,11 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
+#ifdef VRAM_ATLAS
+		auto &vertices = queue.semi_transparent_opaque;
+#else
 		auto &vertices = queue.semi_transparent_opaque[tex];
+#endif
 		if (vertices.empty())
 			continue;
 
@@ -1063,7 +1085,13 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 
 void Renderer::render_opaque_texture_primitives()
 {
+#ifdef VRAM_ATLAS
+	const unsigned num_textures = 1;
+	if (queue.opaque_textured.empty())
+		return;
+#else
 	unsigned num_textures = queue.opaque_textured.size();
+#endif
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
@@ -1082,7 +1110,11 @@ void Renderer::render_opaque_texture_primitives()
 
 	for (unsigned tex = 0; tex < num_textures; tex++)
 	{
+#ifdef VRAM_ATLAS
+		auto &vertices = queue.opaque_textured;
+#else
 		auto &vertices = queue.opaque_textured[tex];
+#endif
 		if (vertices.empty())
 			continue;
 

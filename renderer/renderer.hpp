@@ -255,11 +255,19 @@ private:
 		// Non-textured primitives.
 		std::vector<BufferVertex> opaque;
 
-		// Textured primitives, no semi-transparency.
+// Textured primitives, no semi-transparency.
+#ifdef VRAM_ATLAS
+		std::vector<BufferVertex> opaque_textured;
+#else
 		std::vector<std::vector<BufferVertex>> opaque_textured;
+#endif
 
-		// Textured primitives, semi-transparency enabled.
+// Textured primitives, semi-transparency enabled.
+#ifdef VRAM_ATLAS
+		std::vector<BufferVertex> semi_transparent_opaque;
+#else
 		std::vector<std::vector<BufferVertex>> semi_transparent_opaque;
+#endif
 
 		std::vector<BufferVertex> semi_transparent;
 		std::vector<SemiTransparentState> semi_transparent_state;
