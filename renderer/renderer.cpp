@@ -207,7 +207,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 		auto info =
 		    ImageCreateInfo::render_target(rect.width ? rect.width : 64u, rect.height ? rect.height : 64u, format);
-		info.initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		auto image = device.create_image(info);
 
@@ -215,6 +215,11 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		rp.color_attachments[0] = &image->get_view();
 		rp.num_color_attachments = 1;
 		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
+
+		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 		cmd->begin_render_pass(rp);
 		cmd->end_render_pass();
@@ -245,7 +250,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		auto info = ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
 		                                           rect.height * (render_state.bpp24 ? 1 : scaling),
 		                                           render_state.bpp24 ? VK_FORMAT_R8G8B8A8_UNORM : format);
-		info.initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		auto image = device.create_image(info);
 
@@ -253,6 +258,11 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		rp.color_attachments[0] = &image->get_view();
 		rp.num_color_attachments = 1;
 		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
+
+		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 		cmd->begin_render_pass(rp);
 		cmd->set_quad_state();

@@ -902,11 +902,11 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	handle->set_stage_flags(image_usage_to_possible_stages(info.usage));
 	handle->set_access_flags(image_usage_to_possible_access(info.usage));
 
-	begin_staging();
-
 	// Copy initial data to texture.
 	if (initial)
 	{
+		begin_staging();
+
 		VK_ASSERT(create_info.domain != ImageDomain::Transient);
 		VK_ASSERT(create_info.initial_layout != VK_IMAGE_LAYOUT_UNDEFINED);
 		bool generate_mips = (create_info.misc & IMAGE_MISC_GENERATE_MIPS_BIT) != 0;
@@ -954,6 +954,8 @@ ImageHandle Device::create_image(const ImageCreateInfo &create_info, const Image
 	}
 	else if (create_info.initial_layout != VK_IMAGE_LAYOUT_UNDEFINED)
 	{
+		begin_staging();
+
 		VK_ASSERT(create_info.domain != ImageDomain::Transient);
 		staging_cmd->image_barrier(*handle, VK_IMAGE_LAYOUT_UNDEFINED, create_info.initial_layout,
 		                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, handle->get_stage_flags(),

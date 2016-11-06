@@ -191,7 +191,7 @@ bool WSI::init_swapchain(unsigned width, unsigned height)
 	vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &num_present_modes, present_modes.data());
 
 	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
-#if 0
+#if 1
 	for (uint32_t i = 0; i < num_present_modes; i++)
 	{
 		if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR || present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
