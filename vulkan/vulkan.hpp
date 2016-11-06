@@ -47,22 +47,22 @@ struct NoCopyNoMove
 
 namespace Vulkan
 {
-class VulkanContext
+class Context
 {
 public:
-	VulkanContext(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
+	Context(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
 	              uint32_t device_ext_count);
-	VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue, uint32_t queue_family);
-	VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
+	Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue, uint32_t queue_family);
+	Context(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
 	              const char **required_device_extensions, unsigned num_required_device_extensions,
 	              const char **required_device_layers, unsigned num_required_device_layers,
 	              const VkPhysicalDeviceFeatures *required_features);
 
-	VulkanContext(const VulkanContext &) = delete;
-	void operator=(const VulkanContext &) = delete;
+	Context(const Context &) = delete;
+	void operator=(const Context &) = delete;
 	static bool init_loader(PFN_vkGetInstanceProcAddr addr);
 
-	~VulkanContext();
+	~Context();
 
 	VkInstance get_instance() const
 	{

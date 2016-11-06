@@ -20,7 +20,7 @@ public:
 	bool alive();
 	void update_framebuffer(unsigned width, unsigned height);
 
-	inline VulkanContext &get_context()
+	inline Context &get_context()
 	{
 		return *context;
 	}
@@ -34,7 +34,7 @@ public:
 	bool end_frame();
 
 private:
-	std::unique_ptr<VulkanContext> context;
+	std::unique_ptr<Context> context;
 	GLFWwindow *window = nullptr;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;

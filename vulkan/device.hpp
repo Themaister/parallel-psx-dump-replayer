@@ -30,7 +30,7 @@ class Device
 public:
 	Device();
 	~Device();
-	void set_context(const VulkanContext &context);
+	void set_context(const Context &context);
 	void init_swapchain(const std::vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format);
 
 	void begin_frame(unsigned index);

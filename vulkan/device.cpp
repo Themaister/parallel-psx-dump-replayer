@@ -139,7 +139,7 @@ void Device::bake_program(Program &program)
 	}
 }
 
-void Device::set_context(const VulkanContext &context)
+void Device::set_context(const Context &context)
 {
 	instance = context.get_instance();
 	gpu = context.get_gpu();

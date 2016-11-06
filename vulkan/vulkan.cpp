@@ -13,7 +13,7 @@ using namespace std;
 
 namespace Vulkan
 {
-VulkanContext::VulkanContext(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
+Context::Context(const char **instance_ext, uint32_t instance_ext_count, const char **device_ext,
                              uint32_t device_ext_count)
     : owned_instance(true)
     , owned_device(true)
@@ -32,7 +32,7 @@ VulkanContext::VulkanContext(const char **instance_ext, uint32_t instance_ext_co
 	}
 }
 
-bool VulkanContext::init_loader(PFN_vkGetInstanceProcAddr addr)
+bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
 {
 	if (!addr)
 		return false;
@@ -41,7 +41,7 @@ bool VulkanContext::init_loader(PFN_vkGetInstanceProcAddr addr)
 	return vulkan_symbol_wrapper_load_global_symbols();
 }
 
-VulkanContext::VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue,
+Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkDevice device, VkQueue queue,
                              uint32_t queue_family)
     : device(device)
     , instance(instance)
@@ -58,7 +58,7 @@ VulkanContext::VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkDevice
 	vkGetPhysicalDeviceMemoryProperties(gpu, &mem_props);
 }
 
-VulkanContext::VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
+Context::Context(VkInstance instance, VkPhysicalDevice gpu, VkSurfaceKHR surface,
                              const char **required_device_extensions, unsigned num_required_device_extensions,
                              const char **required_device_layers, unsigned num_required_device_layers,
                              const VkPhysicalDeviceFeatures *required_features)
@@ -75,7 +75,7 @@ VulkanContext::VulkanContext(VkInstance instance, VkPhysicalDevice gpu, VkSurfac
 	}
 }
 
-void VulkanContext::destroy()
+void Context::destroy()
 {
 	if (device != VK_NULL_HANDLE)
 		vkDeviceWaitIdle(device);
@@ -91,12 +91,12 @@ void VulkanContext::destroy()
 		vkDestroyInstance(instance, nullptr);
 }
 
-VulkanContext::~VulkanContext()
+Context::~Context()
 {
 	destroy();
 }
 
-const VkApplicationInfo &VulkanContext::get_application_info()
+const VkApplicationInfo &Context::get_application_info()
 {
 	static const VkApplicationInfo info = {
 		VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr, "paraLLEl PSX", 0, "paraLLEl PSX", 0, VK_MAKE_VERSION(1, 0, 18),
@@ -137,7 +137,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_cb(VkDebugReportFlagsEXT flag
 }
 #endif
 
-bool VulkanContext::create_instance(const char **instance_ext, uint32_t instance_ext_count)
+bool Context::create_instance(const char **instance_ext, uint32_t instance_ext_count)
 {
 	VkInstanceCreateInfo info = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	info.pApplicationInfo = &get_application_info();
@@ -178,7 +178,7 @@ bool VulkanContext::create_instance(const char **instance_ext, uint32_t instance
 	return true;
 }
 
-bool VulkanContext::create_device(VkPhysicalDevice gpu, VkSurfaceKHR surface, const char **required_device_extensions,
+bool Context::create_device(VkPhysicalDevice gpu, VkSurfaceKHR surface, const char **required_device_extensions,
                                   unsigned num_required_device_extensions, const char **required_device_layers,
                                   unsigned num_required_device_layers,
                                   const VkPhysicalDeviceFeatures *required_features)

@@ -25,13 +25,13 @@ bool WSI::init(unsigned width, unsigned height)
 	if (!glfwInit())
 		return false;
 
-	if (!VulkanContext::init_loader(glfwGetInstanceProcAddress))
+	if (!Context::init_loader(glfwGetInstanceProcAddress))
 		return false;
 
 	uint32_t count;
 	const char **ext = glfwGetRequiredInstanceExtensions(&count);
 	const char *device_ext = "VK_KHR_swapchain";
-	context = unique_ptr<VulkanContext>(new VulkanContext(ext, count, &device_ext, 1));
+	context = unique_ptr<Context>(new Context(ext, count, &device_ext, 1));
 
 	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkDestroySurfaceKHR);
 	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkGetPhysicalDeviceSurfaceSupportKHR);
