@@ -40,8 +40,6 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	cmd->clear_image(*scaled_framebuffer, {});
 	cmd->clear_image(*framebuffer, {});
 	cmd->full_barrier();
-	device.submit(cmd);
-	cmd.reset();
 
 	auto dither_info = ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8_UNORM);
 	// This lut is biased with 4 to be able to use UNORM easily.
@@ -49,6 +47,10 @@ Renderer::Renderer(Device &device, unsigned scaling)
 
 	ImageInitialData dither_initial = { dither_lut_data };
 	dither_lut = device.create_image(dither_info, &dither_initial);
+
+	device.submit(cmd);
+	cmd.reset();
+	device.flush_frame();
 }
 
 void Renderer::init_pipelines()
@@ -190,6 +192,116 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 	width = scaling * rect.width;
 	height = scaling * rect.height;
 	return buffer;
+}
+
+ImageHandle Renderer::scanout_to_texture(VkFormat format)
+{
+	auto &rect = render_state.display_mode;
+
+	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
+	{
+		// Black screen, just flush out everything.
+		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+
+		ensure_command_buffer();
+
+		auto info =
+		    ImageCreateInfo::render_target(rect.width ? rect.width : 64u, rect.height ? rect.height : 64u, format);
+		info.initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		auto image = device.create_image(info);
+
+		RenderPassInfo rp;
+		rp.color_attachments[0] = &image->get_view();
+		rp.num_color_attachments = 1;
+		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
+
+		cmd->begin_render_pass(rp);
+		cmd->end_render_pass();
+
+		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		device.submit(cmd);
+		cmd.reset();
+		return image;
+	}
+	else
+	{
+		if (render_state.bpp24)
+		{
+			auto tmp = rect;
+			tmp.width = (tmp.width * 3 + 1) / 2;
+			tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
+			atlas.read_fragment(Domain::Unscaled, tmp);
+		}
+		else
+			atlas.read_fragment(Domain::Scaled, rect);
+
+		ensure_command_buffer();
+
+		auto info = ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
+		                                           rect.height * (render_state.bpp24 ? 1 : scaling),
+		                                           render_state.bpp24 ? VK_FORMAT_R8G8B8A8_UNORM : format);
+		info.initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		auto image = device.create_image(info);
+
+		RenderPassInfo rp;
+		rp.color_attachments[0] = &image->get_view();
+		rp.num_color_attachments = 1;
+		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
+
+		cmd->begin_render_pass(rp);
+		cmd->set_quad_state();
+
+		if (render_state.bpp24)
+		{
+			cmd->set_program(*pipelines.bpp24_quad_blitter);
+			cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
+		}
+		else
+		{
+			cmd->set_program(*pipelines.scaled_quad_blitter);
+			cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
+		}
+
+		int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
+		*data++ = -128;
+		*data++ = -128;
+		*data++ = +127;
+		*data++ = -128;
+		*data++ = -128;
+		*data++ = +127;
+		*data++ = +127;
+		*data++ = +127;
+		struct Push
+		{
+			float offset[2];
+			float scale[2];
+		};
+		Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+			          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
+		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+		counters.draw_calls++;
+		counters.vertices += 4;
+		cmd->draw(4);
+		cmd->end_render_pass();
+
+		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		device.submit(cmd);
+		cmd.reset();
+		return image;
+	}
 }
 
 void Renderer::scanout(const Rect &rect)

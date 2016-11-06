@@ -253,6 +253,9 @@ void Device::submit(CommandBufferHandle cmd, Fence *fence)
 
 void Device::submit_queue(Fence *fence)
 {
+	if (frame().submissions.empty())
+		return;
+
 	frame().ubo_chain.flush();
 	frame().vbo_chain.flush();
 	frame().ibo_chain.flush();
@@ -377,6 +380,8 @@ bool Device::swapchain_touched() const
 
 Device::~Device()
 {
+	wait_idle();
+
 	if (pipeline_cache != VK_NULL_HANDLE)
 		vkDestroyPipelineCache(device, pipeline_cache, nullptr);
 

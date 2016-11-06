@@ -34,6 +34,11 @@ public:
 	void init_swapchain(const std::vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format);
 	void init_virtual_swapchain(unsigned num_swapchain_images);
 
+	unsigned get_num_swapchain_images() const
+	{
+		return per_frame.size();
+	}
+
 	void begin_frame(unsigned index);
 	void flush_frame();
 	void wait_idle();

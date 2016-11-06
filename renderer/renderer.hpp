@@ -80,6 +80,7 @@ public:
 	void scanout();
 	Vulkan::BufferHandle scanout_to_buffer(bool draw_area, unsigned &width, unsigned &height);
 	Vulkan::BufferHandle scanout_vram_to_buffer(unsigned &width, unsigned &height);
+	Vulkan::ImageHandle scanout_to_texture(VkFormat format);
 
 	inline void set_texture_mode(TextureMode mode)
 	{
@@ -116,6 +117,14 @@ public:
 	void reset_counters()
 	{
 		memset(&counters, 0, sizeof(counters));
+	}
+
+	void flush()
+	{
+		if (cmd)
+			device.submit(cmd);
+		cmd.reset();
+		device.flush_frame();
 	}
 
 	struct
