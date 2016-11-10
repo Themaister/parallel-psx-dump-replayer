@@ -25,9 +25,12 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 		atlas.set_draw_rect(render_state.draw_rect);
 		atlas.set_palette_offset(render_state.palette_offset_x, render_state.palette_offset_y);
 		atlas.set_texture_window(render_state.cached_window_rect);
+		atlas.write_transfer(Domain::Unscaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
 	}
 
-	ImageInitialData initial_vram = { state ? state->vram.data() : nullptr, 0, 0, };
+	ImageInitialData initial_vram = {
+		state ? state->vram.data() : nullptr, 0, 0,
+	};
 	framebuffer = device.create_image(info, state ? &initial_vram : nullptr);
 	info.width *= scaling;
 	info.height *= scaling;
@@ -66,11 +69,14 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 
 Renderer::SaveState Renderer::save_vram_state()
 {
-	auto buffer = device.create_buffer({ BufferDomain::CachedHost, FB_WIDTH * FB_HEIGHT * sizeof(uint32_t), 0 }, nullptr);
-	atlas.read_compute(Domain::Unscaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+	auto buffer =
+	    device.create_buffer({ BufferDomain::CachedHost, FB_WIDTH * FB_HEIGHT * sizeof(uint32_t), 0 }, nullptr);
+	atlas.read_transfer(Domain::Unscaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
 	ensure_command_buffer();
-	cmd->copy_image_to_buffer(*buffer, *framebuffer, 0, { 0, 0, 0 }, { FB_WIDTH, FB_HEIGHT, 1 }, 0, 0, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
-	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+	cmd->copy_image_to_buffer(*buffer, *framebuffer, 0, { 0, 0, 0 }, { FB_WIDTH, FB_HEIGHT, 1 }, 0, 0,
+	                          { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+	             VK_ACCESS_HOST_READ_BIT);
 	device.submit(cmd);
 	cmd.reset();
 
