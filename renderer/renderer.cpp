@@ -217,7 +217,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
 
 		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -260,7 +260,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
 
 		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -868,9 +868,9 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
-	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -1048,9 +1048,9 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
-	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -1101,9 +1101,9 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
 #ifdef VRAM_ATLAS
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
-	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16_SINT, offsetof(BufferVertex, pal_x));
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
+	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x)); // Pad to support AMD
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif

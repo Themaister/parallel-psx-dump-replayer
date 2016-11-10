@@ -3,9 +3,9 @@ layout(location = 0) in vec4 Position;
 layout(location = 1) in vec4 Color;
 #ifdef TEXTURED
     #ifdef VRAM_ATLAS
-        layout(location = 2) in uvec4 UV;
+        layout(location = 2) in mediump uvec4 Window;
         layout(location = 3) in mediump ivec3 Param;
-        layout(location = 4) in mediump uvec4 Window;
+        layout(location = 4) in uvec4 UV;
         layout(location = 1) out mediump vec2 vUV;
         layout(location = 2) flat out mediump ivec3 vParam;
         layout(location = 3) flat out mediump ivec2 vBaseUV;
