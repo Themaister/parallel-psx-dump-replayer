@@ -414,7 +414,7 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4);
+	Renderer renderer(device, 4, nullptr);
 
 	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)

@@ -7,7 +7,7 @@ using namespace std;
 
 namespace PSX
 {
-Renderer::Renderer(Device &device, unsigned scaling)
+Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
     : device(device)
     , scaling(scaling)
     , allocator(device)
@@ -17,7 +17,18 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
 	             VK_IMAGE_USAGE_SAMPLED_BIT;
 
-	framebuffer = device.create_image(info);
+	if (state)
+	{
+		render_state = state->state;
+		atlas.set_texture_offset(render_state.texture_offset_x, render_state.texture_offset_y);
+		atlas.set_texture_mode(render_state.texture_mode);
+		atlas.set_draw_rect(render_state.draw_rect);
+		atlas.set_palette_offset(render_state.palette_offset_x, render_state.palette_offset_y);
+		atlas.set_texture_window(render_state.cached_window_rect);
+	}
+
+	ImageInitialData initial_vram = { state ? state->vram.data() : nullptr, 0, 0, };
+	framebuffer = device.create_image(info, state ? &initial_vram : nullptr);
 	info.width *= scaling;
 	info.height *= scaling;
 	info.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -51,6 +62,24 @@ Renderer::Renderer(Device &device, unsigned scaling)
 	device.submit(cmd);
 	cmd.reset();
 	device.flush_frame();
+}
+
+Renderer::SaveState Renderer::save_vram_state()
+{
+	auto buffer = device.create_buffer({ BufferDomain::CachedHost, FB_WIDTH * FB_HEIGHT * sizeof(uint32_t), 0 }, nullptr);
+	atlas.read_compute(Domain::Unscaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+	ensure_command_buffer();
+	cmd->copy_image_to_buffer(*buffer, *framebuffer, 0, { 0, 0, 0 }, { FB_WIDTH, FB_HEIGHT, 1 }, 0, 0, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
+	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_READ_BIT);
+	device.submit(cmd);
+	cmd.reset();
+
+	device.wait_idle();
+	void *ptr = device.map_host_buffer(*buffer, MEMORY_ACCESS_READ);
+	std::vector<uint32_t> vram(FB_WIDTH * FB_HEIGHT);
+	memcpy(vram.data(), ptr, FB_WIDTH * FB_HEIGHT * sizeof(uint32_t));
+	device.unmap_host_buffer(*buffer);
+	return { move(vram), render_state };
 }
 
 void Renderer::init_pipelines()

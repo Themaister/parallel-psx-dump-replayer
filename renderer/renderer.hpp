@@ -38,7 +38,35 @@ enum class SemiTransparentMode
 class Renderer : private HazardListener
 {
 public:
-	Renderer(Vulkan::Device &device, unsigned scaling);
+	struct RenderState
+	{
+		Rect display_mode;
+		TextureWindow texture_window;
+		Rect cached_window_rect;
+		Rect draw_rect;
+		int draw_offset_x = 0;
+		int draw_offset_y = 0;
+		unsigned palette_offset_x = 0;
+		unsigned palette_offset_y = 0;
+		unsigned texture_offset_x = 0;
+		unsigned texture_offset_y = 0;
+
+		TextureMode texture_mode = TextureMode::None;
+		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
+		bool force_mask_bit = false;
+		bool texture_color_modulate = false;
+		bool mask_test = false;
+		bool display_on = false;
+		bool bpp24 = false;
+	};
+
+	struct SaveState
+	{
+		std::vector<uint32_t> vram;
+		RenderState state;
+	};
+
+	Renderer(Vulkan::Device &device, unsigned scaling, const SaveState *save_state);
 	~Renderer();
 
 	void set_draw_rect(const Rect &rect);
@@ -114,6 +142,8 @@ public:
 	void draw_triangle(const Vertex *vertices);
 	void draw_quad(const Vertex *vertices);
 
+	SaveState save_vram_state();
+
 	void reset_counters()
 	{
 		memset(&counters, 0, sizeof(counters));
@@ -185,27 +215,7 @@ private:
 	void init_pipelines();
 	void ensure_command_buffer();
 
-	struct
-	{
-		Rect display_mode;
-		TextureWindow texture_window;
-		Rect cached_window_rect;
-		Rect draw_rect;
-		int draw_offset_x = 0;
-		int draw_offset_y = 0;
-		unsigned palette_offset_x = 0;
-		unsigned palette_offset_y = 0;
-		unsigned texture_offset_x = 0;
-		unsigned texture_offset_y = 0;
-
-		TextureMode texture_mode = TextureMode::None;
-		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
-		bool force_mask_bit = false;
-		bool texture_color_modulate = false;
-		bool mask_test = false;
-		bool display_on = false;
-		bool bpp24 = false;
-	} render_state;
+	RenderState render_state;
 
 	struct BufferVertex
 	{
