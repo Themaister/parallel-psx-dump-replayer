@@ -426,8 +426,9 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 	}
 	else if (!renderpass.inside)
 	{
+		// FIXME: This can be improved for tilers.
 		sync_domain(Domain::Scaled, rect);
-		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+		write_domain(Domain::Scaled, Stage::Fragment, rect);
 		listener->clear_quad_separate(rect, color);
 	}
 	else
@@ -439,16 +440,19 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 		}
 		else if (rect.contains(renderpass.rect))
 		{
+			// FIXME: This can be improved for tilers.
 			// Our clear quad encapsulates the entire draw area + some stuff outside.
+			// Throw away the render pass and clear directly.
 			discard_render_pass();
-			renderpass.clean_clear = true;
-			renderpass.color = color;
-			// We also need to dispatch some compute work.
+			write_domain(Domain::Scaled, Stage::Fragment, rect);
+			listener->clear_quad_separate(rect, color);
 		}
 		else if (rect.intersects(renderpass.rect))
 		{
-			// Clear what is part of our render pass, but we also need to handle the regions outside our render pass.
-			listener->clear_quad(rect, color);
+			// FIXME: This can be improved for tilers.
+			flush_render_pass();
+			write_domain(Domain::Scaled, Stage::Fragment, rect);
+			listener->clear_quad_separate(rect, color);
 		}
 		else
 			assert(0 && "Should never happen.");
