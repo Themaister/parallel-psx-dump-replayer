@@ -152,6 +152,7 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	renderer.set_texture_color_modulate(state.texture_blend_mode == 2);
 	renderer.set_palette_offset(state.clut_x, state.clut_y);
 	renderer.set_texture_offset(state.texpage_x, state.texpage_y);
+	renderer.set_dither(state.dither);
 	if (state.texture_blend_mode != 0)
 	{
 		switch (state.depth_shift)
@@ -371,6 +372,7 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		};
 
 		renderer.set_texture_mode(TextureMode::None);
+		renderer.set_dither(line.dither);
 		switch (line.blend_mode)
 		{
 		default:

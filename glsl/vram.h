@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) uniform mediump usampler2D uFramebuffer;
 vec4 sample_vram_atlas(ivec2 uv)
 {
     ivec3 params = vParam;
-    int shift = params.z;
+    int shift = params.z & 3;
 
     uv = (uv & vWindow.xy) | vWindow.zw;
 

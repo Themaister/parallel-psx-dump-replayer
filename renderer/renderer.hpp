@@ -58,6 +58,7 @@ public:
 		bool mask_test = false;
 		bool display_on = false;
 		bool bpp24 = false;
+		bool dither = false;
 	};
 
 	struct SaveState
@@ -103,6 +104,11 @@ public:
 	void toggle_display(bool enable)
 	{
 		render_state.display_on = enable;
+	}
+
+	void set_dither(bool dither)
+	{
+		render_state.dither = dither;
 	}
 
 	void scanout();
@@ -230,7 +236,7 @@ private:
 
 #ifdef VRAM_ATLAS
 		TextureWindow window;
-		int16_t pal_x, pal_y, shift;
+		int16_t pal_x, pal_y, params;
 		int8_t u, v, base_uv_x, base_uv_y;
 #endif
 	};

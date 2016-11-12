@@ -643,7 +643,7 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			render_state.texture_window,
 			int16_t(render_state.palette_offset_x),
 			int16_t(render_state.palette_offset_y),
-			int16_t(shift),
+			int16_t(shift | (render_state.dither << 8)),
 			int8_t(vertices[i].u),
 			int8_t(vertices[i].v),
 			int8_t(render_state.texture_offset_x / 64u),
