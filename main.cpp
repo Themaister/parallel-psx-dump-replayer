@@ -16,6 +16,12 @@ using namespace PSX;
 using namespace std;
 using namespace Vulkan;
 
+//#define DETAIL_DUMP_FRAME 711
+//#define BREAK_FRAME 711
+//#define BREAK_DRAW 197
+
+#define BREAKPOINT __builtin_trap
+
 enum
 {
 	RSX_END = 0,
@@ -322,6 +328,11 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		};
 
 		set_renderer_state(renderer, state);
+#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
+		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
+			BREAKPOINT();
+#endif
+
 		renderer.draw_triangle(vertices);
 
 #ifdef DETAIL_DUMP_FRAME
@@ -350,6 +361,11 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		};
 
 		set_renderer_state(renderer, state);
+#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
+		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
+			BREAKPOINT();
+#endif
+
 		renderer.draw_quad(vertices);
 
 #ifdef DETAIL_DUMP_FRAME
@@ -371,6 +387,7 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 			{ float(line.x1), float(line.y1), 1.0f, line.c1, 0, 0 },
 		};
 
+		renderer.set_texture_color_modulate(false);
 		renderer.set_texture_mode(TextureMode::None);
 		renderer.set_dither(line.dither);
 		switch (line.blend_mode)
@@ -393,7 +410,19 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 			break;
 		}
 
+#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
+		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
+			BREAKPOINT();
+#endif
+
 		renderer.draw_line(vertices);
+
+#ifdef DETAIL_DUMP_FRAME
+		if (frame == DETAIL_DUMP_FRAME)
+			dump_to_file(device, renderer, frame, draw_call);
+#endif
+
+		draw_call++;
 		break;
 	}
 
@@ -417,6 +446,12 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
+
+#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
+		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
+			BREAKPOINT();
+#endif
+
 		renderer.clear_rect({ x, y, w, h }, color);
 
 #ifdef DETAIL_DUMP_FRAME
@@ -468,7 +503,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4, nullptr);
 
-	FILE *file = fopen("/tmp/spyro.rsx", "rb");
+	FILE *file = fopen("/tmp/vagrant.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -499,6 +534,7 @@ int main()
 		total_time += end - start;
 		frames++;
 
+		LOG("Completed frame %u.\n", frames);
 		//LOG("Render passes: %u\n", renderer.counters.render_passes);
 		//LOG("Draw calls: %u\n", renderer.counters.draw_calls);
 		//LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);

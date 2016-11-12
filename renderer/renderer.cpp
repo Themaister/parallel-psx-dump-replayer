@@ -690,7 +690,7 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 	else if (render_state.semi_transparent != SemiTransparentMode::None)
 	{
 #ifdef VRAM_ATLAS
-		return &queue.semi_transparent_opaque;
+		return nullptr;
 #else
 		if (last_surface.texture >= queue.semi_transparent_opaque.size())
 			queue.semi_transparent_opaque.resize(last_surface.texture + 1);
