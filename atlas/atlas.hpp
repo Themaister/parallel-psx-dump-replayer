@@ -52,7 +52,8 @@ struct Rect
 
 	inline bool contains(const Rect &rect) const
 	{
-		return x <= rect.x && y <= rect.y && (x + width) >= (rect.x + rect.width) && (y + height) >= (rect.y + rect.height);
+		return x <= rect.x && y <= rect.y && (x + width) >= (rect.x + rect.width) &&
+		       (y + height) >= (rect.y + rect.height);
 	}
 
 	inline bool intersects(const Rect &rect) const

@@ -24,7 +24,7 @@ void main()
     #elif defined(OPAQUE) || defined(SEMI_TRANS)
         if (all(equal(NNColor, vec4(0.0))))
             discard;
-    #elif !defined(SEMI_TRANS)
+    #else
     #error "Invalid defines."
     #endif
 

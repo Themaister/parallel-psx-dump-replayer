@@ -795,7 +795,7 @@ void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
 	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
@@ -923,7 +923,6 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
 	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
 	cmd->set_depth_test(true, false);
-	cmd->set_blend_enable(true);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));

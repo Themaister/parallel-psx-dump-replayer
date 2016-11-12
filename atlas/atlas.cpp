@@ -90,7 +90,7 @@ void FBAtlas::read_texture()
 	sync_domain(domain, shifted);
 
 	Rect palette_rect = { renderpass.palette_offset_x, renderpass.palette_offset_y,
-		                        renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
+		                  renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
 
 	if (palette)
 	{

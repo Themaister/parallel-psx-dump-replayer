@@ -322,6 +322,12 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 
 		set_renderer_state(renderer, state);
 		renderer.draw_triangle(vertices);
+
+#ifdef DETAIL_DUMP_FRAME
+		if (frame == DETAIL_DUMP_FRAME)
+			dump_to_file(device, renderer, frame, draw_call);
+#endif
+
 		draw_call++;
 
 		break;
@@ -344,6 +350,12 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 
 		set_renderer_state(renderer, state);
 		renderer.draw_quad(vertices);
+
+#ifdef DETAIL_DUMP_FRAME
+		if (frame == DETAIL_DUMP_FRAME)
+			dump_to_file(device, renderer, frame, draw_call);
+#endif
+
 		draw_call++;
 
 		break;
@@ -374,6 +386,14 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto w = read_u32(file);
 		auto h = read_u32(file);
 		renderer.clear_rect({ x, y, w, h }, color);
+
+#ifdef DETAIL_DUMP_FRAME
+		if (frame == DETAIL_DUMP_FRAME)
+			dump_to_file(device, renderer, frame, draw_call);
+#endif
+
+		draw_call++;
+
 		break;
 	}
 
@@ -414,9 +434,9 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4, nullptr);
+	Renderer renderer(device, 2, nullptr);
 
-	FILE *file = fopen("/tmp/mgs.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -436,6 +456,10 @@ int main()
 		while (read_command(file, device, renderer, eof, frames, draw_call))
 			;
 		renderer.scanout();
+
+#ifdef DUMP_VRAM
+		dump_vram_to_file(device, renderer, frames);
+#endif
 
 		wsi.end_frame();
 		double end = gettime();
