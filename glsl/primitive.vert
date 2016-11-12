@@ -5,7 +5,7 @@ layout(location = 1) in vec4 Color;
     #ifdef VRAM_ATLAS
         layout(location = 2) in mediump uvec4 Window;
         layout(location = 3) in mediump ivec3 Param;
-        layout(location = 4) in uvec4 UV;
+        layout(location = 4) in ivec4 UV;
         layout(location = 1) out mediump vec2 vUV;
         layout(location = 2) flat out mediump ivec3 vParam;
         layout(location = 3) flat out mediump ivec2 vBaseUV;
@@ -27,7 +27,7 @@ void main()
     #ifdef VRAM_ATLAS
         vUV = vec2(UV.xy);
         vParam = Param;
-        vBaseUV = ivec2(64, 256) * ivec2(UV.zw);
+        vBaseUV = UV.zw;
         vWindow = ivec4(Window);
     #else
         vUV = UV;

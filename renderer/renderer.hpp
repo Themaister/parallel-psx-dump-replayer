@@ -18,7 +18,7 @@ struct Vertex
 {
 	float x, y, w;
 	uint32_t color;
-	uint8_t u, v;
+	uint16_t u, v;
 };
 
 struct TextureWindow
@@ -237,7 +237,7 @@ private:
 #ifdef VRAM_ATLAS
 		TextureWindow window;
 		int16_t pal_x, pal_y, params;
-		int8_t u, v, base_uv_x, base_uv_y;
+		int16_t u, v, base_uv_x, base_uv_y;
 #endif
 	};
 

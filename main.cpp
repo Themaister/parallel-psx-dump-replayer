@@ -16,9 +16,9 @@ using namespace PSX;
 using namespace std;
 using namespace Vulkan;
 
-//#define DETAIL_DUMP_FRAME 711
-//#define BREAK_FRAME 711
-//#define BREAK_DRAW 197
+//#define DETAIL_DUMP_FRAME 4100
+//#define BREAK_FRAME 4100
+//#define BREAK_DRAW 559
 
 #define BREAKPOINT __builtin_trap
 
@@ -78,7 +78,7 @@ struct CommandVertex
 {
 	float x, y, w;
 	uint32_t color;
-	uint8_t tx, ty;
+	uint16_t tx, ty;
 };
 
 struct RenderState
@@ -98,8 +98,8 @@ CommandVertex read_vertex(FILE *file)
 	buf.y = read_f32(file);
 	buf.w = read_f32(file);
 	buf.color = read_u32(file);
-	buf.tx = uint8_t(read_u32(file));
-	buf.ty = uint8_t(read_u32(file));
+	buf.tx = uint16_t(read_u32(file));
+	buf.ty = uint16_t(read_u32(file));
 	return buf;
 }
 

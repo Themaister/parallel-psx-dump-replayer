@@ -567,9 +567,9 @@ float Renderer::allocate_depth()
 
 void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsigned count)
 {
-	unsigned min_u = 256;
+	unsigned min_u = UINT16_MAX;
 	unsigned max_u = 0;
-	unsigned min_v = 256;
+	unsigned min_v = UINT16_MAX;
 	unsigned max_v = 0;
 
 	unsigned shift;
@@ -595,14 +595,22 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			for (unsigned i = 0; i < count; i++)
 			{
 				min_u = min<unsigned>(min_u, vertices[i].u);
-				max_u = max<unsigned>(max_u, vertices[i].u + 1); // Account for bilinear.
+				max_u = max<unsigned>(max_u, vertices[i].u);
 				min_v = min<unsigned>(min_v, vertices[i].v);
-				max_v = max<unsigned>(max_v, vertices[i].v + 1);
+				max_v = max<unsigned>(max_v, vertices[i].v);
 			}
 
-			// We wrap around at page-end for bilinear, clamp the end.
-			max_u = min(max_u, 255u);
-			max_v = min(max_v, 255u);
+			// In nearest neighbor, we'll get *very* close to this UV, but not close enough to actually sample it.
+			if (max_u > min_u)
+				max_u--;
+			if (max_v > min_v)
+				max_v--;
+
+			// If there's no wrapping, we can prewrap and avoid fallback.
+			if ((max_u & 0xff00) == (min_u & 0xff00))
+				max_u &= 0xff;
+			if ((max_v & 0xff00) == (min_v & 0xff00))
+				max_v &= 0xff;
 
 			unsigned width = max_u - min_u + 1;
 			unsigned height = max_v - min_v + 1;
@@ -614,7 +622,14 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
 #endif
 
-			atlas.set_texture_window({ min_u, min_v, width, height });
+			if (max_u > 255 || max_v > 255) // Wraparound behavior, assume the whole page is hit.
+			{
+				atlas.set_texture_window({0, 0,
+				                          min(256u, FB_WIDTH - render_state.texture_offset_x),
+				                          min(256u, FB_HEIGHT - render_state.texture_offset_y)});
+			}
+			else
+				atlas.set_texture_window({ min_u, min_v, width, height });
 		}
 		else
 		{
@@ -644,10 +659,10 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			int16_t(render_state.palette_offset_x),
 			int16_t(render_state.palette_offset_y),
 			int16_t(shift | (render_state.dither << 8)),
-			int8_t(vertices[i].u),
-			int8_t(vertices[i].v),
-			int8_t(render_state.texture_offset_x / 64u),
-			int8_t(render_state.texture_offset_y / 256u),
+			int16_t(vertices[i].u),
+			int16_t(vertices[i].v),
+			int16_t(render_state.texture_offset_x),
+			int16_t(render_state.texture_offset_y),
 #endif
 		};
 
@@ -688,15 +703,7 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 		}
 	}
 	else if (render_state.semi_transparent != SemiTransparentMode::None)
-	{
-#ifdef VRAM_ATLAS
 		return nullptr;
-#else
-		if (last_surface.texture >= queue.semi_transparent_opaque.size())
-			queue.semi_transparent_opaque.resize(last_surface.texture + 1);
-		return &queue.semi_transparent_opaque[last_surface.texture];
-#endif
-	}
 	else
 		return &queue.opaque;
 }
@@ -980,7 +987,7 @@ void Renderer::render_semi_transparent_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -1160,7 +1167,7 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
@@ -1217,7 +1224,7 @@ void Renderer::render_opaque_texture_primitives()
 #ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x)); // Pad to support AMD
-	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, u));
+	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
 #else
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
 #endif
