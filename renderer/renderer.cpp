@@ -713,10 +713,10 @@ bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 	float rot90_dx = dy * norm;
 	float rot90_dy = -dx * norm;
 
-	float x0 = input[0].x + 0.5f;
-	float x1 = input[1].x + 0.5f;
-	float y0 = input[0].y + 0.5f;
-	float y1 = input[1].y + 0.5f;
+	float x0 = input[0].x;
+	float x1 = input[1].x;
+	float y0 = input[0].y;
+	float y1 = input[1].y;
 
 	output[0].x = x0 - rot90_dx;
 	output[0].y = y0 - rot90_dy;
