@@ -416,7 +416,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4, nullptr);
 
-	FILE *file = fopen("/tmp/spyro.rsx", "rb");
+	FILE *file = fopen("/tmp/mgs.rsx", "rb");
 	if (!file)
 		return 1;
 

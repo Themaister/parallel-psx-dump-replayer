@@ -89,11 +89,14 @@ void FBAtlas::read_texture()
 	auto domain = Domain::Unscaled;
 	sync_domain(domain, shifted);
 
-	const Rect palette_rect = { renderpass.palette_offset_x, renderpass.palette_offset_y,
+	Rect palette_rect = { renderpass.palette_offset_x, renderpass.palette_offset_y,
 		                        renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
 
 	if (palette)
+	{
+		palette_rect.width = min(palette_rect.width, FB_WIDTH - palette_rect.x);
 		sync_domain(domain, palette_rect);
+	}
 
 #ifdef VRAM_ATLAS
 	read_domain(domain, Stage::Fragment, shifted);
