@@ -773,6 +773,31 @@ void Renderer::draw_quad(const Vertex *vertices)
 	}
 }
 
+void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
+{
+	ensure_command_buffer();
+
+	RenderPassInfo info = {};
+	info.color_attachments[0] = &scaled_framebuffer->get_view();
+	info.num_color_attachments = 1;
+
+	info.op_flags = RENDER_PASS_OP_STORE_COLOR_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
+	fbcolor_to_rgba32f(info.clear_color[0].float32, color);
+
+	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
+	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
+
+	counters.render_passes++;
+	cmd->begin_render_pass(info);
+	cmd->end_render_pass();
+
+	// Render passes are implicitly synchronized.
+	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+}
+
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
 	auto old = atlas.set_texture_mode(TextureMode::None);

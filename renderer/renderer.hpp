@@ -182,6 +182,7 @@ private:
 	void discard_render_pass() override;
 	void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) override;
 	void clear_quad(const Rect &rect, FBColor color) override;
+	void clear_quad_separate(const Rect &rect, FBColor color) override;
 
 	struct
 	{

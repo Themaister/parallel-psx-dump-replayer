@@ -49,6 +49,18 @@ struct Rect
 	{
 		return x != rect.x || y != rect.y || width != rect.width || height != rect.height;
 	}
+
+	inline bool contains(const Rect &rect) const
+	{
+		return x <= rect.x && y <= rect.y && (x + width) >= (rect.x + rect.width) && (y + height) >= (rect.y + rect.height);
+	}
+
+	inline bool intersects(const Rect &rect) const
+	{
+		bool horiz = ((x + width) > rect.x) || ((rect.x + rect.width) > x);
+		bool vert = ((y + height) > rect.y) || ((rect.y + rect.height) > y);
+		return horiz && vert;
+	}
 };
 
 using FBColor = uint32_t;
@@ -113,6 +125,7 @@ public:
 	virtual void discard_render_pass() = 0;
 	virtual void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) = 0;
 	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
+	virtual void clear_quad_separate(const Rect &rect, FBColor color) = 0;
 };
 
 class FBAtlas

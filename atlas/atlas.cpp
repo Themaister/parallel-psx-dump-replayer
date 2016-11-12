@@ -427,14 +427,31 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 	else if (!renderpass.inside)
 	{
 		sync_domain(Domain::Scaled, rect);
-		renderpass.inside = true;
-		renderpass.clean_clear = false;
-		listener->clear_quad(rect, color);
+		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+		listener->clear_quad_separate(rect, color);
 	}
 	else
 	{
-		// TODO: If clear rect is outside the render region, flush the render pass.
-		listener->clear_quad(rect, color);
+		if (renderpass.rect.contains(rect))
+		{
+			// Our clear quad is fully inside the render pass, no special magic needed.
+			listener->clear_quad(rect, color);
+		}
+		else if (rect.contains(renderpass.rect))
+		{
+			// Our clear quad encapsulates the entire draw area + some stuff outside.
+			discard_render_pass();
+			renderpass.clean_clear = true;
+			renderpass.color = color;
+			// We also need to dispatch some compute work.
+		}
+		else if (rect.intersects(renderpass.rect))
+		{
+			// Clear what is part of our render pass, but we also need to handle the regions outside our render pass.
+			listener->clear_quad(rect, color);
+		}
+		else
+			assert(0 && "Should never happen.");
 	}
 }
 
