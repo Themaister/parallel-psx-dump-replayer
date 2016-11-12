@@ -72,14 +72,14 @@ static inline uint32_t fbcolor_to_rgba8(FBColor color)
 
 static inline void fbcolor_to_rgba32f(float *v, FBColor color)
 {
-	unsigned b = (color >> 0) & 0xff;
+	unsigned r = (color >> 0) & 0xff;
 	unsigned g = (color >> 8) & 0xff;
-	unsigned r = (color >> 16) & 0xff;
-	unsigned a = (color >> 24) & 0xff;
+	unsigned b = (color >> 16) & 0xff;
 	v[0] = r * (1.0f / 255.0f);
 	v[1] = g * (1.0f / 255.0f);
 	v[2] = b * (1.0f / 255.0f);
-	v[3] = a * (1.0f / 255.0f);
+	// Not sure what happens to mask bit.
+	v[3] = 0.0f;
 }
 
 enum StatusFlag
