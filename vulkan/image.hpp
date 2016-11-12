@@ -282,19 +282,19 @@ public:
 		return create_info.format;
 	}
 
-	uint32_t get_width() const
+	uint32_t get_width(uint32_t lod = 0) const
 	{
-		return create_info.width;
+		return std::max(1u, create_info.width >> lod);
 	}
 
-	uint32_t get_height() const
+	uint32_t get_height(uint32_t lod = 0) const
 	{
-		return create_info.height;
+		return std::max(1u, create_info.height >> lod);
 	}
 
-	uint32_t get_depth() const
+	uint32_t get_depth(uint32_t lod = 0) const
 	{
-		return create_info.depth;
+		return std::max(1u, create_info.depth >> lod);
 	}
 
 	const ImageCreateInfo &get_create_info() const

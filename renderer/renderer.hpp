@@ -216,6 +216,10 @@ private:
 		Vulkan::ProgramHandle flat_masked_average;
 		Vulkan::ProgramHandle flat_masked_sub;
 		Vulkan::ProgramHandle flat_masked_add_quarter;
+
+		Vulkan::ProgramHandle mipmap_resolve;
+		Vulkan::ProgramHandle mipmap_energy;
+		Vulkan::ProgramHandle mipmap;
 	} pipelines;
 
 	Vulkan::ImageHandle dither_lut;

@@ -246,16 +246,18 @@ Framebuffer::Framebuffer(Device *device, const RenderPass &rp, const RenderPassI
 	{
 		if (info.color_attachments[i])
 		{
-			width = min(width, info.color_attachments[i]->get_image().get_width());
-			height = min(height, info.color_attachments[i]->get_image().get_height());
+			unsigned lod = info.color_attachments[i]->get_create_info().base_level;
+			width = min(width, info.color_attachments[i]->get_image().get_width(lod));
+			height = min(height, info.color_attachments[i]->get_image().get_height(lod));
 			views[num_views++] = info.color_attachments[i]->get_view();
 		}
 	}
 
 	if (info.depth_stencil)
 	{
-		width = min(width, info.depth_stencil->get_image().get_width());
-		height = min(height, info.depth_stencil->get_image().get_height());
+		unsigned lod = info.depth_stencil->get_create_info().base_level;
+		width = min(width, info.depth_stencil->get_image().get_width(lod));
+		height = min(height, info.depth_stencil->get_image().get_height(lod));
 		views[num_views++] = info.depth_stencil->get_view();
 	}
 

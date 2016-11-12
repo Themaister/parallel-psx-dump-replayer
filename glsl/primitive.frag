@@ -46,9 +46,11 @@ void main()
     FragColor = vColor;
 #endif
 
+#if 0
 #if defined(VRAM_ATLAS) && defined(TEXTURED)
     if ((vParam.z & 0x100) != 0)
        FragColor.rgb += textureLod(uDitherLUT, gl_FragCoord.xy * 0.25, 0.0).xxx - 4.0 / 255.0;
 #endif
     FragColor.rgb = quantize_bgr555(FragColor.rgb);
+#endif
 }

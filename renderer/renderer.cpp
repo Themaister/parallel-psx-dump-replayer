@@ -148,6 +148,12 @@ void Renderer::init_pipelines()
 	pipelines.flat_masked_add_quarter =
 	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), feedback_flat_add_quarter_frag,
 	                          sizeof(feedback_flat_add_quarter_frag));
+
+	pipelines.mipmap = device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_frag, sizeof(mipmap_frag));
+	pipelines.mipmap_resolve =
+	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_resolve_frag, sizeof(mipmap_resolve_frag));
+	pipelines.mipmap_energy =
+	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_energy_frag, sizeof(mipmap_energy_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -269,102 +275,6 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		cmd.reset();
 		return image;
 	}
-	else
-	{
-		if (render_state.bpp24)
-		{
-			auto tmp = rect;
-			tmp.width = (tmp.width * 3 + 1) / 2;
-			tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
-			atlas.read_fragment(Domain::Unscaled, tmp);
-		}
-		else
-			atlas.read_fragment(Domain::Scaled, rect);
-
-		ensure_command_buffer();
-
-		auto info = ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
-		                                           rect.height * (render_state.bpp24 ? 1 : scaling),
-		                                           render_state.bpp24 ? VK_FORMAT_R8G8B8A8_UNORM : format);
-		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-		auto image = device.create_image(info);
-
-		RenderPassInfo rp;
-		rp.color_attachments[0] = &image->get_view();
-		rp.num_color_attachments = 1;
-		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
-
-		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-		cmd->begin_render_pass(rp);
-		cmd->set_quad_state();
-
-		if (render_state.bpp24)
-		{
-			cmd->set_program(*pipelines.bpp24_quad_blitter);
-			cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
-		}
-		else
-		{
-			cmd->set_program(*pipelines.scaled_quad_blitter);
-			cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
-		}
-
-		int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
-		*data++ = -128;
-		*data++ = -128;
-		*data++ = +127;
-		*data++ = -128;
-		*data++ = -128;
-		*data++ = +127;
-		*data++ = +127;
-		*data++ = +127;
-		struct Push
-		{
-			float offset[2];
-			float scale[2];
-		};
-		Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
-			          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
-		cmd->push_constants(&push, 0, sizeof(push));
-		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
-		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		counters.draw_calls++;
-		counters.vertices += 4;
-		cmd->draw(4);
-		cmd->end_render_pass();
-
-		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		device.submit(cmd);
-		cmd.reset();
-		return image;
-	}
-}
-
-void Renderer::scanout(const Rect &rect)
-{
-	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
-	{
-		// Black screen, just flush out everything.
-		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
-
-		ensure_command_buffer();
-		auto info = device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly);
-		cmd->begin_render_pass(info);
-		cmd->end_render_pass();
-		device.submit(cmd);
-		cmd.reset();
-		return;
-	}
 
 	if (render_state.bpp24)
 	{
@@ -377,7 +287,38 @@ void Renderer::scanout(const Rect &rect)
 		atlas.read_fragment(Domain::Scaled, rect);
 
 	ensure_command_buffer();
-	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
+
+	auto info =
+	    ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
+	                                   rect.height * (render_state.bpp24 ? 1 : scaling), VK_FORMAT_R8G8B8A8_UNORM);
+	if (!render_state.bpp24)
+		info.levels = trailing_zeroes(scaling) + 1;
+	const float max_bias = float(info.levels - 1);
+
+	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+	info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	auto image = device.create_image(info);
+
+	ImageViewHandle rt_view;
+	RenderPassInfo rp;
+	rp.num_color_attachments = 1;
+
+	if (!render_state.bpp24)
+	{
+		auto view_info = image->get_view().get_create_info();
+		view_info.levels = 1;
+		rt_view = device.create_image_view(view_info);
+		rp.color_attachments[0] = rt_view.get();
+	}
+	else
+		rp.color_attachments[0] = &image->get_view();
+
+	// Stay in general as we currently don't have a way to dealing with different layouts for different mip-levels.
+	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
+	                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	image->set_layout(VK_IMAGE_LAYOUT_GENERAL);
+
+	cmd->begin_render_pass(rp);
 	cmd->set_quad_state();
 
 	if (render_state.bpp24)
@@ -407,6 +348,180 @@ void Renderer::scanout(const Rect &rect)
 	};
 	Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
 		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
+	cmd->push_constants(&push, 0, sizeof(push));
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
+	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+	counters.draw_calls++;
+	counters.vertices += 4;
+	cmd->draw(4);
+	cmd->end_render_pass();
+
+	if (render_state.bpp24 || info.levels == 1)
+	{
+		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		device.submit(cmd);
+		cmd.reset();
+		return image;
+	}
+
+	// Mipmap the scanout. Do energy computation in the first mip-pass.
+	cmd->image_barrier(*image, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+	for (unsigned i = 1; i < info.levels; i++)
+	{
+		auto view_info = image->get_view().get_create_info();
+		view_info.base_level = i;
+		view_info.levels = 1;
+		rt_view = device.create_image_view(view_info);
+		rp.color_attachments[0] = rt_view.get();
+
+		cmd->begin_render_pass(rp);
+		int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
+		*data++ = -128;
+		*data++ = -128;
+		*data++ = +127;
+		*data++ = -128;
+		*data++ = -128;
+		*data++ = +127;
+		*data++ = +127;
+		*data++ = +127;
+
+		cmd->set_quad_state();
+		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
+		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+		cmd->set_program(i == 1 ? *pipelines.mipmap_energy : *pipelines.mipmap);
+		cmd->set_texture(0, 0, image->get_view(), i == 1 ? StockSampler::NearestClamp : StockSampler::LinearClamp);
+		struct Push
+		{
+			float inv_res[2];
+			float lod;
+		};
+		const float lod = float(i - 1);
+		const Push push = { { float(1 << (i - 1)) / (scaling * FB_WIDTH), float(1 << (i - 1)) / (scaling * FB_HEIGHT) },
+			                lod };
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->draw(4);
+		cmd->end_render_pass();
+
+		cmd->image_barrier(*image, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+	}
+
+	info.levels = 1;
+	info.format = format;
+	auto target_image = device.create_image(info);
+	rp.color_attachments[0] = &target_image->get_view();
+	rp.op_flags |= RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
+
+	cmd->image_barrier(*target_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	target_image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	cmd->begin_render_pass(rp);
+	data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
+	*data++ = -128;
+	*data++ = -128;
+	*data++ = +127;
+	*data++ = -128;
+	*data++ = -128;
+	*data++ = +127;
+	*data++ = +127;
+	*data++ = +127;
+
+	cmd->set_quad_state();
+	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
+	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+	cmd->set_program(*pipelines.mipmap_resolve);
+	cmd->set_texture(0, 0, image->get_view(), StockSampler::TrilinearClamp);
+	cmd->push_constants(&max_bias, 0, sizeof(max_bias));
+	cmd->draw(4);
+	cmd->end_render_pass();
+
+	cmd->image_barrier(*target_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+	                   VK_ACCESS_SHADER_READ_BIT);
+	target_image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	device.submit(cmd);
+	cmd.reset();
+	return target_image;
+}
+
+void Renderer::scanout(const Rect &rect)
+{
+	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
+	{
+		// Black screen, just flush out everything.
+		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
+
+		ensure_command_buffer();
+		auto info = device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly);
+		cmd->begin_render_pass(info);
+		cmd->end_render_pass();
+		device.submit(cmd);
+		cmd.reset();
+		return;
+	}
+
+	ImageHandle image;
+	if (render_state.bpp24)
+	{
+		auto tmp = rect;
+		tmp.width = (tmp.width * 3 + 1) / 2;
+		tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
+		atlas.read_fragment(Domain::Unscaled, tmp);
+	}
+	else
+		image = scanout_to_texture(VK_FORMAT_R8G8B8A8_UNORM);
+
+	ensure_command_buffer();
+	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
+	cmd->set_quad_state();
+
+	if (render_state.bpp24)
+	{
+		cmd->set_program(*pipelines.bpp24_quad_blitter);
+		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
+	}
+	else
+	{
+		cmd->set_program(*pipelines.scaled_quad_blitter);
+		cmd->set_texture(0, 0, image->get_view(), StockSampler::LinearClamp);
+	}
+
+	int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
+	*data++ = -128;
+	*data++ = -128;
+	*data++ = +127;
+	*data++ = -128;
+	*data++ = -128;
+	*data++ = +127;
+	*data++ = +127;
+	*data++ = +127;
+	struct Push
+	{
+		float offset[2];
+		float scale[2];
+	};
+	Push push;
+	if (render_state.bpp24)
+	{
+		push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+			     { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
+	}
+	else
+	{
+		push = { { 0.0f, 0.0f }, { 1.0f, 1.0f } };
+	}
+
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
@@ -624,9 +739,8 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 
 			if (max_u > 255 || max_v > 255) // Wraparound behavior, assume the whole page is hit.
 			{
-				atlas.set_texture_window({0, 0,
-				                          min(256u, FB_WIDTH - render_state.texture_offset_x),
-				                          min(256u, FB_HEIGHT - render_state.texture_offset_y)});
+				atlas.set_texture_window({ 0, 0, min(256u, FB_WIDTH - render_state.texture_offset_x),
+				                           min(256u, FB_HEIGHT - render_state.texture_offset_y) });
 			}
 			else
 				atlas.set_texture_window({ min_u, min_v, width, height });
