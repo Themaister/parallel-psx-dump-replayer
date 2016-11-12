@@ -362,8 +362,38 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 	}
 
 	case RSX_LINE:
-		read_line(file);
+	{
+		auto line = read_line(file);
+
+		Vertex vertices[2] = {
+			{ float(line.x0), float(line.y0), 1.0f, line.c0, 0, 0 },
+			{ float(line.x1), float(line.y1), 1.0f, line.c1, 0, 0 },
+		};
+
+		renderer.set_texture_mode(TextureMode::None);
+		switch (line.blend_mode)
+		{
+		default:
+			renderer.set_semi_transparent(SemiTransparentMode::None);
+			break;
+
+		case 0:
+			renderer.set_semi_transparent(SemiTransparentMode::Average);
+			break;
+		case 1:
+			renderer.set_semi_transparent(SemiTransparentMode::Add);
+			break;
+		case 2:
+			renderer.set_semi_transparent(SemiTransparentMode::Sub);
+			break;
+		case 3:
+			renderer.set_semi_transparent(SemiTransparentMode::AddQuarter);
+			break;
+		}
+
+		renderer.draw_line(vertices);
 		break;
+	}
 
 	case RSX_LOAD_IMAGE:
 	{
@@ -434,9 +464,9 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 2, nullptr);
+	Renderer renderer(device, 4, nullptr);
 
-	FILE *file = fopen("/tmp/crash.rsx", "rb");
+	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -453,6 +483,7 @@ int main()
 		double start = gettime();
 		wsi.begin_frame();
 		renderer.reset_counters();
+
 		while (read_command(file, device, renderer, eof, frames, draw_call))
 			;
 		renderer.scanout();

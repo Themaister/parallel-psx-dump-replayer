@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "renderer_pipelines.hpp"
-#include <cstring>
+#include <math.h>
+#include <string.h>
 
 using namespace Vulkan;
 using namespace std;
@@ -700,6 +701,52 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 		return &queue.opaque;
 }
 
+bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
+{
+	float dx = input[1].x - input[0].x;
+	float dy = input[1].y - input[0].y;
+	if (dx == 0.0f && dy == 0.0f)
+		return false;
+
+	// Flip 90 degrees and normalize the vector.
+	float norm = 0.5f / sqrtf(dx * dx + dy * dy);
+	float rot90_dx = dy * norm;
+	float rot90_dy = -dx * norm;
+
+	float x0 = input[0].x + 0.5f;
+	float x1 = input[1].x + 0.5f;
+	float y0 = input[0].y + 0.5f;
+	float y1 = input[1].y + 0.5f;
+
+	output[0].x = x0 - rot90_dx;
+	output[0].y = y0 - rot90_dy;
+	output[1].x = x0 + rot90_dx;
+	output[1].y = y0 + rot90_dy;
+	output[2].x = x1 - rot90_dx;
+	output[2].y = y1 - rot90_dy;
+	output[3].x = x1 + rot90_dx;
+	output[3].y = y1 + rot90_dy;
+
+	output[0].w = 1.0f;
+	output[1].w = 1.0f;
+	output[2].w = 1.0f;
+	output[3].w = 1.0f;
+	output[0].color = input[0].color;
+	output[1].color = input[0].color;
+	output[2].color = input[1].color;
+	output[3].color = input[1].color;
+	return true;
+}
+
+void Renderer::draw_line(const Vertex *vertices)
+{
+	// We can move this to GPU, but means more draw calls and more pipeline swapping.
+	// This should be plenty fast for the quite small amount of lines games render.
+	Vertex vert[4];
+	if (build_line_quad(vert, vertices))
+		draw_quad(vert);
+}
+
 void Renderer::draw_triangle(const Vertex *vertices)
 {
 	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
@@ -898,8 +945,12 @@ void Renderer::render_opaque_primitives()
 	// Render flat-shaded primitives.
 	auto *vert = static_cast<BufferVertex *>(
 	    cmd->allocate_vertex_data(0, queue.opaque.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-	for (auto i = queue.opaque.size(); i; i--)
+	for (auto i = queue.opaque.size(); i; i -= 3)
+	{
+		*vert++ = queue.opaque[i - 3];
+		*vert++ = queue.opaque[i - 2];
 		*vert++ = queue.opaque[i - 1];
+	}
 
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
@@ -1127,8 +1178,12 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 		// Render opaque textured primitives.
 		auto *vert = static_cast<BufferVertex *>(
 		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-		for (auto i = vertices.size(); i; i--)
+		for (auto i = vertices.size(); i; i -= 3)
+		{
+			*vert++ = vertices[i - 3];
+			*vert++ = vertices[i - 2];
 			*vert++ = vertices[i - 1];
+		}
 
 #ifndef VRAM_ATLAS
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
@@ -1180,8 +1235,12 @@ void Renderer::render_opaque_texture_primitives()
 		// Render opaque textured primitives.
 		auto *vert = static_cast<BufferVertex *>(
 		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-		for (auto i = vertices.size(); i; i--)
+		for (auto i = vertices.size(); i; i -= 3)
+		{
+			*vert++ = vertices[i - 3];
+			*vert++ = vertices[i - 2];
 			*vert++ = vertices[i - 1];
+		}
 
 #ifndef VRAM_ATLAS
 		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);

@@ -139,6 +139,7 @@ public:
 
 	// Draw commands
 	void clear_rect(const Rect &rect, FBColor color);
+	void draw_line(const Vertex *vertices);
 	void draw_triangle(const Vertex *vertices);
 	void draw_quad(const Vertex *vertices);
 
@@ -308,6 +309,7 @@ private:
 	TextureAllocator allocator;
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
+	bool build_line_quad(Vertex *quad, const Vertex *line);
 	std::vector<BufferVertex> *select_pipeline();
 
 	void flush_resolves();
