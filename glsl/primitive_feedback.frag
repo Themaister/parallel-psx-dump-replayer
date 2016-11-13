@@ -4,7 +4,7 @@ precision mediump float;
 #include "common.h"
 #include "primitive.h"
 
-layout(set = 1, binding = 0, input_attachment_index = 0) uniform mediump subpassInput uFeedbackFramebuffer;
+layout(set = 0, binding = 3, input_attachment_index = 0) uniform mediump subpassInput uFeedbackFramebuffer;
 
 void main()
 {
@@ -28,10 +28,11 @@ void main()
     float blend_amt = NNColor.a;
 #else
     vec3 shaded = vColor.rgb;
-    float blend_amt = 1.0;
+    const float blend_amt = 1.0;
 #endif
 
     vec4 fbcolor = subpassLoad(uFeedbackFramebuffer);
+
     if (fbcolor.a > 0.5)
         discard;
 

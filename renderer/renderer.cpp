@@ -1113,10 +1113,9 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_add :
-				                                  *pipelines.semi_transparent_masked_add_quarter);
+				cmd->set_program(state.textured ? *pipelines.semi_transparent_masked_add : *pipelines.flat_masked_add);
 				cmd->pixel_barrier();
-				cmd->set_input_attachment(1, 0, scaled_framebuffer->get_view());
+				cmd->set_input_attachment(0, 3, scaled_framebuffer->get_view());
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 				cmd->set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE,
@@ -1136,9 +1135,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_average :
-				                                  *pipelines.semi_transparent_masked_add_quarter);
-				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
+				cmd->set_program(state.textured ? *pipelines.semi_transparent_masked_average : *pipelines.flat_masked_average);
+				cmd->set_input_attachment(0, 3, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -1161,9 +1159,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_sub :
-				                                  *pipelines.semi_transparent_masked_add_quarter);
-				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
+				cmd->set_program(state.textured ? *pipelines.semi_transparent_masked_sub : *pipelines.flat_masked_sub);
+				cmd->set_input_attachment(0, 3, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
@@ -1184,9 +1181,8 @@ void Renderer::render_semi_transparent_primitives()
 		{
 			if (state.masked)
 			{
-				cmd->set_program(state.textured ? *pipelines.flat_masked_add_quarter :
-				                                  *pipelines.semi_transparent_masked_add_quarter);
-				cmd->set_input_attachment(0, 0, scaled_framebuffer->get_view());
+				cmd->set_program(state.textured ? *pipelines.semi_transparent_masked_add_quarter : *pipelines.flat_masked_add_quarter);
+				cmd->set_input_attachment(0, 3, scaled_framebuffer->get_view());
 				cmd->pixel_barrier();
 				cmd->set_blend_enable(false);
 				cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
