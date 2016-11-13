@@ -92,17 +92,26 @@ public:
 		render_state.palette_offset_y = y;
 	}
 
-	void copy_cpu_to_vram(const uint16_t *data, const Rect &rect);
+	Vulkan::BufferHandle copy_cpu_to_vram(const Rect &rect);
+	uint16_t *begin_copy(Vulkan::BufferHandle handle);
+	void end_copy(Vulkan::BufferHandle handle);
+
 	void blit_vram(const Rect &dst, const Rect &src);
 
 	void set_display_mode(const Rect &rect, bool bpp24)
 	{
+		if (rect != render_state.display_mode || bpp24 != render_state.bpp24)
+			last_scanout.reset();
+
 		render_state.display_mode = rect;
 		render_state.bpp24 = bpp24;
 	}
 
 	void toggle_display(bool enable)
 	{
+		if (enable != render_state.display_on)
+			last_scanout.reset();
+
 		render_state.display_on = enable;
 	}
 
@@ -326,5 +335,7 @@ private:
 	void flush_blits();
 
 	Rect compute_window_rect(const TextureWindow &window);
+
+	Vulkan::ImageHandle last_scanout;
 };
 }

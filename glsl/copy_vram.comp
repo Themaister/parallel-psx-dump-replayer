@@ -8,6 +8,7 @@ layout(push_constant, std430) uniform Rect
     uvec2 offset;
     uvec2 extent;
     uint view_offset;
+    uint mask_or;
 } rect;
 
 void main()
@@ -22,7 +23,7 @@ void main()
         if ((fbvalue & 0x8000u) == 0u)
             imageStore(uFramebuffer, ivec2(coord), uvec4(value));
 #else
-        imageStore(uFramebuffer, ivec2(coord), uvec4(value));
+        imageStore(uFramebuffer, ivec2(coord), uvec4(value | rect.mask_or));
 #endif
     }
 }

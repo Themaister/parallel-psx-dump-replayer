@@ -165,6 +165,7 @@ void Renderer::set_draw_rect(const Rect &rect)
 
 void Renderer::clear_rect(const Rect &rect, FBColor color)
 {
+	last_scanout.reset();
 	atlas.clear_rect(rect, color);
 }
 
@@ -233,6 +234,9 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 
 ImageHandle Renderer::scanout_to_texture(VkFormat format)
 {
+	if (last_scanout)
+		return last_scanout;
+
 	auto &rect = render_state.display_mode;
 
 	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
@@ -361,6 +365,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 		device.submit(cmd);
 		cmd.reset();
+		last_scanout = image;
 		return image;
 	}
 
@@ -447,6 +452,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 	device.submit(cmd);
 	cmd.reset();
+	last_scanout = target_image;
 	return target_image;
 }
 
@@ -836,6 +842,7 @@ void Renderer::draw_triangle(const Vertex *vertices)
 	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
 		return;
 
+	last_scanout.reset();
 	counters.native_draw_calls++;
 
 	BufferVertex vert[3];
@@ -867,6 +874,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 	if (!render_state.draw_rect.width || !render_state.draw_rect.height)
 		return;
 
+	last_scanout.reset();
 	counters.native_draw_calls++;
 
 	BufferVertex vert[4];
@@ -906,6 +914,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
 {
+	last_scanout.reset();
 	ensure_command_buffer();
 
 	RenderPassInfo info = {};
@@ -931,6 +940,7 @@ void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
+	last_scanout.reset();
 	auto old = atlas.set_texture_mode(TextureMode::None);
 	float z = allocate_depth();
 	atlas.set_texture_mode(old);
@@ -1401,6 +1411,7 @@ void Renderer::flush_blits()
 
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
 {
+	last_scanout.reset();
 	VK_ASSERT(dst.width == src.width);
 	VK_ASSERT(dst.height == src.height);
 	auto domain = atlas.blit_vram(dst, src);
@@ -1419,7 +1430,7 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 				    { (x + src.x) * scaling, (y + src.y) * scaling },
 				    { (x + dst.x) * scaling, (y + dst.y) * scaling },
 				    { min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling },
-				    { 0, 0 },
+				    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
 				});
 	}
 	else
@@ -1433,18 +1444,29 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 				    { x + src.x, y + src.y },
 				    { x + dst.x, y + dst.y },
 				    { min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y) },
-				    { 0, 0 },
+				    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
 				});
 	}
 }
 
-void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
+uint16_t *Renderer::begin_copy(BufferHandle handle)
 {
+	return static_cast<uint16_t *>(device.map_host_buffer(*handle, MEMORY_ACCESS_WRITE));
+}
+
+void Renderer::end_copy(BufferHandle handle)
+{
+	device.unmap_host_buffer(*handle);
+}
+
+BufferHandle Renderer::copy_cpu_to_vram(const Rect &rect)
+{
+	last_scanout.reset();
 	atlas.write_compute(Domain::Unscaled, rect);
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);
 
 	// TODO: Chain allocate this.
-	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, data);
+	auto buffer = device.create_buffer({ BufferDomain::Host, size, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT }, nullptr);
 
 	BufferViewCreateInfo view_info = {};
 	view_info.buffer = buffer.get();
@@ -1453,6 +1475,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 	{
 		Rect rect;
 		uint32_t offset;
+		uint32_t mask_or;
 	};
 
 	ensure_command_buffer();
@@ -1473,7 +1496,7 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 			Rect small_rect = { rect.x, rect.y + y, rect.width, y_size };
 
 			cmd->set_buffer_view(0, 1, *view);
-			Push push = { small_rect, 0 };
+			Push push = { small_rect, 0, render_state.force_mask_bit ? 0x8000u : 0u };
 			cmd->push_constants(&push, 0, sizeof(push));
 			cmd->dispatch((small_rect.width + 7) >> 3, (small_rect.height + 7) >> 3, 1);
 		}
@@ -1487,12 +1510,14 @@ void Renderer::copy_cpu_to_vram(const uint16_t *data, const Rect &rect)
 
 		cmd->set_buffer_view(0, 1, *view);
 
-		Push push = { rect, 0 };
+		Push push = { rect, 0, render_state.force_mask_bit ? 0x8000u : 0u };
 		cmd->push_constants(&push, 0, sizeof(push));
 
 		// TODO: Batch up work.
 		cmd->dispatch((rect.width + 7) >> 3, (rect.height + 7) >> 3, 1);
 	}
+
+	return buffer;
 }
 
 Renderer::~Renderer()

@@ -15,7 +15,8 @@ struct Rect
 {
     uvec4 offsets;
     uvec2 extent;
-    uvec2 padding;
+    uint mask_or;
+    uint padding;
 };
 
 layout(set = 1, binding = 0, std140) uniform Rects
@@ -44,9 +45,9 @@ void main()
 #ifdef MASKED
         uint fbvalue = texelFetch(uImage, ivec2(dst_coord), 0).x;
         if ((fbvalue & 0x8000u) == 0u)
-            imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value));
+            imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value | rects[gl_WorkGroupID.z].mask_or));
 #else
-        imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value));
+        imageStore(uFramebuffer, ivec2(dst_coord), uvec4(value | rects[gl_WorkGroupID.z].mask_or));
 #endif
 #endif
     }

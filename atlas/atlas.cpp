@@ -458,7 +458,12 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 			listener->clear_quad_separate(rect, color);
 		}
 		else
-			assert(0 && "Should never happen.");
+		{
+			// We're trying clear completely outside our render pass. We can do this with compute, but for now, just make this a separate render pass.
+			flush_render_pass();
+			write_domain(Domain::Scaled, Stage::Fragment, rect);
+			listener->clear_quad_separate(rect, color);
+		}
 	}
 }
 
