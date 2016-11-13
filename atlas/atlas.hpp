@@ -58,9 +58,11 @@ struct Rect
 
 	inline bool intersects(const Rect &rect) const
 	{
-		bool horiz = ((x + width) > rect.x) || ((rect.x + rect.width) > x);
-		bool vert = ((y + height) > rect.y) || ((rect.y + rect.height) > y);
-		return horiz && vert;
+		unsigned xend = std::min(x + width, rect.x + rect.width);
+		unsigned xbegin = std::max(x, rect.x);
+		unsigned yend = std::min(y + height, rect.y + rect.height);
+		unsigned ybegin = std::max(y, rect.y);
+		return xbegin < xend && ybegin < yend;
 	}
 };
 

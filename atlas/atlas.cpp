@@ -325,7 +325,7 @@ Domain FBAtlas::find_suitable_domain(const Rect &rect)
 	{
 		for (unsigned x = xbegin; x <= xend; x++)
 		{
-			unsigned i = info(x, y);
+			unsigned i = info(x, y) & STATUS_OWNERSHIP_MASK;
 			if (i == STATUS_FB_ONLY || i == STATUS_FB_PREFER)
 				return Domain::Unscaled;
 		}

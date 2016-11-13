@@ -472,7 +472,8 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto dst_y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
-		renderer.blit_vram({ dst_x, dst_y, w, h }, { src_x, src_y, w, h });
+		if (src_x != dst_x || src_y != dst_y)
+			renderer.blit_vram({ dst_x, dst_y, w, h }, { src_x, src_y, w, h });
 		break;
 	}
 

@@ -12,12 +12,7 @@ layout(push_constant, std430) uniform Registers
 
 void main()
 {
-   float b = 0.5 * textureLod(uTexture, vUV, registers.max_bias).a;
-   b += 0.125 * textureLodOffset(uTexture, vUV, registers.max_bias, ivec2(-1,  0)).a;
-   b += 0.125 * textureLodOffset(uTexture, vUV, registers.max_bias, ivec2(+1,  0)).a;
-   b += 0.125 * textureLodOffset(uTexture, vUV, registers.max_bias, ivec2( 0, -1)).a;
-   b += 0.125 * textureLodOffset(uTexture, vUV, registers.max_bias, ivec2( 0, +1)).a;
-
+   float b = textureLod(uTexture, vUV, registers.max_bias).a;
    FragColor = textureLod(uTexture, vUV, registers.max_bias * b);
    //FragColor = vec4(b);
 }

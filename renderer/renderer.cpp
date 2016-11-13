@@ -1391,8 +1391,8 @@ void Renderer::flush_blits()
 
 	blit(queue.scaled_blits, *pipelines.blit_vram_scaled, true);
 	blit(queue.scaled_masked_blits, *pipelines.blit_vram_scaled_masked, true);
-	blit(queue.unscaled_blits, *pipelines.blit_vram_unscaled, true);
-	blit(queue.unscaled_masked_blits, *pipelines.blit_vram_unscaled_masked, true);
+	blit(queue.unscaled_blits, *pipelines.blit_vram_unscaled, false);
+	blit(queue.unscaled_masked_blits, *pipelines.blit_vram_unscaled_masked, false);
 	queue.scaled_blits.clear();
 	queue.scaled_masked_blits.clear();
 	queue.unscaled_blits.clear();
@@ -1404,6 +1404,9 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 	VK_ASSERT(dst.width == src.width);
 	VK_ASSERT(dst.height == src.height);
 	auto domain = atlas.blit_vram(dst, src);
+
+	if (dst.intersects(src))
+		VK_ASSERT(0 && "Intersection!");
 
 	if (domain == Domain::Scaled)
 	{
