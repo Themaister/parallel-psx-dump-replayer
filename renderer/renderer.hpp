@@ -324,7 +324,6 @@ private:
 
 	void flush_resolves();
 	void flush_blits();
-	void scanout(const Rect &rect);
 
 	Rect compute_window_rect(const TextureWindow &window);
 };

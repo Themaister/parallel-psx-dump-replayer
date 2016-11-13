@@ -183,12 +183,6 @@ void Renderer::set_texture_window(const TextureWindow &window)
 	render_state.cached_window_rect = compute_window_rect(window);
 }
 
-void Renderer::scanout()
-{
-	scanout(render_state.display_mode);
-	//scanout({ 0, 0, FB_WIDTH, FB_HEIGHT });
-}
-
 BufferHandle Renderer::scanout_vram_to_buffer(unsigned &width, unsigned &height)
 {
 	atlas.read_transfer(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
@@ -456,32 +450,9 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 	return target_image;
 }
 
-void Renderer::scanout(const Rect &rect)
+void Renderer::scanout()
 {
-	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
-	{
-		// Black screen, just flush out everything.
-		atlas.read_fragment(Domain::Scaled, { 0, 0, FB_WIDTH, FB_HEIGHT });
-
-		ensure_command_buffer();
-		auto info = device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly);
-		cmd->begin_render_pass(info);
-		cmd->end_render_pass();
-		device.submit(cmd);
-		cmd.reset();
-		return;
-	}
-
-	ImageHandle image;
-	if (render_state.bpp24)
-	{
-		auto tmp = rect;
-		tmp.width = (tmp.width * 3 + 1) / 2;
-		tmp.width = min(tmp.width, FB_WIDTH - tmp.x);
-		atlas.read_fragment(Domain::Unscaled, tmp);
-	}
-	else
-		image = scanout_to_texture(VK_FORMAT_R8G8B8A8_UNORM);
+	auto image = scanout_to_texture(VK_FORMAT_R8G8B8A8_UNORM);
 
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
@@ -512,16 +483,7 @@ void Renderer::scanout(const Rect &rect)
 		float offset[2];
 		float scale[2];
 	};
-	Push push;
-	if (render_state.bpp24)
-	{
-		push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
-			     { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
-	}
-	else
-	{
-		push = { { 0.0f, 0.0f }, { 1.0f, 1.0f } };
-	}
+	const Push push = { { 0.0f, 0.0f }, { 1.0f, 1.0f } };
 
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
