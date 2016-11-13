@@ -28,7 +28,6 @@ enum
 	RSX_PREPARE_FRAME,
 	RSX_FINALIZE_FRAME,
 	RSX_TEX_WINDOW,
-	RSX_MASK_SETTING,
 	RSX_DRAW_OFFSET,
 	RSX_DRAW_AREA,
 	RSX_DISPLAY_MODE,
@@ -46,7 +45,7 @@ static void read_tag(FILE *file)
 	char buffer[8];
 	if (fread(buffer, sizeof(buffer), 1, file) != 1)
 		throw runtime_error("Failed to read tag.");
-	if (memcmp(buffer, "RSXDUMP1", sizeof(buffer)))
+	if (memcmp(buffer, "RSXDUMP2", sizeof(buffer)))
 		throw runtime_error("Failed to read tag.");
 }
 
@@ -89,6 +88,8 @@ struct RenderState
 	uint8_t depth_shift;
 	bool dither;
 	uint32_t blend_mode;
+	bool mask_test;
+	bool set_mask;
 };
 
 CommandVertex read_vertex(FILE *file)
@@ -114,6 +115,8 @@ RenderState read_state(FILE *file)
 	state.depth_shift = read_u32(file);
 	state.dither = read_u32(file) != 0;
 	state.blend_mode = read_u32(file);
+	state.mask_test = read_u32(file) != 0;
+	state.set_mask = read_u32(file) != 0;
 	return state;
 }
 
@@ -123,6 +126,8 @@ struct CommandLine
 	uint32_t c0, c1;
 	bool dither;
 	uint32_t blend_mode;
+	bool mask_test;
+	bool set_mask;
 };
 
 CommandLine read_line(FILE *file)
@@ -136,6 +141,8 @@ CommandLine read_line(FILE *file)
 	line.c1 = read_u32(file);
 	line.dither = read_u32(file) != 0;
 	line.blend_mode = read_u32(file);
+	line.mask_test = read_u32(file) != 0;
+	line.set_mask = read_u32(file) != 0;
 	return line;
 }
 
@@ -159,6 +166,8 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	renderer.set_palette_offset(state.clut_x, state.clut_y);
 	renderer.set_texture_offset(state.texpage_x, state.texpage_y);
 	renderer.set_dither(state.dither);
+	renderer.set_mask_test(state.mask_test);
+	renderer.set_force_mask_bit(state.set_mask);
 	if (state.texture_blend_mode != 0)
 	{
 		switch (state.depth_shift)
@@ -265,13 +274,6 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto tex_y_or = (twy & twh) << 3;
 
 		renderer.set_texture_window({ uint8_t(tex_x_mask), uint8_t(tex_y_mask), uint8_t(tex_x_or), uint8_t(tex_y_or) });
-		break;
-	}
-
-	case RSX_MASK_SETTING:
-	{
-		auto mask_set_or = read_u32(file);
-		auto mask_eval_and = read_u32(file);
 		break;
 	}
 
@@ -390,6 +392,8 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		renderer.set_texture_color_modulate(false);
 		renderer.set_texture_mode(TextureMode::None);
 		renderer.set_dither(line.dither);
+		renderer.set_mask_test(line.mask_test);
+		renderer.set_force_mask_bit(line.set_mask);
 		switch (line.blend_mode)
 		{
 		default:
@@ -432,10 +436,15 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto y = read_u32(file);
 		auto width = read_u32(file);
 		auto height = read_u32(file);
-		vector<uint16_t> tmp(width * height);
-		fread(tmp.data(), sizeof(uint16_t), width * height, file);
+		bool mask_test = read_u32(file) != 0;
+		bool set_mask = read_u32(file) != 0;
 
-		renderer.copy_cpu_to_vram(tmp.data(), { x, y, width, height });
+		renderer.set_mask_test(mask_test);
+		renderer.set_force_mask_bit(set_mask);
+		auto handle = renderer.copy_cpu_to_vram({ x, y, width, height });
+		uint16_t *ptr = renderer.begin_copy(handle);
+		fread(ptr, sizeof(uint16_t), width * height, file);
+		renderer.end_copy(handle);
 		break;
 	}
 
@@ -472,6 +481,10 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto dst_y = read_u32(file);
 		auto w = read_u32(file);
 		auto h = read_u32(file);
+		bool mask_test = read_u32(file) != 0;
+		bool set_mask = read_u32(file) != 0;
+		renderer.set_mask_test(mask_test);
+		renderer.set_force_mask_bit(set_mask);
 		if (src_x != dst_x || src_y != dst_y)
 			renderer.blit_vram({ dst_x, dst_y, w, h }, { src_x, src_y, w, h });
 		break;
@@ -504,7 +517,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, 4, nullptr);
 
-	FILE *file = fopen("/tmp/vagrant.rsx", "rb");
+	FILE *file = fopen("/tmp/spyro.rsx", "rb");
 	if (!file)
 		return 1;
 

@@ -685,6 +685,7 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			}
 
 			// In nearest neighbor, we'll get *very* close to this UV, but not close enough to actually sample it.
+			// If du/dx or dv/dx are negative, we probably need to invert this though ...
 			if (max_u > min_u)
 				max_u--;
 			if (max_v > min_v)
