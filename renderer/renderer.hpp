@@ -218,8 +218,8 @@ private:
 		Vulkan::ProgramHandle flat_masked_add_quarter;
 
 		Vulkan::ProgramHandle mipmap_resolve;
+		Vulkan::ProgramHandle mipmap_energy_first;
 		Vulkan::ProgramHandle mipmap_energy;
-		Vulkan::ProgramHandle mipmap;
 	} pipelines;
 
 	Vulkan::ImageHandle dither_lut;

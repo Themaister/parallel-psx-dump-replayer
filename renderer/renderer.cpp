@@ -149,11 +149,12 @@ void Renderer::init_pipelines()
 	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), feedback_flat_add_quarter_frag,
 	                          sizeof(feedback_flat_add_quarter_frag));
 
-	pipelines.mipmap = device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_frag, sizeof(mipmap_frag));
 	pipelines.mipmap_resolve =
 	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_resolve_frag, sizeof(mipmap_resolve_frag));
 	pipelines.mipmap_energy =
 	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_energy_frag, sizeof(mipmap_energy_frag));
+	pipelines.mipmap_energy_first = device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_energy_first_frag,
+	                                                      sizeof(mipmap_energy_first_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -395,8 +396,8 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		cmd->set_quad_state();
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		cmd->set_program(i == 1 ? *pipelines.mipmap_energy : *pipelines.mipmap);
-		cmd->set_texture(0, 0, image->get_view(), i == 1 ? StockSampler::NearestClamp : StockSampler::LinearClamp);
+		cmd->set_program(i == 1 ? *pipelines.mipmap_energy_first : *pipelines.mipmap_energy);
+		cmd->set_texture(0, 0, image->get_view(), StockSampler::NearestClamp);
 		struct Push
 		{
 			float inv_res[2];
