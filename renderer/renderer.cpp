@@ -1480,7 +1480,7 @@ BufferHandle Renderer::copy_cpu_to_vram(const Rect &rect)
 	cmd->set_storage_texture(0, 0, framebuffer->get_view());
 
 	// Vulkan minimum limit, for large buffer views, split up the work.
-	if (rect.width * rect.height > 0x10000)
+	if (rect.width * rect.height > device.get_gpu_properties().limits.maxTexelBufferElements)
 	{
 		for (unsigned y = 0; y < rect.height; y += BLOCK_HEIGHT)
 		{
