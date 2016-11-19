@@ -16,9 +16,11 @@ using namespace PSX;
 using namespace std;
 using namespace Vulkan;
 
-//#define DETAIL_DUMP_FRAME 4100
-//#define BREAK_FRAME 4100
-//#define BREAK_DRAW 559
+//#define DUMP_VRAM
+#define SCALING 4
+//#define DETAIL_DUMP_FRAME 40
+//#define BREAK_FRAME 40
+//#define BREAK_DRAW 216
 
 #define BREAKPOINT __builtin_trap
 
@@ -515,7 +517,7 @@ int main()
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, 4, nullptr);
+	Renderer renderer(device, SCALING, nullptr);
 
 	FILE *file = fopen("/tmp/silent.rsx", "rb");
 	if (!file)

@@ -55,6 +55,8 @@ PipelineLayout *Device::request_pipeline_layout(const CombinedResourceLayout &la
 	Hasher h;
 	h.data(reinterpret_cast<const uint32_t *>(layout.sets), sizeof(layout.sets));
 	h.data(reinterpret_cast<const uint32_t *>(layout.ranges), sizeof(layout.ranges));
+	h.u32(layout.attribute_mask);
+
 	auto hash = h.get();
 	auto itr = pipeline_layouts.find(hash);
 	if (itr != end(pipeline_layouts))
