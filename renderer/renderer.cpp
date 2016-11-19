@@ -82,9 +82,7 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	quad =
 	    device.create_buffer({ BufferDomain::Device, sizeof(quad_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT }, quad_data);
 
-	device.submit(cmd);
-	cmd.reset();
-	device.flush_frame();
+	flush();
 }
 
 Renderer::SaveState Renderer::save_vram_state()
@@ -417,6 +415,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 	image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	last_scanout = image;
+
 	return image;
 }
 
