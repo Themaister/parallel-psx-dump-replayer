@@ -333,6 +333,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		last_scanout = image;
 		return image;
 	}
 
@@ -415,6 +416,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 	image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	last_scanout = image;
 	return image;
 }
 
