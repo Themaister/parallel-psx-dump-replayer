@@ -1011,6 +1011,7 @@ BufferHandle Device::create_buffer(const BufferCreateInfo &create_info, const vo
 	vkGetBufferMemoryRequirements(device, buffer, &reqs);
 
 	uint32_t memory_type = find_memory_type(create_info.domain, reqs.memoryTypeBits);
+
 	if (!allocator.allocate(reqs.size, reqs.alignment, memory_type, ALLOCATION_TILING_LINEAR, &allocation))
 	{
 		vkDestroyBuffer(device, buffer, nullptr);

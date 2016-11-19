@@ -295,6 +295,8 @@ public:
 
 	bool allocate(uint32_t size, uint32_t alignment, AllocationTiling tiling, DeviceAllocation *pAlloc);
 
+	bool allocateGlobal(uint32_t size, DeviceAllocation *pAlloc);
+
 	inline ClassAllocator &get_class_allocator(MemoryClass clazz)
 	{
 		return classes[static_cast<unsigned>(clazz)];
@@ -334,6 +336,8 @@ public:
 
 	bool allocate(uint32_t size, uint32_t alignment, uint32_t memoryType, AllocationTiling tiling,
 	              DeviceAllocation *pAlloc);
+
+	bool allocateGlobal(uint32_t size, uint32_t memoryType, DeviceAllocation *pAlloc);
 
 	void garbageCollect();
 	void *mapMemory(DeviceAllocation *pAlloc, MemoryAccessFlags flags);

@@ -248,6 +248,17 @@ void ClassAllocator::free(DeviceAllocation *pAlloc)
 	}
 }
 
+bool Allocator::allocateGlobal(uint32_t size, DeviceAllocation *pAlloc)
+{
+	// Fall back to global allocation, do not recycle.
+	if (!pGlobalAllocator->allocate(size, memoryType, &pAlloc->base, &pAlloc->pHostBase))
+		return false;
+	pAlloc->pAlloc = nullptr;
+	pAlloc->memoryType = memoryType;
+	pAlloc->size = size;
+	return true;
+}
+
 bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mode, DeviceAllocation *pAlloc)
 {
 	for (auto &c : classes)
@@ -276,13 +287,7 @@ bool Allocator::allocate(uint32_t size, uint32_t alignment, AllocationTiling mod
 		}
 	}
 
-	// Fall back to global allocation, do not recycle.
-	if (!pGlobalAllocator->allocate(size, memoryType, &pAlloc->base, &pAlloc->pHostBase))
-		return false;
-	pAlloc->pAlloc = nullptr;
-	pAlloc->memoryType = memoryType;
-	pAlloc->size = size;
-	return true;
+	return allocateGlobal(size, pAlloc);
 }
 
 Allocator::Allocator()
@@ -327,6 +332,11 @@ bool DeviceAllocator::allocate(uint32_t size, uint32_t alignment, uint32_t memor
                                DeviceAllocation *pAlloc)
 {
 	return allocators[memoryType]->allocate(size, alignment, mode, pAlloc);
+}
+
+bool DeviceAllocator::allocateGlobal(uint32_t size, uint32_t memoryType, DeviceAllocation *pAlloc)
+{
+	return allocators[memoryType]->allocateGlobal(size, pAlloc);
 }
 
 void DeviceAllocator::Heap::garbageCollect(VkDevice device)
