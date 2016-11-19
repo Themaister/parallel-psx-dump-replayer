@@ -7,13 +7,17 @@ layout(location = 0) in vec2 vUV;
 
 layout(push_constant, std430) uniform Registers
 {
+    vec2 offset;
+    vec2 range;
+    vec2 uv_min;
+    vec2 uv_max;
    float max_bias;
 } registers;
 
 void main()
 {
-   float b = textureLod(uTexture, vUV, registers.max_bias).a;
+    vec2 lod_uv = clamp(vUV, registers.uv_min, registers.uv_max);
+   float b = textureLod(uTexture, lod_uv, registers.max_bias).a;
    FragColor = textureLod(uTexture, vUV, registers.max_bias * b);
-   //FragColor = vec4(b);
 }
 

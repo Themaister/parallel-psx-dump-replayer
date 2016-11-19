@@ -188,6 +188,7 @@ private:
 	Vulkan::ImageHandle scaled_framebuffer;
 	Vulkan::ImageHandle framebuffer;
 	Vulkan::ImageHandle depth;
+	std::vector<Vulkan::ImageViewHandle> scaled_views;
 	FBAtlas atlas;
 
 	Vulkan::CommandBufferHandle cmd;
@@ -337,5 +338,8 @@ private:
 	Rect compute_window_rect(const TextureWindow &window);
 
 	Vulkan::ImageHandle last_scanout;
+
+	void mipmap_framebuffer();
+	Vulkan::BufferHandle quad;
 };
 }

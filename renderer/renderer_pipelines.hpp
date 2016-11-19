@@ -89,6 +89,9 @@ static const uint32_t feedback_flat_add_quarter_frag[] =
 static const uint32_t mipmap_vert[] =
 #include "mipmap.vert.inc"
     ;
+static const uint32_t mipmap_shifted_vert[] =
+#include "mipmap.shifted.vert.inc"
+    ;
 static const uint32_t mipmap_energy_first_frag[] =
 #include "mipmap.energy.first.frag.inc"
     ;

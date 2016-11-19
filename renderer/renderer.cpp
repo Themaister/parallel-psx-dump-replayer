@@ -36,12 +36,25 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	info.width *= scaling;
 	info.height *= scaling;
 	info.format = VK_FORMAT_R8G8B8A8_UNORM;
+	info.levels = trailing_zeroes(scaling) + 1;
 	info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 	             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
 	             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
 	scaled_framebuffer = device.create_image(info);
+
+	{
+		auto view_info = scaled_framebuffer->get_view().get_create_info();
+		for (unsigned i = 0; i < info.levels; i++)
+		{
+			view_info.base_level = i;
+			view_info.levels = 1;
+			scaled_views.push_back(device.create_image_view(view_info));
+		}
+	}
+
 	info.format = device.get_default_depth_format();
+	info.levels = 1;
 	info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	info.domain = ImageDomain::Transient;
 	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -62,6 +75,12 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 
 	ImageInitialData dither_initial = { dither_lut_data };
 	dither_lut = device.create_image(dither_info, &dither_initial);
+
+	static const int8_t quad_data[] = {
+		-128, -128, +127, -128, -128, +127, +127, +127,
+	};
+	quad =
+	    device.create_buffer({ BufferDomain::Device, sizeof(quad_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT }, quad_data);
 
 	device.submit(cmd);
 	cmd.reset();
@@ -151,10 +170,10 @@ void Renderer::init_pipelines()
 
 	pipelines.mipmap_resolve =
 	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_resolve_frag, sizeof(mipmap_resolve_frag));
-	pipelines.mipmap_energy =
-	    device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_energy_frag, sizeof(mipmap_energy_frag));
-	pipelines.mipmap_energy_first = device.create_program(mipmap_vert, sizeof(mipmap_vert), mipmap_energy_first_frag,
-	                                                      sizeof(mipmap_energy_first_frag));
+	pipelines.mipmap_energy = device.create_program(mipmap_shifted_vert, sizeof(mipmap_shifted_vert),
+	                                                mipmap_energy_frag, sizeof(mipmap_energy_frag));
+	pipelines.mipmap_energy_first = device.create_program(mipmap_shifted_vert, sizeof(mipmap_shifted_vert),
+	                                                      mipmap_energy_first_frag, sizeof(mipmap_energy_first_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -232,6 +251,50 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 	return buffer;
 }
 
+void Renderer::mipmap_framebuffer()
+{
+	auto &rect = render_state.display_mode;
+	unsigned levels = scaled_views.size();
+	for (unsigned i = 1; i < levels; i++)
+	{
+		RenderPassInfo rp;
+		unsigned current_scale = scaling >> i;
+		rp.color_attachments[0] = scaled_views[i].get();
+		rp.num_color_attachments = 1;
+		rp.op_flags = RENDER_PASS_OP_STORE_COLOR_BIT;
+		rp.render_area = { { int(rect.x * current_scale), int(rect.y * current_scale) },
+			               { rect.width * current_scale, rect.height * current_scale } };
+
+		cmd->begin_render_pass(rp);
+
+		cmd->set_program(i == 1 ? *pipelines.mipmap_energy_first : *pipelines.mipmap_energy);
+		cmd->set_texture(0, 0, *scaled_views[i - 1], StockSampler::LinearClamp);
+
+		cmd->set_quad_state();
+		cmd->set_vertex_binding(0, *quad, 0, 2);
+		struct Push
+		{
+			float offset[2];
+			float range[2];
+			float inv_resolution[2];
+		};
+		Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+			          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT },
+			          { 1.0f / (FB_WIDTH * current_scale), 1.0f / (FB_HEIGHT * current_scale) } };
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
+		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+		counters.draw_calls++;
+		counters.vertices += 4;
+		cmd->draw(4);
+
+		cmd->end_render_pass();
+		cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		                   VK_ACCESS_SHADER_READ_BIT);
+	}
+}
+
 ImageHandle Renderer::scanout_to_texture(VkFormat format)
 {
 	if (last_scanout)
@@ -270,8 +333,6 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		device.submit(cmd);
-		cmd.reset();
 		return image;
 	}
 
@@ -287,173 +348,74 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 	ensure_command_buffer();
 
-	auto info =
-	    ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
-	                                   rect.height * (render_state.bpp24 ? 1 : scaling), VK_FORMAT_R8G8B8A8_UNORM);
-	if (!render_state.bpp24)
-		info.levels = trailing_zeroes(scaling) + 1;
-	const float max_bias = float(info.levels - 1);
+	if (!render_state.bpp24 && scaling != 1)
+		mipmap_framebuffer();
+
+	auto info = ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
+	                                           rect.height * (render_state.bpp24 ? 1 : scaling), format);
 
 	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 	info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	auto image = device.create_image(info);
 
-	ImageViewHandle rt_view;
 	RenderPassInfo rp;
+	rp.color_attachments[0] = &image->get_view();
 	rp.num_color_attachments = 1;
+	rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT;
 
-	if (!render_state.bpp24)
-	{
-		auto view_info = image->get_view().get_create_info();
-		view_info.levels = 1;
-		rt_view = device.create_image_view(view_info);
-		rp.color_attachments[0] = rt_view.get();
-	}
-	else
-		rp.color_attachments[0] = &image->get_view();
-
-	// Stay in general as we currently don't have a way to dealing with different layouts for different mip-levels.
-	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
-	                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	image->set_layout(VK_IMAGE_LAYOUT_GENERAL);
+	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 	cmd->begin_render_pass(rp);
-	cmd->set_quad_state();
 
 	if (render_state.bpp24)
 	{
 		cmd->set_program(*pipelines.bpp24_quad_blitter);
 		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
 	}
-	else
+	else if (scaling == 1)
 	{
 		cmd->set_program(*pipelines.scaled_quad_blitter);
-		cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
+		cmd->set_texture(0, 0, *scaled_views[0], StockSampler::LinearClamp);
+	}
+	else
+	{
+		cmd->set_program(*pipelines.mipmap_resolve);
+		cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::TrilinearClamp);
 	}
 
-	int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = +127;
-	*data++ = +127;
+	cmd->set_vertex_binding(0, *quad, 0, 2);
 	struct Push
 	{
 		float offset[2];
 		float scale[2];
+		float uv_min[2];
+		float uv_max[2];
+		float max_bias;
 	};
 	Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
-		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT } };
+		          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT },
+		          { (rect.x + 0.5f) / FB_WIDTH, (rect.y + 0.5f) / FB_HEIGHT },
+		          { (rect.x + rect.width - 0.5f) / FB_WIDTH, (rect.y + rect.height - 0.5f) / FB_HEIGHT },
+		          float(scaled_views.size() - 1) };
+
 	cmd->push_constants(&push, 0, sizeof(push));
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
 	counters.draw_calls++;
 	counters.vertices += 4;
 	cmd->draw(4);
+
 	cmd->end_render_pass();
 
-	if (render_state.bpp24 || info.levels == 1)
-	{
-		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		device.submit(cmd);
-		cmd.reset();
-		last_scanout = image;
-		return image;
-	}
-
-	// Mipmap the scanout. Do energy computation in the first mip-pass.
-	cmd->image_barrier(*image, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
-	for (unsigned i = 1; i < info.levels; i++)
-	{
-		auto view_info = image->get_view().get_create_info();
-		view_info.base_level = i;
-		view_info.levels = 1;
-		rt_view = device.create_image_view(view_info);
-		rp.color_attachments[0] = rt_view.get();
-
-		cmd->begin_render_pass(rp);
-		int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
-		*data++ = -128;
-		*data++ = -128;
-		*data++ = +127;
-		*data++ = -128;
-		*data++ = -128;
-		*data++ = +127;
-		*data++ = +127;
-		*data++ = +127;
-
-		cmd->set_quad_state();
-		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
-		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		cmd->set_program(i == 1 ? *pipelines.mipmap_energy_first : *pipelines.mipmap_energy);
-		cmd->set_texture(0, 0, image->get_view(), StockSampler::NearestClamp);
-		struct Push
-		{
-			float inv_res[2];
-			float lod;
-		};
-		const float lod = float(i - 1);
-		const Push push = { { float(1 << (i - 1)) / (scaling * FB_WIDTH), float(1 << (i - 1)) / (scaling * FB_HEIGHT) },
-			                lod };
-		cmd->push_constants(&push, 0, sizeof(push));
-		cmd->draw(4);
-		cmd->end_render_pass();
-
-		cmd->image_barrier(*image, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
-	}
-
-	info.levels = 1;
-	info.format = format;
-	auto target_image = device.create_image(info);
-	rp.color_attachments[0] = &target_image->get_view();
-	rp.op_flags |= RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
-
-	cmd->image_barrier(*target_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-	                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	target_image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-	cmd->begin_render_pass(rp);
-	data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = +127;
-	*data++ = +127;
-
-	cmd->set_quad_state();
-	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
-	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-	cmd->set_program(*pipelines.mipmap_resolve);
-	cmd->set_texture(0, 0, image->get_view(), StockSampler::TrilinearClamp);
-	cmd->push_constants(&max_bias, 0, sizeof(max_bias));
-	cmd->draw(4);
-	cmd->end_render_pass();
-
-	cmd->image_barrier(*target_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-	                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-	                   VK_ACCESS_SHADER_READ_BIT);
-	target_image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	device.submit(cmd);
-	cmd.reset();
-	last_scanout = target_image;
-	return target_image;
+	image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	return image;
 }
 
 void Renderer::scanout()
@@ -463,27 +425,10 @@ void Renderer::scanout()
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
 	cmd->set_quad_state();
+	cmd->set_program(*pipelines.scaled_quad_blitter);
+	cmd->set_texture(0, 0, image->get_view(), StockSampler::LinearClamp);
 
-	if (render_state.bpp24)
-	{
-		cmd->set_program(*pipelines.bpp24_quad_blitter);
-		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
-	}
-	else
-	{
-		cmd->set_program(*pipelines.scaled_quad_blitter);
-		cmd->set_texture(0, 0, image->get_view(), StockSampler::LinearClamp);
-	}
-
-	int8_t *data = static_cast<int8_t *>(cmd->allocate_vertex_data(0, 8, 2));
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = -128;
-	*data++ = -128;
-	*data++ = +127;
-	*data++ = +127;
-	*data++ = +127;
+	cmd->set_vertex_binding(0, *quad, 0, 2);
 	struct Push
 	{
 		float offset[2];
@@ -498,9 +443,6 @@ void Renderer::scanout()
 	counters.vertices += 4;
 	cmd->draw(4);
 	cmd->end_render_pass();
-
-	device.submit(cmd);
-	cmd.reset();
 }
 
 void Renderer::hazard(StatusFlags flags)
@@ -919,7 +861,7 @@ void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
 	ensure_command_buffer();
 
 	RenderPassInfo info = {};
-	info.color_attachments[0] = &scaled_framebuffer->get_view();
+	info.color_attachments[0] = scaled_views.front().get();
 	info.num_color_attachments = 1;
 
 	info.op_flags = RENDER_PASS_OP_STORE_COLOR_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
@@ -983,7 +925,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	RenderPassInfo info = {};
 	info.clear_depth_stencil = { 1.0f, 0 };
-	info.color_attachments[0] = &scaled_framebuffer->get_view();
+	info.color_attachments[0] = scaled_views.front().get();
 	info.depth_stencil = &depth->get_view();
 	info.num_color_attachments = 1;
 

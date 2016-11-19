@@ -18,7 +18,7 @@ using namespace Vulkan;
 
 //#define DUMP_VRAM
 #define SCALING 4
-//#define DETAIL_DUMP_FRAME 40
+//#define DETAIL_DUMP_FRAME 59
 //#define BREAK_FRAME 40
 //#define BREAK_DRAW 216
 
@@ -519,7 +519,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("/tmp/silent.rsx", "rb");
+	FILE *file = fopen("/tmp/cc.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -545,16 +545,19 @@ int main()
 		dump_vram_to_file(device, renderer, frames);
 #endif
 
+		renderer.flush();
 		wsi.end_frame();
 		double end = gettime();
 		total_time += end - start;
 		frames++;
 
+#if 0
 		LOG("Completed frame %u.\n", frames);
-		//LOG("Render passes: %u\n", renderer.counters.render_passes);
-		//LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-		//LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
-		//LOG("Vertices: %u\n", renderer.counters.vertices);
+		LOG("Render passes: %u\n", renderer.counters.render_passes);
+		LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+		LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
+		LOG("Vertices: %u\n", renderer.counters.vertices);
+#endif
 	}
 
 	LOG("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);

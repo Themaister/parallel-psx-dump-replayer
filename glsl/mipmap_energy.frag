@@ -7,8 +7,9 @@ layout(location = 0) in vec2 vUV;
 
 layout(push_constant, std430) uniform Registers
 {
+   vec2 offset;
+   vec2 range;
    vec2 inv_resolution;
-   float lod;
 } registers;
 
 vec4 get_bias(vec3 c00, vec3 c01, vec3 c10, vec3 c11)
@@ -37,16 +38,16 @@ void main()
 {
    vec2 uv = vUV - 0.25 * registers.inv_resolution;
 #ifdef FIRST_PASS
-   vec3 c00 = textureLodOffset(uTexture, uv, registers.lod, ivec2(0, 0)).rgb;
-   vec3 c01 = textureLodOffset(uTexture, uv, registers.lod, ivec2(0, 1)).rgb;
-   vec3 c10 = textureLodOffset(uTexture, uv, registers.lod, ivec2(1, 0)).rgb;
-   vec3 c11 = textureLodOffset(uTexture, uv, registers.lod, ivec2(1, 1)).rgb;
+   vec3 c00 = textureLodOffset(uTexture, uv, 0.0, ivec2(0, 0)).rgb;
+   vec3 c01 = textureLodOffset(uTexture, uv, 0.0, ivec2(0, 1)).rgb;
+   vec3 c10 = textureLodOffset(uTexture, uv, 0.0, ivec2(1, 0)).rgb;
+   vec3 c11 = textureLodOffset(uTexture, uv, 0.0, ivec2(1, 1)).rgb;
    FragColor = get_bias(c00, c01, c10, c11);
 #else
-   vec4 c00 = textureLodOffset(uTexture, uv, registers.lod, ivec2(0, 0));
-   vec4 c01 = textureLodOffset(uTexture, uv, registers.lod, ivec2(0, 1));
-   vec4 c10 = textureLodOffset(uTexture, uv, registers.lod, ivec2(1, 0));
-   vec4 c11 = textureLodOffset(uTexture, uv, registers.lod, ivec2(1, 1));
+   vec4 c00 = textureLodOffset(uTexture, uv, 0.0, ivec2(0, 0));
+   vec4 c01 = textureLodOffset(uTexture, uv, 0.0, ivec2(0, 1));
+   vec4 c10 = textureLodOffset(uTexture, uv, 0.0, ivec2(1, 0));
+   vec4 c11 = textureLodOffset(uTexture, uv, 0.0, ivec2(1, 1));
    FragColor = get_bias(c00, c01, c10, c11);
 #endif
 }
