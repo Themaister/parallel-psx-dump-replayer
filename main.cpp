@@ -519,7 +519,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("/tmp/ff.rsx", "rb");
+	FILE *file = fopen("dump/ff.rsx", "rb");
 	if (!file)
 		return 1;
 

@@ -526,7 +526,7 @@ void Renderer::flush_resolves()
 	{
 		ensure_command_buffer();
 		cmd->set_program(*pipelines.resolve_to_scaled);
-		cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
+		cmd->set_storage_texture(0, 0, *scaled_views[0]);
 		cmd->set_texture(0, 1, framebuffer->get_view(), StockSampler::NearestClamp);
 
 		unsigned size = queue.scaled_resolves.size();
@@ -547,7 +547,7 @@ void Renderer::flush_resolves()
 		ensure_command_buffer();
 		cmd->set_program(*pipelines.resolve_to_unscaled);
 		cmd->set_storage_texture(0, 0, framebuffer->get_view());
-		cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::LinearClamp);
+		cmd->set_texture(0, 1, *scaled_views[0], StockSampler::LinearClamp);
 
 		unsigned size = queue.unscaled_resolves.size();
 		for (unsigned i = 0; i < size; i += 1024)
@@ -1321,8 +1321,8 @@ void Renderer::flush_blits()
 
 		if (scaled)
 		{
-			cmd->set_storage_texture(0, 0, scaled_framebuffer->get_view());
-			cmd->set_texture(0, 1, scaled_framebuffer->get_view(), StockSampler::NearestClamp);
+			cmd->set_storage_texture(0, 0, *scaled_views[0]);
+			cmd->set_texture(0, 1, *scaled_views[0], StockSampler::NearestClamp);
 		}
 		else
 		{
