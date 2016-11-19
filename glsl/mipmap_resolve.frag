@@ -16,8 +16,8 @@ layout(push_constant, std430) uniform Registers
 
 void main()
 {
-    vec2 lod_uv = clamp(vUV, registers.uv_min, registers.uv_max);
+   vec2 lod_uv = clamp(vUV, registers.uv_min, registers.uv_max);
    float b = textureLod(uTexture, lod_uv, registers.max_bias).a;
-   FragColor = textureLod(uTexture, vUV, registers.max_bias * b);
+   FragColor = textureLod(uTexture, lod_uv, registers.max_bias * b);
 }
 
