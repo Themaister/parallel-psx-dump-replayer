@@ -66,7 +66,8 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 
 	ensure_command_buffer();
 	cmd->clear_image(*scaled_framebuffer, {});
-	cmd->clear_image(*framebuffer, {});
+	if (!state)
+		cmd->clear_image(*framebuffer, {});
 	cmd->full_barrier();
 
 	auto dither_info = ImageCreateInfo::immutable_2d_image(4, 4, VK_FORMAT_R8_UNORM);
