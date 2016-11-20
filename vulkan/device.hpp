@@ -114,6 +114,8 @@ public:
 	}
 
 	void wait_for_fence(const Fence &fence);
+	Semaphore request_semaphore();
+	void add_wait_semaphore(Semaphore semaphore, VkPipelineStageFlags stages);
 
 private:
 	VkInstance instance = VK_NULL_HANDLE;
@@ -164,6 +166,10 @@ private:
 	SemaphoreManager semaphore_manager;
 	VkSemaphore wsi_acquire = VK_NULL_HANDLE;
 	VkSemaphore wsi_release = VK_NULL_HANDLE;
+
+	std::vector<Semaphore> wait_semaphores;
+	std::vector<VkPipelineStageFlags> wait_stages;
+
 	CommandBufferHandle staging_cmd;
 	void begin_staging();
 	void submit_queue(Fence *fence, Semaphore *semaphore);

@@ -36,8 +36,9 @@ public:
 	VkSemaphore consume()
 	{
 		auto ret = semaphore;
-		semaphore = VK_NULL_HANDLE;
+		VK_ASSERT(semaphore);
 		VK_ASSERT(signalled);
+		semaphore = VK_NULL_HANDLE;
 		signalled = false;
 		return ret;
 	}

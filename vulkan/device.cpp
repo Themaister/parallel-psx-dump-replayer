@@ -13,6 +13,19 @@ Device::Device()
 {
 }
 
+Semaphore Device::request_semaphore()
+{
+	auto semaphore = semaphore_manager.request_cleared_semaphore();
+	auto ptr = make_handle<SemaphoreHolder>(this, semaphore);
+	return ptr;
+}
+
+void Device::add_wait_semaphore(Semaphore semaphore, VkPipelineStageFlags stages)
+{
+	wait_semaphores.push_back(semaphore);
+	wait_stages.push_back(stages);
+}
+
 void *Device::map_host_buffer(Buffer &buffer, MemoryAccessFlags access)
 {
 	void *host = allocator.mapMemory(&buffer.get_allocation(), access);
@@ -275,6 +288,17 @@ void Device::submit_queue(Fence *fence, Semaphore *semaphore)
 	vector<VkSemaphore> waits[2];
 	vector<VkSemaphore> signals[2];
 	vector<VkFlags> stages[2];
+
+	// Add external wait semaphores.
+	stages[0] = wait_stages;
+	for (auto &semaphore : wait_semaphores)
+	{
+		auto wait = semaphore->consume();
+		frame().recycled_semaphores.push_back(wait);
+		waits[0].push_back(wait);
+	}
+	wait_stages.clear();
+	wait_semaphores.clear();
 
 	for (auto &cmd : frame().submissions)
 	{
