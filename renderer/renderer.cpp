@@ -368,6 +368,7 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 	image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 	cmd->begin_render_pass(rp);
+	cmd->set_quad_state();
 
 	if (render_state.bpp24)
 	{
