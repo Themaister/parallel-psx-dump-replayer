@@ -1354,6 +1354,10 @@ void Renderer::flush_blits()
 
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
 {
+	// Happens a lot in Square games for some reason.
+	if (dst == src)
+		return;
+
 	last_scanout.reset();
 	VK_ASSERT(dst.width == src.width);
 	VK_ASSERT(dst.height == src.height);
