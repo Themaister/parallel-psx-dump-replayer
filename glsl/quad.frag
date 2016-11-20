@@ -26,7 +26,7 @@ void main()
     int base_x = (coord.x * 3) >> 1;
     int shift = 8 * (coord.x & 1);
     coord.x = base_x;
-    vec2 uv = (vec2(coord) + 0.5 + registers.offset) / vec2(1024.0, 512.0);
+    vec2 uv = (vec2(coord) + 0.5) / vec2(1024.0, 512.0) + registers.offset;
     uint value = textureLod(uTexture, uv, 0.0).x | (textureLodOffset(uTexture, uv, 0.0, ivec2(1, 0)).x << 16u);
     value >>= uint(shift);
 

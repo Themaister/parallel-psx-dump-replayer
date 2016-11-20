@@ -17,7 +17,7 @@ using namespace std;
 using namespace Vulkan;
 
 //#define DUMP_VRAM
-#define SCALING 1
+#define SCALING 4
 //#define DETAIL_DUMP_FRAME 59
 //#define BREAK_FRAME 40
 //#define BREAK_DRAW 216
@@ -519,7 +519,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("dump/ff.rsx", "rb");
+	FILE *file = fopen("/tmp/silent.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -540,12 +540,12 @@ int main()
 		while (read_command(file, device, renderer, eof, frames, draw_call))
 			;
 		renderer.scanout();
-		renderer.flush();
 
 #ifdef DUMP_VRAM
 		dump_vram_to_file(device, renderer, frames);
 #endif
 
+		renderer.flush();
 		wsi.end_frame();
 		double end = gettime();
 		total_time += end - start;
