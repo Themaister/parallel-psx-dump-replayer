@@ -504,7 +504,7 @@ void Device::destroy_buffer_view(VkBufferView view)
 
 void Device::destroy_semaphore(VkSemaphore semaphore)
 {
-	VK_ASSERT(!exists(frame().destroyed_semaphores, view));
+	VK_ASSERT(!exists(frame().destroyed_semaphores, semaphore));
 	frame().destroyed_semaphores.push_back(semaphore);
 }
 

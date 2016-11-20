@@ -17,7 +17,7 @@ using namespace std;
 using namespace Vulkan;
 
 //#define DUMP_VRAM
-#define SCALING 1
+#define SCALING 4
 //#define DETAIL_DUMP_FRAME 153
 //#define BREAK_FRAME 40
 //#define BREAK_DRAW 216
