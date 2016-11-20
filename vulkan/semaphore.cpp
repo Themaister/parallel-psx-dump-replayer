@@ -3,7 +3,7 @@
 
 namespace Vulkan
 {
-Semaphore::~Semaphore()
+SemaphoreHolder::~SemaphoreHolder()
 {
 	if (semaphore)
 		device->destroy_semaphore(semaphore);

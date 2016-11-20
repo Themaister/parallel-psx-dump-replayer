@@ -237,7 +237,7 @@ void Device::init_stock_samplers()
 	}
 }
 
-void Device::submit(CommandBufferHandle cmd, Fence *fence)
+void Device::submit(CommandBufferHandle cmd, Fence *fence, Semaphore *semaphore)
 {
 	if (staging_cmd)
 	{
@@ -251,11 +251,11 @@ void Device::submit(CommandBufferHandle cmd, Fence *fence)
 	vkEndCommandBuffer(cmd->get_command_buffer());
 	frame().submissions.push_back(move(cmd));
 
-	if (fence)
-		submit_queue(fence);
+	if (fence || semaphore)
+		submit_queue(fence, semaphore);
 }
 
-void Device::submit_queue(Fence *fence)
+void Device::submit_queue(Fence *fence, Semaphore *semaphore)
 {
 	if (frame().submissions.empty())
 		return;
@@ -271,6 +271,10 @@ void Device::submit_queue(Fence *fence)
 	vector<VkSubmitInfo> submits;
 	submits.reserve(2);
 	size_t last_cmd = 0;
+
+	vector<VkSemaphore> waits[2];
+	vector<VkSemaphore> signals[2];
+	vector<VkFlags> stages[2];
 
 	for (auto &cmd : frame().submissions)
 	{
@@ -297,6 +301,8 @@ void Device::submit_queue(Fence *fence)
 
 	if (cmds.size() > last_cmd)
 	{
+		unsigned index = submits.size();
+
 		// Push all pending cmd buffers to their own submission.
 		submits.emplace_back();
 
@@ -308,16 +314,36 @@ void Device::submit_queue(Fence *fence)
 		submit.pCommandBuffers = cmds.data() + last_cmd;
 		if (frame().swapchain_touched)
 		{
-			submit.waitSemaphoreCount = 1;
-			submit.pWaitSemaphores = &wsi_acquire;
-			static const uint32_t wait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			submit.pWaitDstStageMask = &wait;
-			submit.signalSemaphoreCount = 1;
-			submit.pSignalSemaphores = &wsi_release;
+			static const VkFlags wait = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			waits[index].push_back(wsi_acquire);
+			stages[index].push_back(wait);
+			signals[index].push_back(wsi_release);
 		}
 		last_cmd = cmds.size();
 	}
 	VkFence cleared_fence = frame().fence_manager.request_cleared_fence();
+
+	VkSemaphore cleared_semaphore = VK_NULL_HANDLE;
+	if (semaphore)
+	{
+		cleared_semaphore = semaphore_manager.request_cleared_semaphore();
+	}
+
+	for (unsigned i = 0; i < submits.size(); i++)
+	{
+		auto &submit = submits[i];
+		submit.waitSemaphoreCount = waits[i].size();
+		if (!waits[i].empty())
+		{
+			submit.pWaitSemaphores = waits[i].data();
+			submit.pWaitDstStageMask = stages[i].data();
+		}
+
+		submit.signalSemaphoreCount = signals[i].size();
+		if (!signals[i].empty())
+			submit.pSignalSemaphores = signals[i].data();
+	}
+
 	VkResult result = vkQueueSubmit(queue, submits.size(), submits.data(), cleared_fence);
 	if (result != VK_SUCCESS)
 		LOG("vkQueueSubmit failed.\n");
@@ -328,6 +354,12 @@ void Device::submit_queue(Fence *fence)
 		auto ptr = make_shared<FenceHolder>(this, cleared_fence);
 		*fence = ptr;
 		frame().fences.push_back(move(ptr));
+	}
+
+	if (semaphore)
+	{
+		auto ptr = make_handle<SemaphoreHolder>(this, cleared_semaphore);
+		*semaphore = ptr;
 	}
 }
 
@@ -341,7 +373,7 @@ void Device::flush_frame()
 		staging_cmd.reset();
 	}
 
-	submit_queue(nullptr);
+	submit_queue(nullptr, nullptr);
 }
 
 void Device::begin_staging()

@@ -45,7 +45,7 @@ public:
 	void flush_frame();
 	void wait_idle();
 	CommandBufferHandle request_command_buffer();
-	void submit(CommandBufferHandle cmd, Fence *fence = nullptr);
+	void submit(CommandBufferHandle cmd, Fence *fence = nullptr, Semaphore *semaphore = nullptr);
 
 	VkDevice get_device()
 	{
@@ -166,7 +166,7 @@ private:
 	VkSemaphore wsi_release = VK_NULL_HANDLE;
 	CommandBufferHandle staging_cmd;
 	void begin_staging();
-	void submit_queue(Fence *fence);
+	void submit_queue(Fence *fence, Semaphore *semaphore);
 
 	PerFrame &frame()
 	{

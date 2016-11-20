@@ -7,16 +7,16 @@ namespace Vulkan
 {
 class Device;
 
-class Semaphore : public IntrusivePtrEnabled<Semaphore>
+class SemaphoreHolder : public IntrusivePtrEnabled<SemaphoreHolder>
 {
 public:
-	Semaphore(Device *device, VkSemaphore semaphore)
+	SemaphoreHolder(Device *device, VkSemaphore semaphore)
 	    : device(device)
 	    , semaphore(semaphore)
 	{
 	}
 
-	~Semaphore();
+	~SemaphoreHolder();
 
 	const VkSemaphore &get_semaphore() const
 	{
@@ -48,5 +48,5 @@ private:
 	bool signalled = false;
 };
 
-using SemaphoreHandle = IntrusivePtr<Semaphore>;
+using Semaphore = IntrusivePtr<SemaphoreHolder>;
 }
