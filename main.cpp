@@ -17,8 +17,8 @@ using namespace std;
 using namespace Vulkan;
 
 //#define DUMP_VRAM
-#define SCALING 4
-//#define DETAIL_DUMP_FRAME 59
+#define SCALING 1
+//#define DETAIL_DUMP_FRAME 153
 //#define BREAK_FRAME 40
 //#define BREAK_DRAW 216
 
@@ -213,7 +213,8 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 static void dump_to_file(Device &device, Renderer &renderer, unsigned index, unsigned subindex)
 {
 	unsigned width, height;
-	auto buffer = renderer.scanout_to_buffer(true, width, height);
+	//auto buffer = renderer.scanout_to_buffer(true, width, height);
+	auto buffer = renderer.scanout_vram_to_buffer(width, height);
 	if (!buffer)
 		return;
 
@@ -519,7 +520,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("/tmp/silent.rsx", "rb");
+	FILE *file = fopen("/tmp/cc.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -552,11 +553,16 @@ int main()
 		frames++;
 
 #if 0
-		LOG("Completed frame %u.\n", frames);
-		LOG("Render passes: %u\n", renderer.counters.render_passes);
-		LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-		LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
-		LOG("Vertices: %u\n", renderer.counters.vertices);
+      if (renderer.counters.render_passes)
+      {
+         LOG("========================\n");
+         LOG("Completed frame %u.\n", frames);
+         LOG("Render passes: %u\n", renderer.counters.render_passes);
+         LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+         LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
+         LOG("Vertices: %u\n", renderer.counters.vertices);
+         LOG("========================\n");
+      }
 #endif
 	}
 

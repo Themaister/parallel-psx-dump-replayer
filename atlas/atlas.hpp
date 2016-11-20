@@ -183,6 +183,7 @@ public:
 
 	void pipeline_barrier(StatusFlags domains);
 	void notify_external_barrier(StatusFlags domains);
+	void flush_render_pass();
 
 private:
 	StatusFlags fb_info[NUM_BLOCKS_X * NUM_BLOCKS_Y];
@@ -216,7 +217,6 @@ private:
 		return fb_info[NUM_BLOCKS_X * block_y + block_x];
 	}
 
-	void flush_render_pass();
 	void discard_render_pass();
 	bool inside_render_pass(const Rect &rect);
 };

@@ -95,8 +95,8 @@ Renderer::SaveState Renderer::save_vram_state()
 	                          { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 });
 	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
 	             VK_ACCESS_HOST_READ_BIT);
-	device.submit(cmd);
-	cmd.reset();
+
+	flush();
 
 	device.wait_idle();
 	void *ptr = device.map_host_buffer(*buffer, MEMORY_ACCESS_READ);
@@ -215,8 +215,7 @@ BufferHandle Renderer::scanout_vram_to_buffer(unsigned &width, unsigned &height)
 	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
 	             VK_ACCESS_HOST_READ_BIT);
 
-	device.submit(cmd);
-	cmd.reset();
+	flush();
 	device.wait_idle();
 	width = FB_WIDTH * scaling;
 	height = FB_HEIGHT * scaling;
@@ -228,6 +227,8 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 	auto &rect = draw_area ? render_state.draw_rect : render_state.display_mode;
 	if (rect.width == 0 || rect.height == 0 || !render_state.display_on)
 		return nullptr;
+
+	atlas.flush_render_pass();
 
 	atlas.read_transfer(Domain::Scaled, rect);
 	ensure_command_buffer();
@@ -241,8 +242,7 @@ BufferHandle Renderer::scanout_to_buffer(bool draw_area, unsigned &width, unsign
 	cmd->barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_HOST_BIT,
 	             VK_ACCESS_HOST_READ_BIT);
 
-	device.submit(cmd);
-	cmd.reset();
+	flush();
 	device.wait_idle();
 	width = scaling * rect.width;
 	height = scaling * rect.height;
@@ -295,6 +295,8 @@ void Renderer::mipmap_framebuffer()
 
 ImageHandle Renderer::scanout_to_texture(VkFormat format)
 {
+	atlas.flush_render_pass();
+
 	if (last_scanout)
 		return last_scanout;
 
@@ -1469,8 +1471,7 @@ BufferHandle Renderer::copy_cpu_to_vram(const Rect &rect)
 
 Renderer::~Renderer()
 {
-	if (cmd)
-		device.submit(cmd);
+	flush();
 }
 
 void Renderer::flush_texture_allocator()
