@@ -120,10 +120,11 @@ public:
 		render_state.dither = dither;
 	}
 
+	void set_scanout_semaphore(Vulkan::Semaphore semaphore);
 	void scanout();
 	Vulkan::BufferHandle scanout_to_buffer(bool draw_area, unsigned &width, unsigned &height);
 	Vulkan::BufferHandle scanout_vram_to_buffer(unsigned &width, unsigned &height);
-	Vulkan::ImageHandle scanout_to_texture(VkFormat format);
+	Vulkan::ImageHandle scanout_to_texture();
 
 	inline void set_texture_mode(TextureMode mode)
 	{
@@ -188,6 +189,7 @@ private:
 	Vulkan::ImageHandle scaled_framebuffer;
 	Vulkan::ImageHandle framebuffer;
 	Vulkan::ImageHandle depth;
+	Vulkan::Semaphore scanout_semaphore;
 	std::vector<Vulkan::ImageViewHandle> scaled_views;
 	FBAtlas atlas;
 
@@ -338,6 +340,7 @@ private:
 	Rect compute_window_rect(const TextureWindow &window);
 
 	Vulkan::ImageHandle last_scanout;
+	Vulkan::ImageHandle reuseable_scanout;
 
 	void mipmap_framebuffer();
 	Vulkan::BufferHandle quad;

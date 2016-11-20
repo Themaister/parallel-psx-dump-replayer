@@ -85,6 +85,11 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	flush();
 }
 
+void Renderer::set_scanout_semaphore(Semaphore semaphore)
+{
+	scanout_semaphore = semaphore;
+}
+
 Renderer::SaveState Renderer::save_vram_state()
 {
 	auto buffer =
@@ -293,7 +298,7 @@ void Renderer::mipmap_framebuffer()
 	}
 }
 
-ImageHandle Renderer::scanout_to_texture(VkFormat format)
+ImageHandle Renderer::scanout_to_texture()
 {
 	atlas.flush_render_pass();
 
@@ -309,32 +314,40 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 		ensure_command_buffer();
 
-		auto info =
-		    ImageCreateInfo::render_target(rect.width ? rect.width : 64u, rect.height ? rect.height : 64u, format);
-		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-		auto image = device.create_image(info);
+		auto info = ImageCreateInfo::render_target(rect.width ? rect.width : 64u, rect.height ? rect.height : 64u,
+		                                           VK_FORMAT_R8G8B8A8_UNORM);
+
+		if (!reuseable_scanout || reuseable_scanout->get_create_info().width != info.width ||
+		    reuseable_scanout->get_create_info().height != info.height)
+		{
+			LOG("Creating new scanout image.\n");
+			info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			info.usage =
+			    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+			reuseable_scanout = device.create_image(info);
+		}
 
 		RenderPassInfo rp;
-		rp.color_attachments[0] = &image->get_view();
+		rp.color_attachments[0] = &reuseable_scanout->get_view();
 		rp.num_color_attachments = 1;
 		rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
 
-		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		cmd->image_barrier(*reuseable_scanout, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		reuseable_scanout->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 		cmd->begin_render_pass(rp);
 		cmd->end_render_pass();
 
-		cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+		cmd->image_barrier(*reuseable_scanout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		                   VK_ACCESS_SHADER_READ_BIT);
 
-		image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		last_scanout = image;
-		return image;
+		reuseable_scanout->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		last_scanout = reuseable_scanout;
+		return reuseable_scanout;
 	}
 
 	if (render_state.bpp24)
@@ -352,22 +365,37 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 	if (!render_state.bpp24 && scaling != 1)
 		mipmap_framebuffer();
 
-	auto info = ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
-	                                           rect.height * (render_state.bpp24 ? 1 : scaling), format);
+	if (scanout_semaphore)
+	{
+		flush();
+		// We only need to wait in the scanout pass.
+		device.add_wait_semaphore(scanout_semaphore, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		scanout_semaphore.reset();
+	}
 
-	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-	info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	auto image = device.create_image(info);
+	ensure_command_buffer();
+	auto info =
+	    ImageCreateInfo::render_target(rect.width * (render_state.bpp24 ? 1 : scaling),
+	                                   rect.height * (render_state.bpp24 ? 1 : scaling), VK_FORMAT_R8G8B8A8_UNORM);
+
+	if (!reuseable_scanout || reuseable_scanout->get_create_info().width != info.width ||
+	    reuseable_scanout->get_create_info().height != info.height)
+	{
+		LOG("Creating new scanout image.\n");
+		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		reuseable_scanout = device.create_image(info);
+	}
 
 	RenderPassInfo rp;
-	rp.color_attachments[0] = &image->get_view();
+	rp.color_attachments[0] = &reuseable_scanout->get_view();
 	rp.num_color_attachments = 1;
 	rp.op_flags = RENDER_PASS_OP_COLOR_OPTIMAL_BIT | RENDER_PASS_OP_STORE_COLOR_BIT;
 
-	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	cmd->image_barrier(*reuseable_scanout, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	image->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	reuseable_scanout->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 	cmd->begin_render_pass(rp);
 	cmd->set_quad_state();
@@ -412,19 +440,20 @@ ImageHandle Renderer::scanout_to_texture(VkFormat format)
 
 	cmd->end_render_pass();
 
-	cmd->image_barrier(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	                   VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+	cmd->image_barrier(*reuseable_scanout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+	                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+	                   VK_ACCESS_SHADER_READ_BIT);
 
-	image->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	last_scanout = image;
+	reuseable_scanout->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	last_scanout = reuseable_scanout;
 
-	return image;
+	return reuseable_scanout;
 }
 
 void Renderer::scanout()
 {
-	auto image = scanout_to_texture(VK_FORMAT_R8G8B8A8_UNORM);
+	auto image = scanout_to_texture();
 
 	ensure_command_buffer();
 	cmd->begin_render_pass(device.get_swapchain_render_pass(SwapchainRenderPass::ColorOnly));
