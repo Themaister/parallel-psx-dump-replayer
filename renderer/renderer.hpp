@@ -216,6 +216,10 @@ private:
 		Vulkan::ProgramHandle blit_vram_scaled;
 		Vulkan::ProgramHandle blit_vram_unscaled_masked;
 		Vulkan::ProgramHandle blit_vram_scaled_masked;
+		Vulkan::ProgramHandle blit_vram_cached_unscaled;
+		Vulkan::ProgramHandle blit_vram_cached_scaled;
+		Vulkan::ProgramHandle blit_vram_cached_unscaled_masked;
+		Vulkan::ProgramHandle blit_vram_cached_scaled_masked;
 		Vulkan::ProgramHandle opaque_flat;
 		Vulkan::ProgramHandle opaque_textured;
 		Vulkan::ProgramHandle opaque_semi_transparent;

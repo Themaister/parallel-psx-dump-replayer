@@ -62,6 +62,20 @@ static const uint32_t blit_vram_unscaled_masked_comp[] =
 static const uint32_t blit_vram_scaled_masked_comp[] =
 #include "blit_vram.masked.scaled.comp.inc"
     ;
+
+static const uint32_t blit_vram_cached_unscaled_comp[] =
+#include "blit_vram.cached.unscaled.comp.inc"
+    ;
+static const uint32_t blit_vram_cached_scaled_comp[] =
+#include "blit_vram.cached.scaled.comp.inc"
+    ;
+static const uint32_t blit_vram_cached_unscaled_masked_comp[] =
+#include "blit_vram.cached.masked.unscaled.comp.inc"
+    ;
+static const uint32_t blit_vram_cached_scaled_masked_comp[] =
+#include "blit_vram.cached.masked.scaled.comp.inc"
+    ;
+
 static const uint32_t feedback_add_frag[] =
 #include "feedback.add.frag.inc"
     ;

@@ -138,12 +138,23 @@ void Renderer::init_pipelines()
 	pipelines.copy_to_vram = device.create_program(copy_vram_comp, sizeof(copy_vram_comp));
 	pipelines.copy_to_vram_masked = device.create_program(copy_vram_masked_comp, sizeof(copy_vram_masked_comp));
 	pipelines.resolve_to_scaled = device.create_program(resolve_to_scaled, sizeof(resolve_to_scaled));
+
 	pipelines.blit_vram_unscaled = device.create_program(blit_vram_unscaled_comp, sizeof(blit_vram_unscaled_comp));
 	pipelines.blit_vram_scaled = device.create_program(blit_vram_scaled_comp, sizeof(blit_vram_scaled_comp));
 	pipelines.blit_vram_unscaled_masked =
 	    device.create_program(blit_vram_unscaled_masked_comp, sizeof(blit_vram_unscaled_masked_comp));
 	pipelines.blit_vram_scaled_masked =
 	    device.create_program(blit_vram_scaled_masked_comp, sizeof(blit_vram_scaled_masked_comp));
+
+	pipelines.blit_vram_cached_unscaled =
+	    device.create_program(blit_vram_cached_unscaled_comp, sizeof(blit_vram_cached_unscaled_comp));
+	pipelines.blit_vram_cached_scaled =
+	    device.create_program(blit_vram_cached_scaled_comp, sizeof(blit_vram_cached_scaled_comp));
+	pipelines.blit_vram_cached_unscaled_masked =
+	    device.create_program(blit_vram_cached_unscaled_masked_comp, sizeof(blit_vram_cached_unscaled_masked_comp));
+	pipelines.blit_vram_cached_scaled_masked =
+	    device.create_program(blit_vram_cached_scaled_masked_comp, sizeof(blit_vram_cached_scaled_masked_comp));
+
 	pipelines.opaque_flat =
 	    device.create_program(opaque_flat_vert, sizeof(opaque_flat_vert), opaque_flat_frag, sizeof(opaque_flat_frag));
 	pipelines.opaque_textured = device.create_program(opaque_textured_vert, sizeof(opaque_textured_vert),
@@ -198,7 +209,7 @@ Rect Renderer::compute_window_rect(const TextureWindow &window)
 	unsigned mask_bits_y = 32 - leading_zeroes(window.mask_y);
 	unsigned x = window.or_x & ~((1u << mask_bits_x) - 1);
 	unsigned y = window.or_y & ~((1u << mask_bits_y) - 1);
-	return { x, y, (1u << mask_bits_x) - 1, (1u << mask_bits_y) - 1 };
+	return { x, y, 1u << mask_bits_x, 1u << mask_bits_y };
 }
 
 void Renderer::set_texture_window(const TextureWindow &window)
@@ -1386,45 +1397,80 @@ void Renderer::flush_blits()
 
 void Renderer::blit_vram(const Rect &dst, const Rect &src)
 {
+	VK_ASSERT(dst.width == src.width);
+	VK_ASSERT(dst.height == src.height);
+
 	// Happens a lot in Square games for some reason.
 	if (dst == src)
 		return;
 
+	if (dst.width == 0 || dst.height == 0)
+		return;
+
 	last_scanout.reset();
-	VK_ASSERT(dst.width == src.width);
-	VK_ASSERT(dst.height == src.height);
 	auto domain = atlas.blit_vram(dst, src);
 
 	if (dst.intersects(src))
-		VK_ASSERT(0 && "Intersection!");
-
-	if (domain == Domain::Scaled)
 	{
-		auto &q = render_state.mask_test ? queue.scaled_masked_blits : queue.scaled_blits;
-		unsigned width = dst.width;
-		unsigned height = dst.height;
-		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
-			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
-				q.push_back({
-				    { (x + src.x) * scaling, (y + src.y) * scaling },
-				    { (x + dst.x) * scaling, (y + dst.y) * scaling },
-				    { min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling },
-				    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
-				});
+		// The software implementation takes texture cache into account by copying 128 horizontal pixels at a time ...
+		// We can do it with compute.
+		ensure_command_buffer();
+
+		unsigned factor = domain == Domain::Scaled ? scaling : 1u;
+
+		// Slower path where we do this in a single workgroup which steps through line by line, just like the software version.
+		struct Push
+		{
+			uint32_t src_offset[2];
+			uint32_t dst_offset[2];
+			uint32_t extent[2];
+			int32_t scaling;
+		};
+		Push push = {
+			{ src.x, src.y }, { dst.x, dst.y }, { dst.width, dst.height }, int(factor),
+		};
+		cmd->push_constants(&push, 0, sizeof(push));
+		cmd->set_program(domain == Domain::Scaled ?
+		                     (render_state.mask_test ? *pipelines.blit_vram_cached_scaled_masked :
+		                                               *pipelines.blit_vram_cached_scaled) :
+		                     (render_state.mask_test ? *pipelines.blit_vram_cached_unscaled_masked :
+		                                               *pipelines.blit_vram_cached_unscaled));
+
+		cmd->set_storage_texture(0, 0, domain == Domain::Scaled ? *scaled_views[0] : framebuffer->get_view());
+		cmd->dispatch(factor, factor, 1);
+		LOG("Intersecting blit_vram, hitting slow path (src: %u, %u, dst: %u, %u, size: %u, %u)\n", src.x, src.y, dst.x,
+		    dst.y, dst.width, dst.height);
 	}
 	else
 	{
-		auto &q = render_state.mask_test ? queue.unscaled_masked_blits : queue.unscaled_blits;
-		unsigned width = dst.width;
-		unsigned height = dst.height;
-		for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
-			for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
-				q.push_back({
-				    { x + src.x, y + src.y },
-				    { x + dst.x, y + dst.y },
-				    { min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y) },
-				    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
-				});
+		if (domain == Domain::Scaled)
+		{
+			auto &q = render_state.mask_test ? queue.scaled_masked_blits : queue.scaled_blits;
+			unsigned width = dst.width;
+			unsigned height = dst.height;
+			for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
+				for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
+					q.push_back({
+					    { (x + src.x) * scaling, (y + src.y) * scaling },
+					    { (x + dst.x) * scaling, (y + dst.y) * scaling },
+					    { min(BLOCK_WIDTH, width - x) * scaling, min(BLOCK_HEIGHT, height - y) * scaling },
+					    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
+					});
+		}
+		else
+		{
+			auto &q = render_state.mask_test ? queue.unscaled_masked_blits : queue.unscaled_blits;
+			unsigned width = dst.width;
+			unsigned height = dst.height;
+			for (unsigned y = 0; y < height; y += BLOCK_HEIGHT)
+				for (unsigned x = 0; x < width; x += BLOCK_WIDTH)
+					q.push_back({
+					    { x + src.x, y + src.y },
+					    { x + dst.x, y + dst.y },
+					    { min(BLOCK_WIDTH, width - x), min(BLOCK_HEIGHT, height - y) },
+					    { render_state.force_mask_bit ? 0x8000u : 0u, 0 },
+					});
+		}
 	}
 }
 
