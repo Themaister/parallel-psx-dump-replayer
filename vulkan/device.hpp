@@ -11,6 +11,8 @@
 #include "memory_allocator.hpp"
 #include "render_pass.hpp"
 #include "sampler.hpp"
+#include "semaphore.hpp"
+#include "semaphore_manager.hpp"
 #include "shader.hpp"
 #include "vulkan.hpp"
 #include <memory>
@@ -73,6 +75,7 @@ public:
 	void destroy_pipeline(VkPipeline pipeline);
 	void destroy_sampler(VkSampler sampler);
 	void destroy_framebuffer(VkFramebuffer framebuffer);
+	void destroy_semaphore(VkSemaphore semaphore);
 	void free_memory(const DeviceAllocation &alloc);
 
 	VkSemaphore set_acquire(VkSemaphore acquire);
@@ -126,7 +129,8 @@ private:
 
 	struct PerFrame
 	{
-		PerFrame(Device *device, GlobalAllocator &global, uint32_t queue_family_index);
+		PerFrame(Device *device, GlobalAllocator &global, SemaphoreManager &semaphore_manager,
+		         uint32_t queue_family_index);
 		~PerFrame();
 		void operator=(const PerFrame &) = delete;
 		PerFrame(const PerFrame &) = delete;
@@ -136,6 +140,7 @@ private:
 
 		VkDevice device;
 		GlobalAllocator &global_allocator;
+		SemaphoreManager &semaphore_manager;
 		CommandPool cmd_pool;
 		ImageHandle backbuffer;
 		FenceManager fence_manager;
@@ -152,8 +157,11 @@ private:
 		std::vector<VkBuffer> destroyed_buffers;
 		std::vector<CommandBufferHandle> submissions;
 		std::vector<std::shared_ptr<FenceHolder>> fences;
+		std::vector<VkSemaphore> recycled_semaphores;
+		std::vector<VkSemaphore> destroyed_semaphores;
 		bool swapchain_touched = false;
 	};
+	SemaphoreManager semaphore_manager;
 	VkSemaphore wsi_acquire = VK_NULL_HANDLE;
 	VkSemaphore wsi_release = VK_NULL_HANDLE;
 	CommandBufferHandle staging_cmd;

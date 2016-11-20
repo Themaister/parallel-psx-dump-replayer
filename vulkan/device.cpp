@@ -157,6 +157,8 @@ void Device::set_context(const Context &context)
 
 	VkPipelineCacheCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
 	vkCreatePipelineCache(device, &info, nullptr, &pipeline_cache);
+
+	semaphore_manager.init(device);
 }
 
 void Device::init_stock_samplers()
@@ -409,7 +411,7 @@ void Device::init_virtual_swapchain(unsigned num_swapchain_images)
 	per_frame.clear();
 
 	for (unsigned i = 0; i < num_swapchain_images; i++)
-		per_frame.emplace_back(new PerFrame(this, allocator, queue_family_index));
+		per_frame.emplace_back(new PerFrame(this, allocator, semaphore_manager, queue_family_index));
 }
 
 void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned width, unsigned height, VkFormat format)
@@ -428,7 +430,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 
 	for (auto &image : swapchain_images)
 	{
-		auto frame = unique_ptr<PerFrame>(new PerFrame(this, allocator, queue_family_index));
+		auto frame = unique_ptr<PerFrame>(new PerFrame(this, allocator, semaphore_manager, queue_family_index));
 
 		VkImageViewCreateInfo view_info = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		view_info.image = image;
@@ -452,9 +454,11 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 	}
 }
 
-Device::PerFrame::PerFrame(Device *device, GlobalAllocator &global, uint32_t queue_family_index)
+Device::PerFrame::PerFrame(Device *device, GlobalAllocator &global, SemaphoreManager &semaphore_manager,
+                           uint32_t queue_family_index)
     : device(device->get_device())
     , global_allocator(global)
+    , semaphore_manager(semaphore_manager)
     , cmd_pool(device->get_device(), queue_family_index)
     , fence_manager(device->get_device())
     , vbo_chain(device, 1024 * 1024, 64, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
@@ -496,6 +500,12 @@ void Device::destroy_buffer_view(VkBufferView view)
 {
 	VK_ASSERT(!exists(frame().destroyed_buffer_views, view));
 	frame().destroyed_buffer_views.push_back(view);
+}
+
+void Device::destroy_semaphore(VkSemaphore semaphore)
+{
+	VK_ASSERT(!exists(frame().destroyed_semaphores, view));
+	frame().destroyed_semaphores.push_back(semaphore);
 }
 
 void Device::destroy_image(VkImage image)
@@ -579,6 +589,10 @@ void Device::PerFrame::begin()
 		vkDestroyImage(device, image, nullptr);
 	for (auto &buffer : destroyed_buffers)
 		vkDestroyBuffer(device, buffer, nullptr);
+	for (auto &semaphore : destroyed_semaphores)
+		vkDestroySemaphore(device, semaphore, nullptr);
+	for (auto &semaphore : recycled_semaphores)
+		semaphore_manager.recycle(semaphore);
 	for (auto &alloc : allocations)
 		alloc.freeImmediate(global_allocator);
 
@@ -589,6 +603,8 @@ void Device::PerFrame::begin()
 	destroyed_buffer_views.clear();
 	destroyed_images.clear();
 	destroyed_buffers.clear();
+	destroyed_semaphores.clear();
+	recycled_semaphores.clear();
 	allocations.clear();
 	fences.clear();
 

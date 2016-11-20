@@ -19,6 +19,7 @@ add_library(vulkan
         render_pass.cpp
         buffer.cpp
         chain_allocator.cpp
+        semaphore.cpp
         memory_allocator.cpp)
 
 target_include_directories(vulkan PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
