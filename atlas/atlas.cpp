@@ -161,6 +161,11 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 		for (unsigned x = xbegin; x <= xend; x++)
 			write_domains |= info(x, y) & hazard_domains;
 
+	// Trying to update VRAM before fragment is done reading it.
+	// We could use copy-on-write here to avoid flushing, but this scenario is very rare.
+	if (write_domains & STATUS_FRAGMENT_FB_READ)
+		flush_render_pass();
+
 	if (write_domains)
 		pipeline_barrier(write_domains);
 

@@ -520,7 +520,7 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("/tmp/cc.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 
