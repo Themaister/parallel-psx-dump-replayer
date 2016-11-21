@@ -621,7 +621,10 @@ void Renderer::resolve(Domain target_domain, unsigned x, unsigned y)
 void Renderer::ensure_command_buffer()
 {
 	if (!cmd)
+	{
 		cmd = device.request_command_buffer();
+		copy_count = 0;
+	}
 }
 
 void Renderer::discard_render_pass()
@@ -1486,6 +1489,15 @@ void Renderer::end_copy(BufferHandle handle)
 
 BufferHandle Renderer::copy_cpu_to_vram(const Rect &rect)
 {
+	// FIXME: Dirty workaround for Mesa/Anvil.
+	// There seems to be a bug in Anvil where many different buffer objects
+	// in the same command buffer triggers some weird path in the driver.
+	// After a certain number of copies in a cmd buffer, just flush.
+	// Fixes Crash Bandicoot intro screen.
+	copy_count++;
+	if (copy_count >= 64)
+		flush();
+
 	last_scanout.reset();
 	atlas.write_compute(Domain::Unscaled, rect);
 	VkDeviceSize size = rect.width * rect.height * sizeof(uint16_t);

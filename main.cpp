@@ -521,7 +521,7 @@ int main()
 	Renderer renderer(device, SCALING, nullptr);
 
 #if 1
-	FILE *file = fopen("../crash.rsx", "rb");
+	FILE *file = fopen("/tmp/crash.rsx", "rb");
 	if (!file)
 		return 1;
 
