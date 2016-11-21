@@ -348,6 +348,5 @@ private:
 
 	void mipmap_framebuffer();
 	Vulkan::BufferHandle quad;
-	unsigned copy_count = 0;
 };
 }
