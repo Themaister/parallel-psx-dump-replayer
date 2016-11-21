@@ -216,38 +216,62 @@ struct ImageCreateInfo
 
 	static ImageCreateInfo immutable_2d_image(unsigned width, unsigned height, VkFormat format, bool mipmapped = false)
 	{
-		return { ImageDomain::Physical,
-			     width,
-			     height,
-			     1,
-			     mipmapped ? 0u : 1u,
-			     format,
-			     VK_IMAGE_TYPE_2D,
-			     1,
-			     VK_IMAGE_USAGE_SAMPLED_BIT,
-			     VK_SAMPLE_COUNT_1_BIT,
-			     0,
-			     mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u,
-			     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		ImageCreateInfo info;
+		info.width = width;
+		info.height = height;
+		info.depth = 1;
+		info.levels = mipmapped ? 0u : 1u;
+		info.format = format;
+		info.type = VK_IMAGE_TYPE_2D;
+		info.layers = 1;
+		info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+		info.samples = VK_SAMPLE_COUNT_1_BIT;
+		info.flags = 0;
+		info.misc = mipmapped ? unsigned(IMAGE_MISC_GENERATE_MIPS_BIT) : 0u;
+		info.initial_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		return info;
 	}
 
 	static ImageCreateInfo render_target(unsigned width, unsigned height, VkFormat format)
 	{
-		return { ImageDomain::Physical, width, height, 1, 1, format, VK_IMAGE_TYPE_2D, 1,
-			     VkImageUsageFlags((format_is_depth_stencil(format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
-			                                                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) |
-			                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-			     VK_SAMPLE_COUNT_1_BIT, 0, 0, VK_IMAGE_LAYOUT_GENERAL };
+		ImageCreateInfo info;
+		info.width = width;
+		info.height = height;
+		info.depth = 1;
+		info.levels = 1;
+		info.format = format;
+		info.type = VK_IMAGE_TYPE_2D;
+		info.layers = 1;
+		info.usage = (format_is_depth_stencil(format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
+		                                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) |
+		             VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+		info.samples = VK_SAMPLE_COUNT_1_BIT;
+		info.flags = 0;
+		info.misc = 0;
+		info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
+		return info;
 	}
 
 	static ImageCreateInfo transient_render_target(unsigned width, unsigned height, VkFormat format)
 	{
-		bool depth_stencil = format_is_depth_stencil(format);
-		return { ImageDomain::Transient, width, height, 1, 1, format, VK_IMAGE_TYPE_2D, 1,
-			     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-			         VkImageUsageFlags(depth_stencil ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
-			                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-			     VK_SAMPLE_COUNT_1_BIT, 0, 0, VK_IMAGE_LAYOUT_UNDEFINED };
+		ImageCreateInfo info;
+		info.domain = ImageDomain::Transient;
+		info.width = width;
+		info.height = height;
+		info.depth = 1;
+		info.levels = 1;
+		info.format = format;
+		info.type = VK_IMAGE_TYPE_2D;
+		info.layers = 1;
+		info.usage = (format_is_depth_stencil(format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
+		                                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) |
+		             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+		info.samples = VK_SAMPLE_COUNT_1_BIT;
+		info.flags = 0;
+		info.misc = 0;
+		info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
+		return info;
 	}
 };
 

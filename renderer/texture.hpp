@@ -9,6 +9,12 @@ struct TextureSurface
 {
 	unsigned texture = 0;
 	unsigned layer = 0;
+	TextureSurface() = default;
+	TextureSurface(unsigned texture, unsigned layer)
+	    : texture(texture)
+	    , layer(layer)
+	{
+	}
 };
 
 struct BlitInfo

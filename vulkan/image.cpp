@@ -30,10 +30,14 @@ Image::Image(Device *device, VkImage image, VkImageView default_view, const Devi
 {
 	if (default_view != VK_NULL_HANDLE)
 	{
-		view = make_handle<ImageView>(device, default_view,
-		                              ImageViewCreateInfo{
-		                                  this, create_info.format, 0, create_info.levels, 0, create_info.layers,
-		                              });
+		ImageViewCreateInfo info;
+		info.image = this;
+		info.format = create_info.format;
+		info.base_level = 0;
+		info.levels = create_info.levels;
+		info.base_layer = 0;
+		info.layers = create_info.layers;
+		view = make_handle<ImageView>(device, default_view, info);
 	}
 }
 

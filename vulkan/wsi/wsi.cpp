@@ -1,6 +1,9 @@
 #include "wsi.hpp"
 #include "vulkan_symbol_wrapper.h"
+
+#if defined(HAVE_GLFW)
 #include <GLFW/glfw3.h>
+#endif
 
 using namespace std;
 
@@ -9,19 +12,70 @@ namespace Vulkan
 
 bool WSI::alive()
 {
+#if defined(HAVE_GLFW)
 	glfwPollEvents();
 	return !glfwWindowShouldClose(window);
+#else
+	return true;
+#endif
 }
 
+#if defined(HAVE_GLFW)
 static void fb_size_cb(GLFWwindow *window, int width, int height)
 {
 	auto *wsi = static_cast<WSI *>(glfwGetWindowUserPointer(window));
 	VK_ASSERT(width != 0 && height != 0);
 	wsi->update_framebuffer(width, height);
 }
+#endif
+
+#if defined(HAVE_KHR_DISPLAY)
+static bool vulkan_update_display_mode(unsigned *width, unsigned *height, const VkDisplayModePropertiesKHR *mode,
+                                       unsigned desired_width, unsigned desired_height)
+{
+	unsigned visible_width = mode->parameters.visibleRegion.width;
+	unsigned visible_height = mode->parameters.visibleRegion.height;
+
+	if (!desired_width || !desired_height)
+	{
+		/* Strategy here is to pick something which is largest resolution. */
+		unsigned area = visible_width * visible_height;
+		if (area > (*width) * (*height))
+		{
+			*width = visible_width;
+			*height = visible_height;
+			return true;
+		}
+		else
+			return false;
+	}
+	else
+	{
+		/* For particular resolutions, find the closest. */
+		int delta_x = int(desired_width) - int(visible_width);
+		int delta_y = int(desired_height) - int(visible_height);
+		int old_delta_x = int(desired_width) - int(*width);
+		int old_delta_y = int(desired_height) - int(*height);
+
+		int dist = delta_x * delta_x + delta_y * delta_y;
+		int old_dist = old_delta_x * old_delta_x + old_delta_y * old_delta_y;
+		if (dist < old_dist)
+		{
+			*width = visible_width;
+			*height = visible_height;
+			return true;
+		}
+		else
+			return false;
+	}
+}
+#endif
 
 bool WSI::init(unsigned width, unsigned height)
 {
+	const char *device_ext = "VK_KHR_swapchain";
+
+#if defined(HAVE_GLFW)
 	if (!glfwInit())
 		return false;
 
@@ -30,8 +84,132 @@ bool WSI::init(unsigned width, unsigned height)
 
 	uint32_t count;
 	const char **ext = glfwGetRequiredInstanceExtensions(&count);
-	const char *device_ext = "VK_KHR_swapchain";
 	context = unique_ptr<Context>(new Context(ext, count, &device_ext, 1));
+
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	window = glfwCreateWindow(width, height, "GLFW Window", nullptr, nullptr);
+	if (glfwCreateWindowSurface(context->get_instance(), window, nullptr, &surface) != VK_SUCCESS)
+		return false;
+#elif defined(HAVE_KHR_DISPLAY)
+	if (!Context::init_loader(nullptr))
+		return false;
+
+	static const char *instance_ext[] = {
+		"VK_KHR_surface", "VK_KHR_display",
+	};
+	context =
+	    unique_ptr<Context>(new Context(instance_ext, sizeof(instance_ext) / sizeof(instance_ext[0]), &device_ext, 1));
+
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(),
+	                                                     vkGetPhysicalDeviceDisplayPropertiesKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(),
+	                                                     vkGetPhysicalDeviceDisplayPlanePropertiesKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(),
+	                                                     vkGetDisplayPlaneSupportedDisplaysKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkGetDisplayModePropertiesKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkCreateDisplayModeKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkGetDisplayPlaneCapabilitiesKHR);
+	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkCreateDisplayPlaneSurfaceKHR);
+
+	uint32_t display_count;
+	vkGetPhysicalDeviceDisplayPropertiesKHR(context->get_gpu(), &display_count, nullptr);
+	vector<VkDisplayPropertiesKHR> displays(display_count);
+	vkGetPhysicalDeviceDisplayPropertiesKHR(context->get_gpu(), &display_count, displays.data());
+
+	uint32_t plane_count;
+	vkGetPhysicalDeviceDisplayPlanePropertiesKHR(context->get_gpu(), &plane_count, nullptr);
+	vector<VkDisplayPlanePropertiesKHR> planes(plane_count);
+	vkGetPhysicalDeviceDisplayPlanePropertiesKHR(context->get_gpu(), &plane_count, planes.data());
+
+	VkDisplayModeKHR best_mode = VK_NULL_HANDLE;
+	uint32_t best_plane = UINT32_MAX;
+
+	unsigned actual_width = 0;
+	unsigned actual_height = 0;
+	VkDisplayPlaneAlphaFlagBitsKHR alpha_mode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR;
+
+	for (unsigned dpy = 0; dpy < display_count; dpy++)
+	{
+		VkDisplayKHR display = displays[dpy].display;
+		best_mode = VK_NULL_HANDLE;
+		best_plane = UINT32_MAX;
+
+		uint32_t mode_count;
+		vkGetDisplayModePropertiesKHR(context->get_gpu(), display, &mode_count, nullptr);
+		vector<VkDisplayModePropertiesKHR> modes(mode_count);
+		vkGetDisplayModePropertiesKHR(context->get_gpu(), display, &mode_count, modes.data());
+
+		for (unsigned i = 0; i < mode_count; i++)
+		{
+			const VkDisplayModePropertiesKHR &mode = modes[i];
+			if (vulkan_update_display_mode(&actual_width, &actual_height, &mode, 0, 0))
+				best_mode = mode.displayMode;
+		}
+
+		if (best_mode == VK_NULL_HANDLE)
+			continue;
+
+		for (unsigned i = 0; i < plane_count; i++)
+		{
+			uint32_t supported_count = 0;
+			VkDisplayPlaneCapabilitiesKHR plane_caps;
+			vkGetDisplayPlaneSupportedDisplaysKHR(context->get_gpu(), i, &supported_count, nullptr);
+
+			if (!supported_count)
+				continue;
+
+			vector<VkDisplayKHR> supported(supported_count);
+			vkGetDisplayPlaneSupportedDisplaysKHR(context->get_gpu(), i, &supported_count, supported.data());
+
+			unsigned j;
+			for (j = 0; j < supported_count; j++)
+			{
+				if (supported[j] == display)
+				{
+					if (best_plane == UINT32_MAX)
+						best_plane = j;
+					break;
+				}
+			}
+
+			if (j == supported_count)
+				continue;
+
+			if (planes[i].currentDisplay == VK_NULL_HANDLE || planes[i].currentDisplay == display)
+				best_plane = j;
+			else
+				continue;
+
+			vkGetDisplayPlaneCapabilitiesKHR(context->get_gpu(), best_mode, i, &plane_caps);
+
+			if (plane_caps.supportedAlpha & VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR)
+			{
+				best_plane = j;
+				alpha_mode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR;
+				goto out;
+			}
+		}
+	}
+out:
+
+	if (best_mode == VK_NULL_HANDLE)
+		return false;
+	if (best_plane == UINT32_MAX)
+		return false;
+
+	VkDisplaySurfaceCreateInfoKHR create_info = { VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR };
+	create_info.displayMode = best_mode;
+	create_info.planeIndex = best_plane;
+	create_info.planeStackIndex = planes[best_plane].currentStackIndex;
+	create_info.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	create_info.globalAlpha = 1.0f;
+	create_info.alphaMode = (VkDisplayPlaneAlphaFlagBitsKHR)alpha_mode;
+	create_info.imageExtent.width = width;
+	create_info.imageExtent.height = height;
+
+	if (vkCreateDisplayPlaneSurfaceKHR(context->get_instance(), &create_info, NULL, &surface) != VK_SUCCESS)
+		return false;
+#endif
 
 	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkDestroySurfaceKHR);
 	VULKAN_SYMBOL_WRAPPER_LOAD_INSTANCE_EXTENSION_SYMBOL(context->get_instance(), vkGetPhysicalDeviceSurfaceSupportKHR);
@@ -47,11 +225,6 @@ bool WSI::init(unsigned width, unsigned height)
 	VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_EXTENSION_SYMBOL(context->get_device(), vkAcquireNextImageKHR);
 	VULKAN_SYMBOL_WRAPPER_LOAD_DEVICE_EXTENSION_SYMBOL(context->get_device(), vkQueuePresentKHR);
 
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window = glfwCreateWindow(width, height, "GLFW Window", nullptr, nullptr);
-	if (glfwCreateWindowSurface(context->get_instance(), window, nullptr, &surface) != VK_SUCCESS)
-		return false;
-
 	VkBool32 supported = false;
 	vkGetPhysicalDeviceSurfaceSupportKHR(context->get_gpu(), context->get_queue_family(), surface, &supported);
 	if (!supported)
@@ -60,8 +233,10 @@ bool WSI::init(unsigned width, unsigned height)
 	if (!init_swapchain(width, height))
 		return false;
 
+#if defined(HAVE_GLFW)
 	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, fb_size_cb);
+#endif
 
 	semaphore_manager.init(context->get_device());
 	device.set_context(*context);
@@ -261,8 +436,10 @@ WSI::~WSI()
 			vkDestroySwapchainKHR(context->get_device(), swapchain, nullptr);
 	}
 
+#if defined(HAVE_GLFW)
 	if (window)
 		glfwDestroyWindow(window);
+#endif
 
 	if (surface != VK_NULL_HANDLE)
 		vkDestroySurfaceKHR(context->get_instance(), surface, nullptr);

@@ -76,7 +76,7 @@ PipelineLayout *Device::request_pipeline_layout(const CombinedResourceLayout &la
 		return itr->second.get();
 
 	auto *pipe = new PipelineLayout(this, layout);
-	pipeline_layouts.emplace(hash, pipe);
+	pipeline_layouts.insert(make_pair(hash, unique_ptr<PipelineLayout>(pipe)));
 	return pipe;
 }
 
@@ -90,7 +90,7 @@ DescriptorSetAllocator *Device::request_descriptor_set_allocator(const Descripto
 		return itr->second.get();
 
 	auto *allocator = new DescriptorSetAllocator(this, layout);
-	descriptor_set_allocators.emplace(hash, allocator);
+	descriptor_set_allocators.insert(make_pair(hash, unique_ptr<DescriptorSetAllocator>(allocator)));
 	return allocator;
 }
 
@@ -500,6 +500,7 @@ void Device::init_swapchain(const vector<VkImage> swapchain_images, unsigned wid
 		view_info.subresourceRange.baseArrayLayer = 0;
 		view_info.subresourceRange.levelCount = 1;
 		view_info.subresourceRange.layerCount = 1;
+		view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
 		VkImageView image_view;
 		if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
@@ -1198,7 +1199,7 @@ const RenderPass &Device::request_render_pass(const RenderPassInfo &info)
 	else
 	{
 		RenderPass *pass = new RenderPass(this, info);
-		render_passes.emplace(hash, pass);
+		render_passes.insert(make_pair(hash, unique_ptr<RenderPass>(pass)));
 		return *pass;
 	}
 }

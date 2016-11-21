@@ -4,7 +4,11 @@
 #include "semaphore_manager.hpp"
 #include "vulkan.hpp"
 #include "vulkan_symbol_wrapper.h"
+
+#if defined(HAVE_GLFW)
 #include <GLFW/glfw3.h>
+#endif
+
 #include <memory>
 #include <vector>
 
@@ -35,7 +39,9 @@ public:
 
 private:
 	std::unique_ptr<Context> context;
+#if defined(HAVE_GLFW)
 	GLFWwindow *window = nullptr;
+#endif
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 	std::vector<VkImage> swapchain_images;

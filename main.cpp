@@ -520,11 +520,13 @@ int main()
 	auto &device = wsi.get_device();
 	Renderer renderer(device, SCALING, nullptr);
 
-	FILE *file = fopen("/tmp/crash.rsx", "rb");
+#if 1
+	FILE *file = fopen("../crash.rsx", "rb");
 	if (!file)
 		return 1;
 
 	read_tag(file);
+#endif
 
 	bool eof = false;
 	unsigned frames = 0;

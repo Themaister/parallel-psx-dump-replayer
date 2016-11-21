@@ -7,9 +7,11 @@
 #include <GLFW/glfw3.h>
 #endif
 
+#include <dlfcn.h>
+
 using namespace std;
 
-//#undef VULKAN_DEBUG
+#undef VULKAN_DEBUG
 
 namespace Vulkan
 {
@@ -35,7 +37,19 @@ Context::Context(const char **instance_ext, uint32_t instance_ext_count, const c
 bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
 {
 	if (!addr)
-		return false;
+	{
+		static void *module;
+		if (!module)
+		{
+			module = dlopen("libvulkan.so", RTLD_LOCAL | RTLD_LAZY);
+			if (!module)
+				return false;
+		}
+
+		addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(module, "vkGetInstanceProcAddr"));
+		if (!addr)
+			return false;
+	}
 
 	vulkan_symbol_wrapper_init(addr);
 	return vulkan_symbol_wrapper_load_global_symbols();

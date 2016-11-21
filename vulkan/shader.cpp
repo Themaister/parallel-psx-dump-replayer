@@ -72,7 +72,7 @@ PipelineLayout::~PipelineLayout()
 		vkDestroyPipelineLayout(device->get_device(), pipe_layout, nullptr);
 }
 
-Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, VkDeviceSize size)
+Shader::Shader(VkDevice device, ShaderStage stage, const uint32_t *data, size_t size)
     : device(device)
     , stage(stage)
 {

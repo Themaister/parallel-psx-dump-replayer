@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-set(CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 project(parallel-PSX LANGUAGES CXX C)
 
 if (CMAKE_COMPILER_IS_GNUCXX)

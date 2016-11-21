@@ -40,6 +40,15 @@ struct Rect
 	unsigned width = 0;
 	unsigned height = 0;
 
+	Rect() = default;
+	Rect(unsigned x, unsigned y, unsigned width, unsigned height)
+	    : x(x)
+	    , y(y)
+	    , width(width)
+	    , height(height)
+	{
+	}
+
 	inline bool operator==(const Rect &rect) const
 	{
 		return x == rect.x && y == rect.y && width == rect.width && height == rect.height;
