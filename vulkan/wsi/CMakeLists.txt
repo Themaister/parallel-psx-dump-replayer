@@ -3,6 +3,9 @@ target_link_libraries(vulkan-wsi vulkan)
 target_include_directories(vulkan-wsi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(WSI "WSI backend" "GLFW")
+if (NOT WSI)
+   set(WSI "GLFW")
+endif()
 
 if (${WSI} MATCHES "GLFW")
 	target_compile_definitions(vulkan-wsi PUBLIC HAVE_GLFW)

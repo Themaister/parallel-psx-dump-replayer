@@ -321,6 +321,9 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 
 Domain FBAtlas::find_suitable_domain(const Rect &rect)
 {
+	if (inside_render_pass(rect))
+		return Domain::Scaled;
+
 	unsigned xbegin = rect.x / BLOCK_WIDTH;
 	unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;

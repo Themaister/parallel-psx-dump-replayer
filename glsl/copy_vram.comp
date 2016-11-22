@@ -21,7 +21,7 @@ void main()
 #ifdef MASKED
         uint fbvalue = imageLoad(uFramebuffer, ivec2(coord)).x;
         if ((fbvalue & 0x8000u) == 0u)
-            imageStore(uFramebuffer, ivec2(coord), uvec4(value));
+            imageStore(uFramebuffer, ivec2(coord), uvec4(value | rect.mask_or));
 #else
         imageStore(uFramebuffer, ivec2(coord), uvec4(value | rect.mask_or));
 #endif

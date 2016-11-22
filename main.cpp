@@ -540,8 +540,10 @@ int main()
 		wsi.begin_frame();
 		renderer.reset_counters();
 
+#if 1
 		while (read_command(file, device, renderer, eof, frames, draw_call))
 			;
+#endif
 		renderer.scanout();
 
 #ifdef DUMP_VRAM

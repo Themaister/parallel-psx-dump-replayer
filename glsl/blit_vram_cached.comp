@@ -19,13 +19,18 @@ layout(std430, push_constant) uniform Registers
 
 void main()
 {
-   int src_x = registers.src.x + int(gl_LocalInvocationID.x);
-   int dst_x = registers.dst.x + int(gl_LocalInvocationID.x);
+   int src_x = registers.src.x;
+   int dst_x = registers.dst.x;
    ivec2 offset = ivec2(gl_WorkGroupID.xy);
+
+   bool read_after_write = registers.src.y == registers.dst.y;
+
    for (int y = 0; y < registers.extent.y; y++)
    {
       for (int x = 0; x < registers.extent.x; x += 128)
       {
+         int local_x = x + int(gl_LocalInvocationID.x);
+
          // Make sure we load data into our "cache" before starting the write back.
 #ifdef SCALED
 #define DECL_CACHE vec4 cache
@@ -45,18 +50,19 @@ void main()
          // within macro-blocks are completely independent.
 
          DECL_CACHE;
-         if (x + int(gl_LocalInvocationID.x) < registers.extent.x)
+         if (local_x < registers.extent.x)
          {
-            ivec2 coord = registers.scaling * ivec2(src_x + x, registers.src.y + y) + offset;
+            ivec2 coord = registers.scaling * ivec2(src_x + local_x, registers.src.y + y) + offset;
             cache = imageLoad(uFramebuffer, coord).LOAD_SWIZZLE;
          }
 
          // Write-after-read hazard, just execution barrier here.
-         barrier();
+         if (read_after_write)
+            barrier();
 
-         if (x + int(gl_LocalInvocationID.x) < registers.extent.x)
+         if (local_x < registers.extent.x)
          {
-            ivec2 coord = registers.scaling * ivec2(dst_x + x, registers.dst.y + y) + offset;
+            ivec2 coord = registers.scaling * ivec2(dst_x + local_x, registers.dst.y + y) + offset;
 #ifdef MASKED
             DECL_MASK_CACHE;
             mask_cache = imageLoad(uFramebuffer, coord).LOAD_SWIZZLE;
