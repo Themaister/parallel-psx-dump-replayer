@@ -374,7 +374,37 @@ void FBAtlas::set_texture_window(const Rect &rect)
 	renderpass.texture_window = rect;
 }
 
-void FBAtlas::write_fragment()
+void FBAtlas::extend_render_pass(const Rect &rect, bool scissor)
+{
+	bool scissor_invariant = !scissor || renderpass.scissor.contains(rect);
+	listener->set_scissored_invariant(scissor_invariant);
+	auto scissored_rect = !scissor_invariant ? rect.scissor(renderpass.scissor) : rect;
+
+	if (!scissored_rect.width || !scissored_rect.height)
+		return;
+
+	if (!renderpass.inside)
+	{
+		renderpass.rect = scissored_rect;
+		sync_domain(Domain::Scaled, renderpass.rect);
+		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+
+		renderpass.inside = true;
+		renderpass.clean_clear = false;
+	}
+	else if (!renderpass.rect.contains(scissored_rect))
+	{
+		renderpass.rect.extend_bounding_box(scissored_rect);
+
+		// Avoid sync/write domain flushing our own render pass.
+		renderpass.inside = false;
+		sync_domain(Domain::Scaled, renderpass.rect);
+		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+		renderpass.inside = true;
+	}
+}
+
+void FBAtlas::write_fragment(const Rect &rect)
 {
 	bool reads_window = renderpass.texture_mode != TextureMode::None;
 	if (reads_window)
@@ -416,74 +446,20 @@ void FBAtlas::write_fragment()
 		read_texture();
 	}
 
-	if (!renderpass.inside)
-	{
-		sync_domain(Domain::Scaled, renderpass.rect);
-		renderpass.inside = true;
-		renderpass.clean_clear = false;
-	}
+	extend_render_pass(rect, true);
 }
 
 void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 {
-	if (renderpass.rect == rect)
-	{
-		sync_domain(Domain::Scaled, rect);
-
-		discard_render_pass();
-		renderpass.inside = true;
-		renderpass.clean_clear = true;
-		renderpass.color = color;
-	}
-	else if (!renderpass.inside)
-	{
-		// FIXME: This can be improved for tilers.
-		sync_domain(Domain::Scaled, rect);
-		write_domain(Domain::Scaled, Stage::Fragment, rect);
-		listener->clear_quad_separate(rect, color);
-	}
-	else
-	{
-		if (renderpass.rect.contains(rect))
-		{
-			// Our clear quad is fully inside the render pass, no special magic needed.
-			listener->clear_quad(rect, color);
-		}
-		else if (rect.contains(renderpass.rect))
-		{
-			// FIXME: This can be improved for tilers.
-			// Our clear quad encapsulates the entire draw area + some stuff outside.
-			// Throw away the render pass and clear directly.
-			discard_render_pass();
-			write_domain(Domain::Scaled, Stage::Fragment, rect);
-			listener->clear_quad_separate(rect, color);
-		}
-		else if (rect.intersects(renderpass.rect))
-		{
-			// FIXME: This can be improved for tilers.
-			flush_render_pass();
-			write_domain(Domain::Scaled, Stage::Fragment, rect);
-			listener->clear_quad_separate(rect, color);
-		}
-		else
-		{
-			// We're trying clear completely outside our render pass. We can do this with compute, but for now, just make this a separate render pass.
-			flush_render_pass();
-			write_domain(Domain::Scaled, Stage::Fragment, rect);
-			listener->clear_quad_separate(rect, color);
-		}
-	}
+	if (renderpass.inside && !renderpass.rect.intersects(rect))
+		flush_render_pass();
+	extend_render_pass(rect, false);
+	listener->clear_quad(rect, color);
 }
 
 void FBAtlas::set_draw_rect(const Rect &rect)
 {
-	if (!renderpass.inside)
-		renderpass.rect = rect;
-	else if (renderpass.rect != rect)
-	{
-		flush_render_pass();
-		renderpass.rect = rect;
-	}
+	renderpass.scissor = rect;
 }
 
 void FBAtlas::discard_render_pass()
@@ -520,6 +496,8 @@ void FBAtlas::notify_external_barrier(StatusFlags domains)
 
 void FBAtlas::pipeline_barrier(StatusFlags domains)
 {
+	if (domains & STATUS_FRAGMENT_SFB_WRITE)
+		flush_render_pass();
 	listener->hazard(domains);
 	notify_external_barrier(domains);
 }

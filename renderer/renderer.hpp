@@ -59,6 +59,7 @@ public:
 		bool display_on = false;
 		bool bpp24 = false;
 		bool dither = false;
+		bool scissor_invariant = false;
 	};
 
 	struct SaveState
@@ -75,6 +76,11 @@ public:
 	{
 		render_state.draw_offset_x = x;
 		render_state.draw_offset_y = y;
+	}
+
+	inline void set_scissored_invariant(bool invariant) override
+	{
+		render_state.scissor_invariant = invariant;
 	}
 
 	void set_texture_window(const TextureWindow &rect);
@@ -330,7 +336,7 @@ private:
 	void render_semi_transparent_primitives();
 	void reset_queue();
 
-	float allocate_depth();
+	float allocate_depth(const Rect &rect);
 	void flush_texture_allocator();
 	TextureAllocator allocator;
 

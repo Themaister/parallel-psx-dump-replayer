@@ -629,9 +629,9 @@ void Renderer::discard_render_pass()
 	reset_queue();
 }
 
-float Renderer::allocate_depth()
+float Renderer::allocate_depth(const Rect &rect)
 {
-	atlas.write_fragment();
+	atlas.write_fragment(rect);
 	primitive_index++;
 	return 1.0f - primitive_index * (2.0f / 0xffffff); // Double the epsilon to be safe(r) when w is used.
 }
@@ -711,12 +711,41 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 		}
 	}
 
-	float z = allocate_depth();
+	// Compute bounding box for the draw call.
+	float max_x = 0.0f;
+	float max_y = 0.0f;
+	float min_x = float(FB_WIDTH);
+	float min_y = float(FB_HEIGHT);
+	float x[4];
+	float y[4];
+	for (unsigned i = 0; i < count; i++)
+	{
+		float tmp_x = vertices[i].x + render_state.draw_offset_x;
+		float tmp_y = vertices[i].y + render_state.draw_offset_y;
+		max_x = max(max_x, tmp_x);
+		max_y = max(max_y, tmp_y);
+		min_x = min(min_x, tmp_x);
+		min_y = min(min_y, tmp_y);
+		x[i] = tmp_x;
+		y[i] = tmp_y;
+	}
+
+	// Clamp the rect.
+	min_x = floorf(max(min_x, 0.0f));
+	min_y = floorf(max(min_y, 0.0f));
+	max_x = ceilf(min(max_x, float(FB_WIDTH)));
+	max_y = ceilf(min(max_y, float(FB_HEIGHT)));
+
+	const Rect rect = {
+		unsigned(min_x), unsigned(min_y), unsigned(max_x) - unsigned(min_x), unsigned(max_y) - unsigned(min_y),
+	};
+
+	float z = allocate_depth(rect);
 	for (unsigned i = 0; i < count; i++)
 	{
 		output[i] = {
-			vertices[i].x + render_state.draw_offset_x,
-			vertices[i].y + render_state.draw_offset_y,
+			x[i],
+			y[i],
 			z,
 			vertices[i].w,
 #ifndef VRAM_ATLAS
@@ -930,7 +959,7 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 {
 	last_scanout.reset();
 	auto old = atlas.set_texture_mode(TextureMode::None);
-	float z = allocate_depth();
+	float z = allocate_depth(rect);
 	atlas.set_texture_mode(old);
 
 #ifdef VRAM_ATLAS

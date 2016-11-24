@@ -73,6 +73,29 @@ struct Rect
 		unsigned ybegin = std::max(y, rect.y);
 		return xbegin < xend && ybegin < yend;
 	}
+
+	inline Rect scissor(const Rect &rect) const
+	{
+		unsigned x0 = std::max(x, rect.x);
+		unsigned y0 = std::max(y, rect.y);
+		unsigned x1 = std::min(x + width, rect.x + rect.width);
+		unsigned y1 = std::min(y + height, rect.y + rect.height);
+		unsigned width = std::max(int(x1) - int(x0), 0);
+		unsigned height = std::max(int(y1) - int(y0), 0);
+		return { x0, y0, width, height };
+	}
+
+	inline void extend_bounding_box(const Rect &rect)
+	{
+		unsigned x0 = std::min(x, rect.x);
+		unsigned y0 = std::min(y, rect.y);
+		unsigned x1 = std::max(x + width, rect.x + rect.width);
+		unsigned y1 = std::max(y + height, rect.y + rect.height);
+		x = x0;
+		y = y0;
+		width = x1 - x0;
+		height = y1 - y0;
+	}
 };
 
 using FBColor = uint32_t;
@@ -138,6 +161,7 @@ public:
 	virtual void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) = 0;
 	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
 	virtual void clear_quad_separate(const Rect &rect, FBColor color) = 0;
+	virtual void set_scissored_invariant(bool invariant) = 0;
 };
 
 class FBAtlas
@@ -157,7 +181,7 @@ public:
 	void read_fragment(Domain domain, const Rect &rect);
 	Domain blit_vram(const Rect &dst, const Rect &src);
 
-	void write_fragment();
+	void write_fragment(const Rect &rect);
 	void clear_rect(const Rect &rect, FBColor color);
 	void set_draw_rect(const Rect &rect);
 	void set_texture_window(const Rect &rect);
@@ -207,6 +231,7 @@ private:
 	struct
 	{
 		Rect rect;
+		Rect scissor;
 		Rect texture_window;
 		unsigned texture_offset_x = 0, texture_offset_y = 0;
 		unsigned palette_offset_x = 0, palette_offset_y = 0;
@@ -215,6 +240,8 @@ private:
 		bool inside = false;
 		bool clean_clear = false;
 	} renderpass;
+
+	void extend_render_pass(const Rect &rect, bool scissor);
 
 	StatusFlags &info(unsigned block_x, unsigned block_y)
 	{
