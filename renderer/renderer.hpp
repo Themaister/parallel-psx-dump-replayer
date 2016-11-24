@@ -254,17 +254,10 @@ private:
 	struct BufferVertex
 	{
 		float x, y, z, w;
-#ifndef VRAM_ATLAS
-		float u, v;
-		float layer;
-#endif
 		uint32_t color;
-
-#ifdef VRAM_ATLAS
 		TextureWindow window;
 		int16_t pal_x, pal_y, params;
 		int16_t u, v, base_uv_x, base_uv_y;
-#endif
 	};
 
 	struct BlitInfo
@@ -278,15 +271,18 @@ private:
 	struct SemiTransparentState
 	{
 		unsigned image_index;
+      int scissor_index;
 		SemiTransparentMode semi_transparent;
 		bool textured;
 		bool masked;
 
 		bool operator==(const SemiTransparentState &other) const
-		{
-			return image_index == other.image_index && semi_transparent == other.semi_transparent &&
-			       textured == other.textured && masked == other.masked;
-		}
+      {
+         return image_index == other.image_index &&
+            scissor_index == other.scissor_index &&
+            semi_transparent == other.semi_transparent &&
+            textured == other.textured && masked == other.masked;
+      }
 
 		bool operator!=(const SemiTransparentState &other) const
 		{
@@ -298,20 +294,15 @@ private:
 	{
 		// Non-textured primitives.
 		std::vector<BufferVertex> opaque;
+      std::vector<std::pair<unsigned, int>> opaque_scissor;
 
 // Textured primitives, no semi-transparency.
-#ifdef VRAM_ATLAS
 		std::vector<BufferVertex> opaque_textured;
-#else
-		std::vector<std::vector<BufferVertex>> opaque_textured;
-#endif
+      std::vector<std::pair<unsigned, int>> opaque_textured_scissor;
 
 // Textured primitives, semi-transparency enabled.
-#ifdef VRAM_ATLAS
 		std::vector<BufferVertex> semi_transparent_opaque;
-#else
-		std::vector<std::vector<BufferVertex>> semi_transparent_opaque;
-#endif
+      std::vector<std::pair<unsigned, int>> semi_transparent_opaque_scissor;
 
 		std::vector<BufferVertex> semi_transparent;
 		std::vector<SemiTransparentState> semi_transparent_state;
@@ -324,6 +315,8 @@ private:
 		std::vector<BlitInfo> scaled_masked_blits;
 		std::vector<BlitInfo> unscaled_blits;
 		std::vector<BlitInfo> unscaled_masked_blits;
+
+      std::vector<VkRect2D> scissors;
 	} queue;
 	unsigned primitive_index = 0;
 	bool render_pass_is_feedback = false;

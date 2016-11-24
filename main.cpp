@@ -556,7 +556,7 @@ int main()
 		total_time += end - start;
 		frames++;
 
-#if 0
+#if 1
       if (renderer.counters.render_passes)
       {
          LOG("========================\n");

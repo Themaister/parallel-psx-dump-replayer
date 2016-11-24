@@ -7,7 +7,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 option(VULKAN_WSI "Enable Vulkan WSI." ON)
-option(VRAM_ATLAS "Use VRAM atlas approach." ON)
 
 add_subdirectory(vulkan)
 add_subdirectory(glsl)

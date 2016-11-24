@@ -689,10 +689,8 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			width = std::max(width, 8u);
 			height = std::max(height, 8u);
 
-#ifdef VRAM_ATLAS
 			width = min(width, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
 			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
-#endif
 
 			if (max_u > 255 || max_v > 255) // Wraparound behavior, assume the whole page is hit.
 			{
@@ -748,13 +746,7 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			y[i],
 			z,
 			vertices[i].w,
-#ifndef VRAM_ATLAS
-			int(vertices[i].u - min_u) * last_uv_scale_x,
-			int(vertices[i].v - min_v) * last_uv_scale_y,
-			float(last_surface.layer),
-#endif
 			vertices[i].color & 0xffffffu,
-#ifdef VRAM_ATLAS
 			render_state.texture_window,
 			int16_t(render_state.palette_offset_x),
 			int16_t(render_state.palette_offset_y),
@@ -763,7 +755,6 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			int16_t(vertices[i].v),
 			int16_t(render_state.texture_offset_x),
 			int16_t(render_state.texture_offset_y),
-#endif
 		};
 
 		if (render_state.texture_mode != TextureMode::None && !render_state.texture_color_modulate)
@@ -782,25 +773,9 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 	if (render_state.texture_mode != TextureMode::None)
 	{
 		if (render_state.semi_transparent != SemiTransparentMode::None)
-		{
-#ifdef VRAM_ATLAS
 			return &queue.semi_transparent_opaque;
-#else
-			if (last_surface.texture >= queue.semi_transparent_opaque.size())
-				queue.semi_transparent_opaque.resize(last_surface.texture + 1);
-			return &queue.semi_transparent_opaque[last_surface.texture];
-#endif
-		}
 		else
-		{
-#ifdef VRAM_ATLAS
 			return &queue.opaque_textured;
-#else
-			if (last_surface.texture >= queue.opaque_textured.size())
-				queue.opaque_textured.resize(last_surface.texture + 1);
-			return &queue.opaque_textured[last_surface.texture];
-#endif
-		}
 	}
 	else if (render_state.semi_transparent != SemiTransparentMode::None)
 		return nullptr;
@@ -871,12 +846,14 @@ void Renderer::draw_triangle(const Vertex *vertices)
 			out->push_back(vert[i]);
 	}
 
+   int scissor_index = -1;
+
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
 		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
-		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
 
@@ -907,6 +884,8 @@ void Renderer::draw_quad(const Vertex *vertices)
 		out->push_back(vert[1]);
 	}
 
+   int scissor_index = -1;
+
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
 		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
@@ -916,10 +895,10 @@ void Renderer::draw_quad(const Vertex *vertices)
 		queue.semi_transparent.push_back(vert[3]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
-		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
-		queue.semi_transparent_state.push_back({ last_texture, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
 
@@ -962,28 +941,11 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	float z = allocate_depth(rect);
 	atlas.set_texture_mode(old);
 
-#ifdef VRAM_ATLAS
 	BufferVertex pos0 = { float(rect.x), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color) };
 	BufferVertex pos1 = { float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, fbcolor_to_rgba8(color) };
 	BufferVertex pos2 = { float(rect.x), float(rect.y) + float(rect.height), z, 1.0f, fbcolor_to_rgba8(color) };
 	BufferVertex pos3 = { float(rect.x) + float(rect.width), float(rect.y) + float(rect.height), z, 1.0f,
 		                  fbcolor_to_rgba8(color) };
-#else
-	BufferVertex pos0 = { float(rect.x), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color) };
-	BufferVertex pos1 = {
-		float(rect.x) + float(rect.width), float(rect.y), z, 1.0f, 0.0f, 0.0f, 0.0f, fbcolor_to_rgba8(color)
-	};
-	BufferVertex pos2 = { float(rect.x),          float(rect.y) + float(rect.height), z, 1.0f, 0.0f, 0.0f, 0.0f,
-		                  fbcolor_to_rgba8(color) };
-	BufferVertex pos3 = { float(rect.x) + float(rect.width),
-		                  float(rect.y) + float(rect.height),
-		                  z,
-		                  1.0f,
-		                  0.0f,
-		                  0.0f,
-		                  0.0f,
-		                  fbcolor_to_rgba8(color) };
-#endif
 	queue.opaque.push_back(pos0);
 	queue.opaque.push_back(pos1);
 	queue.opaque.push_back(pos2);
@@ -1088,13 +1050,9 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
-#ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
-#else
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
-#endif
 
 	auto size = queue.semi_transparent.size() * sizeof(BufferVertex);
 	void *verts = cmd->allocate_vertex_data(0, size, sizeof(BufferVertex));
@@ -1103,11 +1061,7 @@ void Renderer::render_semi_transparent_primitives()
 	auto last_state = queue.semi_transparent_state[0];
 
 	const auto set_state = [&](const SemiTransparentState &state) {
-#ifndef VRAM_ATLAS
-		cmd->set_texture(0, 1, queue.textures[state.image_index]->get_view(), StockSampler::NearestWrap);
-#else
 		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-#endif
 
 		switch (state.semi_transparent)
 		{
@@ -1116,10 +1070,6 @@ void Renderer::render_semi_transparent_primitives()
 			// For opaque primitives which are just masked, we can make use of fixed function blending.
 			cmd->set_blend_enable(true);
 			cmd->set_program(state.textured ? *pipelines.opaque_textured : *pipelines.opaque_flat);
-#ifndef VRAM_ATLAS
-			if (state.textured)
-				cmd->set_texture(0, 0, queue.textures[state.image_index]->get_view(), StockSampler::LinearWrap);
-#endif
 			cmd->set_blend_op(VK_BLEND_OP_ADD, VK_BLEND_OP_ADD);
 			cmd->set_blend_factors(VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
 			                       VK_BLEND_FACTOR_DST_ALPHA, VK_BLEND_FACTOR_DST_ALPHA);
@@ -1251,13 +1201,8 @@ void Renderer::render_semi_transparent_primitives()
 
 void Renderer::render_semi_transparent_opaque_texture_primitives()
 {
-#ifdef VRAM_ATLAS
-	const unsigned num_textures = 1;
 	if (queue.semi_transparent_opaque.empty())
 		return;
-#else
-	unsigned num_textures = queue.semi_transparent_opaque.size();
-#endif
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
@@ -1266,55 +1211,32 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
-#ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
-#else
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
-#endif
 
-	for (unsigned tex = 0; tex < num_textures; tex++)
-	{
-#ifdef VRAM_ATLAS
-		auto &vertices = queue.semi_transparent_opaque;
-#else
-		auto &vertices = queue.semi_transparent_opaque[tex];
-#endif
-		if (vertices.empty())
-			continue;
+   auto &vertices = queue.semi_transparent_opaque;
 
-		// Render opaque textured primitives.
-		auto *vert = static_cast<BufferVertex *>(
-		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-		for (auto i = vertices.size(); i; i -= 3)
-		{
-			*vert++ = vertices[i - 3];
-			*vert++ = vertices[i - 2];
-			*vert++ = vertices[i - 1];
-		}
+   // Render opaque textured primitives.
+   auto *vert = static_cast<BufferVertex *>(
+         cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+   for (auto i = vertices.size(); i; i -= 3)
+   {
+      *vert++ = vertices[i - 3];
+      *vert++ = vertices[i - 2];
+      *vert++ = vertices[i - 1];
+   }
 
-#ifndef VRAM_ATLAS
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
-		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
-#else
-		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-#endif
-		counters.draw_calls++;
-		counters.vertices += vertices.size();
-		cmd->draw(vertices.size());
-	}
+   cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+   counters.draw_calls++;
+   counters.vertices += vertices.size();
+   cmd->draw(vertices.size());
 }
 
 void Renderer::render_opaque_texture_primitives()
 {
-#ifdef VRAM_ATLAS
-	const unsigned num_textures = 1;
 	if (queue.opaque_textured.empty())
 		return;
-#else
-	unsigned num_textures = queue.opaque_textured.size();
-#endif
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
@@ -1323,44 +1245,26 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
-#ifdef VRAM_ATLAS
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x)); // Pad to support AMD
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
-#else
-	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(BufferVertex, u));
-#endif
 
-	for (unsigned tex = 0; tex < num_textures; tex++)
-	{
-#ifdef VRAM_ATLAS
-		auto &vertices = queue.opaque_textured;
-#else
-		auto &vertices = queue.opaque_textured[tex];
-#endif
-		if (vertices.empty())
-			continue;
+   auto &vertices = queue.opaque_textured;
 
-		// Render opaque textured primitives.
-		auto *vert = static_cast<BufferVertex *>(
-		    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-		for (auto i = vertices.size(); i; i -= 3)
-		{
-			*vert++ = vertices[i - 3];
-			*vert++ = vertices[i - 2];
-			*vert++ = vertices[i - 1];
-		}
+   // Render opaque textured primitives.
+   auto *vert = static_cast<BufferVertex *>(
+         cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+   for (auto i = vertices.size(); i; i -= 3)
+   {
+      *vert++ = vertices[i - 3];
+      *vert++ = vertices[i - 2];
+      *vert++ = vertices[i - 1];
+   }
 
-#ifndef VRAM_ATLAS
-		cmd->set_texture(0, 0, queue.textures[tex]->get_view(), StockSampler::LinearWrap);
-		cmd->set_texture(0, 1, queue.textures[tex]->get_view(), StockSampler::NearestWrap);
-#else
-		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-#endif
-		counters.draw_calls++;
-		counters.vertices += vertices.size();
-		cmd->draw(vertices.size());
-	}
+   cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+   counters.draw_calls++;
+   counters.vertices += vertices.size();
+   cmd->draw(vertices.size());
 }
 
 void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
@@ -1594,11 +1498,14 @@ void Renderer::flush_texture_allocator()
 void Renderer::reset_queue()
 {
 	queue.opaque.clear();
+   queue.opaque_scissor.clear();
 	queue.opaque_textured.clear();
+   queue.opaque_textured_scissor.clear();
 	queue.textures.clear();
 	queue.semi_transparent.clear();
 	queue.semi_transparent_state.clear();
 	queue.semi_transparent_opaque.clear();
+   queue.scissors.clear();
 	allocator.begin();
 	primitive_index = 0;
 	render_pass_is_feedback = false;

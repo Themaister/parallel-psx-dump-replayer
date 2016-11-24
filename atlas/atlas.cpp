@@ -98,17 +98,9 @@ void FBAtlas::read_texture()
 		sync_domain(domain, palette_rect);
 	}
 
-#ifdef VRAM_ATLAS
 	read_domain(domain, Stage::Fragment, shifted);
 	if (palette)
 		read_domain(domain, Stage::Fragment, palette_rect);
-#else
-	read_domain(domain, Stage::Compute, shifted);
-	if (palette)
-		read_domain(domain, Stage::Compute, palette_rect);
-	listener->upload_texture(domain, renderpass.texture_window, renderpass.texture_offset_x,
-	                         renderpass.texture_offset_y);
-#endif
 }
 
 void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
