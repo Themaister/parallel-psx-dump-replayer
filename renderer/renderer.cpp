@@ -761,7 +761,7 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 	}
 }
 
-std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
+std::vector<Renderer::BufferVertex> *Renderer::select_pipeline(unsigned prims, int scissor)
 {
 	// For mask testing, force primitives through the serialized blend path.
 	if (render_state.mask_test)
@@ -770,14 +770,27 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline()
 	if (render_state.texture_mode != TextureMode::None)
 	{
 		if (render_state.semi_transparent != SemiTransparentMode::None)
+		{
+			for (unsigned i = 0; i < prims; i++)
+				queue.semi_transparent_opaque_scissor.emplace_back(queue.semi_transparent_opaque_scissor.size(),
+				                                                   scissor);
 			return &queue.semi_transparent_opaque;
+		}
 		else
+		{
+			for (unsigned i = 0; i < prims; i++)
+				queue.opaque_textured_scissor.emplace_back(queue.opaque_textured_scissor.size(), scissor);
 			return &queue.opaque_textured;
+		}
 	}
 	else if (render_state.semi_transparent != SemiTransparentMode::None)
 		return nullptr;
 	else
+	{
+		for (unsigned i = 0; i < prims; i++)
+			queue.opaque_scissor.emplace_back(queue.opaque_scissor.size(), scissor);
 		return &queue.opaque;
+	}
 }
 
 bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
@@ -836,14 +849,13 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 	BufferVertex vert[3];
 	build_attribs(vert, vertices, 3);
-	auto *out = select_pipeline();
+	const int scissor_index = -1;
+	auto *out = select_pipeline(1, scissor_index);
 	if (out)
 	{
 		for (unsigned i = 0; i < 3; i++)
 			out->push_back(vert[i]);
 	}
-
-	int scissor_index = -1;
 
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
@@ -869,7 +881,9 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 	BufferVertex vert[4];
 	build_attribs(vert, vertices, 4);
-	auto *out = select_pipeline();
+	const int scissor_index = -1;
+	auto *out = select_pipeline(2, scissor_index);
+
 	if (out)
 	{
 		out->push_back(vert[0]);
@@ -879,8 +893,6 @@ void Renderer::draw_quad(const Vertex *vertices)
 		out->push_back(vert[2]);
 		out->push_back(vert[1]);
 	}
-
-	int scissor_index = -1;
 
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
@@ -901,32 +913,6 @@ void Renderer::draw_quad(const Vertex *vertices)
 		if (render_state.mask_test && render_state.semi_transparent != SemiTransparentMode::None)
 			render_pass_is_feedback = true;
 	}
-}
-
-void Renderer::clear_quad_separate(const Rect &rect, FBColor color)
-{
-	last_scanout.reset();
-	ensure_command_buffer();
-
-	RenderPassInfo info = {};
-	info.color_attachments[0] = scaled_views.front().get();
-	info.num_color_attachments = 1;
-
-	info.op_flags = RENDER_PASS_OP_STORE_COLOR_BIT | RENDER_PASS_OP_CLEAR_COLOR_BIT;
-	fbcolor_to_rgba32f(info.clear_color[0].float32, color);
-
-	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
-	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
-
-	counters.render_passes++;
-	cmd->begin_render_pass(info);
-	cmd->end_render_pass();
-
-	// Render passes are implicitly synchronized.
-	cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-	                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-	                   VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 void Renderer::clear_quad(const Rect &rect, FBColor color)
@@ -1466,6 +1452,7 @@ void Renderer::reset_queue()
 	queue.semi_transparent.clear();
 	queue.semi_transparent_state.clear();
 	queue.semi_transparent_opaque.clear();
+	queue.semi_transparent_opaque_scissor.clear();
 	queue.scissors.clear();
 	primitive_index = 0;
 	render_pass_is_feedback = false;

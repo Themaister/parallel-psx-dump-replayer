@@ -204,7 +204,6 @@ private:
 	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
 	void clear_quad(const Rect &rect, FBColor color) override;
-	void clear_quad_separate(const Rect &rect, FBColor color) override;
 
 	struct
 	{
@@ -326,7 +325,7 @@ private:
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
 	bool build_line_quad(Vertex *quad, const Vertex *line);
-	std::vector<BufferVertex> *select_pipeline();
+	std::vector<BufferVertex> *select_pipeline(unsigned prims, int scissor);
 
 	void flush_resolves();
 	void flush_blits();
