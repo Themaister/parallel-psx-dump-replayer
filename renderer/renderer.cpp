@@ -200,9 +200,9 @@ void Renderer::set_draw_rect(const Rect &rect)
 	atlas.set_draw_rect(rect);
 	render_state.draw_rect = rect;
 
-	const auto nequal = [](const VkRect2D &a, const Rect &b) {
-		return (a.offset.x != int(b.x)) || (a.offset.y != int(b.y)) || (a.extent.width != b.width) ||
-		       (a.extent.height != b.height);
+	const auto nequal = [this](const VkRect2D &a, const Rect &b) {
+		return (a.offset.x != int(b.x * scaling)) || (a.offset.y != int(b.y * scaling)) ||
+		       (a.extent.width != b.width * scaling) || (a.extent.height != b.height * scaling);
 	};
 
 	if (nequal(queue.scissors.back(), rect))
