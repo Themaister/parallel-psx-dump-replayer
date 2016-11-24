@@ -58,7 +58,6 @@ public:
 		bool display_on = false;
 		bool bpp24 = false;
 		bool dither = false;
-		bool scissor_invariant = false;
 	};
 
 	struct SaveState
@@ -79,7 +78,7 @@ public:
 
 	inline void set_scissored_invariant(bool invariant) override
 	{
-		render_state.scissor_invariant = invariant;
+		queue.scissor_invariant = invariant;
 	}
 
 	void set_texture_window(const TextureWindow &rect);
@@ -310,6 +309,8 @@ private:
 		std::vector<BlitInfo> unscaled_masked_blits;
 
 		std::vector<VkRect2D> scissors;
+		VkRect2D default_scissor;
+		bool scissor_invariant = false;
 	} queue;
 	unsigned primitive_index = 0;
 	bool render_pass_is_feedback = false;

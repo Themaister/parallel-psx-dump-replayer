@@ -83,6 +83,9 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	    device.create_buffer({ BufferDomain::Device, sizeof(quad_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT }, quad_data);
 
 	flush();
+
+	auto &rect = render_state.draw_rect;
+	queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
 }
 
 void Renderer::set_scanout_semaphore(Semaphore semaphore)
@@ -194,6 +197,14 @@ void Renderer::set_draw_rect(const Rect &rect)
 {
 	atlas.set_draw_rect(rect);
 	render_state.draw_rect = rect;
+
+	const auto nequal = [](const VkRect2D &a, const Rect &b) {
+		return (a.offset.x != int(b.x)) || (a.offset.y != int(b.y)) || (a.extent.width != b.width) ||
+		       (a.extent.height != b.height);
+	};
+
+	if (nequal(queue.scissors.back(), rect))
+		queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
 }
 
 void Renderer::clear_rect(const Rect &rect, FBColor color)
@@ -849,7 +860,7 @@ void Renderer::draw_triangle(const Vertex *vertices)
 
 	BufferVertex vert[3];
 	build_attribs(vert, vertices, 3);
-	const int scissor_index = -1;
+	const int scissor_index = queue.scissor_invariant ? -1 : int(queue.scissors.size() - 1);
 	auto *out = select_pipeline(1, scissor_index);
 	if (out)
 	{
@@ -881,7 +892,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 
 	BufferVertex vert[4];
 	build_attribs(vert, vertices, 4);
-	const int scissor_index = -1;
+	const int scissor_index = queue.scissor_invariant ? -1 : int(queue.scissors.size() - 1);
 	auto *out = select_pipeline(2, scissor_index);
 
 	if (out)
@@ -933,6 +944,8 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	queue.opaque.push_back(pos3);
 	queue.opaque.push_back(pos2);
 	queue.opaque.push_back(pos1);
+	queue.opaque_scissor.emplace_back(queue.opaque_scissor.size(), -1);
+	queue.opaque_scissor.emplace_back(queue.opaque_scissor.size(), -1);
 }
 
 void Renderer::flush_render_pass(const Rect &rect)
@@ -967,6 +980,7 @@ void Renderer::flush_render_pass(const Rect &rect)
 	counters.render_passes++;
 	cmd->begin_render_pass(info);
 	cmd->set_scissor(info.render_area);
+	queue.default_scissor = info.render_area;
 	cmd->set_texture(0, 2, dither_lut->get_view(), StockSampler::NearestWrap);
 
 	render_opaque_primitives();
@@ -1041,6 +1055,10 @@ void Renderer::render_semi_transparent_primitives()
 
 	const auto set_state = [&](const SemiTransparentState &state) {
 		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+		if (state.scissor_index < 0)
+			cmd->set_scissor(queue.default_scissor);
+		else
+			cmd->set_scissor(queue.scissors[state.scissor_index]);
 
 		switch (state.semi_transparent)
 		{
@@ -1456,5 +1474,8 @@ void Renderer::reset_queue()
 	queue.scissors.clear();
 	primitive_index = 0;
 	render_pass_is_feedback = false;
+
+	auto &rect = render_state.draw_rect;
+	queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
 }
 }
