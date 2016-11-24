@@ -316,6 +316,7 @@ private:
 	bool render_pass_is_feedback = false;
 	float last_uv_scale_x, last_uv_scale_y;
 
+	void dispatch(const std::vector<BufferVertex> &vertices, std::vector<std::pair<unsigned, int>> &scissors);
 	void render_opaque_primitives();
 	void render_opaque_texture_primitives();
 	void render_semi_transparent_opaque_texture_primitives();

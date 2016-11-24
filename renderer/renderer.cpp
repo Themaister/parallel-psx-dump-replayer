@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "renderer_pipelines.hpp"
+#include <algorithm>
 #include <math.h>
 #include <string.h>
 
@@ -999,33 +1000,64 @@ void Renderer::flush_render_pass(const Rect &rect)
 	reset_queue();
 }
 
+void Renderer::dispatch(const vector<BufferVertex> &vertices, vector<pair<unsigned, int>> &scissors)
+{
+	sort(begin(scissors), end(scissors), [](const pair<unsigned, int> &a, const pair<unsigned, int> &b) {
+		if (a.second != b.second)
+			return a.second > b.second;
+		return a.first > b.first;
+	});
+
+	// Render flat-shaded primitives.
+	auto *vert = static_cast<BufferVertex *>(
+	    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+
+	int scissor = scissors.front().second;
+	unsigned last_draw = 0;
+	unsigned i = 1;
+	unsigned size = scissors.size();
+
+	cmd->set_scissor(scissor < 0 ? queue.default_scissor : queue.scissors[scissor]);
+	memcpy(vert, vertices.data() + 3 * scissors.front().first, 3 * sizeof(BufferVertex));
+	vert += 3;
+
+	for (; i < size; i++, vert += 3)
+	{
+		if (scissors[i].second != scissor)
+		{
+			unsigned to_draw = i - last_draw;
+			cmd->draw(3 * to_draw, 1, 3 * last_draw, 0);
+			counters.draw_calls++;
+			last_draw = i;
+		}
+		memcpy(vert, vertices.data() + 3 * scissors[i].first, 3 * sizeof(BufferVertex));
+
+		scissor = scissors[i].second;
+		cmd->set_scissor(scissor < 0 ? queue.default_scissor : queue.scissors[scissor]);
+	}
+
+	unsigned to_draw = size - last_draw;
+	cmd->draw(3 * to_draw, 1, 3 * last_draw, 0);
+	counters.draw_calls++;
+	counters.vertices += vertices.size();
+}
+
 void Renderer::render_opaque_primitives()
 {
-	if (queue.opaque.empty())
+	auto &vertices = queue.opaque;
+	auto &scissors = queue.opaque_scissor;
+	if (vertices.empty())
 		return;
 
 	cmd->set_opaque_state();
 	cmd->set_cull_mode(VK_CULL_MODE_NONE);
 	cmd->set_depth_compare(VK_COMPARE_OP_LESS);
-
-	// Render flat-shaded primitives.
-	auto *vert = static_cast<BufferVertex *>(
-	    cmd->allocate_vertex_data(0, queue.opaque.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-	for (auto i = queue.opaque.size(); i; i -= 3)
-	{
-		*vert++ = queue.opaque[i - 3];
-		*vert++ = queue.opaque[i - 2];
-		*vert++ = queue.opaque[i - 1];
-	}
-
 	cmd->set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
 	cmd->set_vertex_attrib(1, 0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(BufferVertex, color));
-
 	cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	cmd->set_program(*pipelines.opaque_flat);
-	counters.draw_calls++;
-	counters.vertices += queue.opaque.size();
-	cmd->draw(queue.opaque.size());
+
+	dispatch(vertices, scissors);
 }
 
 void Renderer::render_semi_transparent_primitives()
@@ -1046,6 +1078,7 @@ void Renderer::render_semi_transparent_primitives()
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
 
 	auto size = queue.semi_transparent.size() * sizeof(BufferVertex);
 	void *verts = cmd->allocate_vertex_data(0, size, sizeof(BufferVertex));
@@ -1198,7 +1231,9 @@ void Renderer::render_semi_transparent_primitives()
 
 void Renderer::render_semi_transparent_opaque_texture_primitives()
 {
-	if (queue.semi_transparent_opaque.empty())
+	auto &vertices = queue.semi_transparent_opaque;
+	auto &scissors = queue.semi_transparent_opaque_scissor;
+	if (vertices.empty())
 		return;
 
 	cmd->set_opaque_state();
@@ -1211,28 +1246,16 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
 
-	auto &vertices = queue.semi_transparent_opaque;
-
-	// Render opaque textured primitives.
-	auto *vert = static_cast<BufferVertex *>(
-	    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-	for (auto i = vertices.size(); i; i -= 3)
-	{
-		*vert++ = vertices[i - 3];
-		*vert++ = vertices[i - 2];
-		*vert++ = vertices[i - 1];
-	}
-
-	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-	counters.draw_calls++;
-	counters.vertices += vertices.size();
-	cmd->draw(vertices.size());
+	dispatch(vertices, scissors);
 }
 
 void Renderer::render_opaque_texture_primitives()
 {
-	if (queue.opaque_textured.empty())
+	auto &vertices = queue.opaque_textured;
+	auto &scissors = queue.opaque_textured_scissor;
+	if (vertices.empty())
 		return;
 
 	cmd->set_opaque_state();
@@ -1245,23 +1268,9 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_vertex_attrib(2, 0, VK_FORMAT_R8G8B8A8_UINT, offsetof(BufferVertex, window));
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x)); // Pad to support AMD
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
 
-	auto &vertices = queue.opaque_textured;
-
-	// Render opaque textured primitives.
-	auto *vert = static_cast<BufferVertex *>(
-	    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-	for (auto i = vertices.size(); i; i -= 3)
-	{
-		*vert++ = vertices[i - 3];
-		*vert++ = vertices[i - 2];
-		*vert++ = vertices[i - 1];
-	}
-
-	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-	counters.draw_calls++;
-	counters.vertices += vertices.size();
-	cmd->draw(vertices.size());
+	dispatch(vertices, scissors);
 }
 
 void Renderer::flush_blits()
