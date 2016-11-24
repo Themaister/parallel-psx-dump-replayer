@@ -557,16 +557,16 @@ int main()
 		frames++;
 
 #if 1
-      if (renderer.counters.render_passes)
-      {
-         LOG("========================\n");
-         LOG("Completed frame %u.\n", frames);
-         LOG("Render passes: %u\n", renderer.counters.render_passes);
-         LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-         LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
-         LOG("Vertices: %u\n", renderer.counters.vertices);
-         LOG("========================\n");
-      }
+		if (renderer.counters.render_passes)
+		{
+			LOG("========================\n");
+			LOG("Completed frame %u.\n", frames);
+			LOG("Render passes: %u\n", renderer.counters.render_passes);
+			LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+			LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
+			LOG("Vertices: %u\n", renderer.counters.vertices);
+			LOG("========================\n");
+		}
 #endif
 	}
 

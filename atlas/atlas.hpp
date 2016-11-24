@@ -158,7 +158,6 @@ public:
 	virtual void resolve(Domain target_domain, unsigned x, unsigned y) = 0;
 	virtual void flush_render_pass(const Rect &rect) = 0;
 	virtual void discard_render_pass() = 0;
-	virtual void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) = 0;
 	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
 	virtual void clear_quad_separate(const Rect &rect, FBColor color) = 0;
 	virtual void set_scissored_invariant(bool invariant) = 0;

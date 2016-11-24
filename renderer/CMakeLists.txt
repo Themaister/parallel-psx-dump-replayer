@@ -1,4 +1,4 @@
-add_library(renderer STATIC renderer.cpp texture.cpp)
+add_library(renderer STATIC renderer.cpp)
 
 if (VULKAN_WSI)
    target_link_libraries(renderer vulkan-wsi atlas)

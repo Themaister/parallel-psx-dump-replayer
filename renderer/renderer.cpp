@@ -11,7 +11,6 @@ namespace PSX
 Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
     : device(device)
     , scaling(scaling)
-    , allocator(device)
 {
 	auto info = ImageCreateInfo::render_target(FB_WIDTH, FB_HEIGHT, VK_FORMAT_R32_UINT);
 	info.initial_layout = VK_IMAGE_LAYOUT_GENERAL;
@@ -549,8 +548,6 @@ void Renderer::hazard(StatusFlags flags)
 		flush_blits();
 		flush_resolves();
 	}
-	if (flags & (STATUS_COMPUTE_FB_READ | STATUS_COMPUTE_SFB_READ))
-		flush_texture_allocator();
 
 	VK_ASSERT(src_stages);
 	VK_ASSERT(dst_stages);
@@ -846,14 +843,13 @@ void Renderer::draw_triangle(const Vertex *vertices)
 			out->push_back(vert[i]);
 	}
 
-   int scissor_index = -1;
+	int scissor_index = -1;
 
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
-		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		for (unsigned i = 0; i < 3; i++)
 			queue.semi_transparent.push_back(vert[i]);
-		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
 
@@ -884,21 +880,20 @@ void Renderer::draw_quad(const Vertex *vertices)
 		out->push_back(vert[1]);
 	}
 
-   int scissor_index = -1;
+	int scissor_index = -1;
 
 	if (render_state.mask_test || render_state.semi_transparent != SemiTransparentMode::None)
 	{
-		unsigned last_texture = render_state.texture_mode != TextureMode::None ? last_surface.texture : 0;
 		queue.semi_transparent.push_back(vert[0]);
 		queue.semi_transparent.push_back(vert[1]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[3]);
 		queue.semi_transparent.push_back(vert[2]);
 		queue.semi_transparent.push_back(vert[1]);
-		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
-		queue.semi_transparent_state.push_back({ last_texture, scissor_index, render_state.semi_transparent,
+		queue.semi_transparent_state.push_back({ scissor_index, render_state.semi_transparent,
 		                                         render_state.texture_mode != TextureMode::None,
 		                                         render_state.mask_test });
 
@@ -982,8 +977,6 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
 	info.render_area.extent = { rect.width * scaling, rect.height * scaling };
-
-	flush_texture_allocator();
 
 	counters.render_passes++;
 	cmd->begin_render_pass(info);
@@ -1215,22 +1208,22 @@ void Renderer::render_semi_transparent_opaque_texture_primitives()
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x));
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
 
-   auto &vertices = queue.semi_transparent_opaque;
+	auto &vertices = queue.semi_transparent_opaque;
 
-   // Render opaque textured primitives.
-   auto *vert = static_cast<BufferVertex *>(
-         cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-   for (auto i = vertices.size(); i; i -= 3)
-   {
-      *vert++ = vertices[i - 3];
-      *vert++ = vertices[i - 2];
-      *vert++ = vertices[i - 1];
-   }
+	// Render opaque textured primitives.
+	auto *vert = static_cast<BufferVertex *>(
+	    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+	for (auto i = vertices.size(); i; i -= 3)
+	{
+		*vert++ = vertices[i - 3];
+		*vert++ = vertices[i - 2];
+		*vert++ = vertices[i - 1];
+	}
 
-   cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-   counters.draw_calls++;
-   counters.vertices += vertices.size();
-   cmd->draw(vertices.size());
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+	counters.draw_calls++;
+	counters.vertices += vertices.size();
+	cmd->draw(vertices.size());
 }
 
 void Renderer::render_opaque_texture_primitives()
@@ -1249,42 +1242,22 @@ void Renderer::render_opaque_texture_primitives()
 	cmd->set_vertex_attrib(3, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, pal_x)); // Pad to support AMD
 	cmd->set_vertex_attrib(4, 0, VK_FORMAT_R16G16B16A16_SINT, offsetof(BufferVertex, u));
 
-   auto &vertices = queue.opaque_textured;
+	auto &vertices = queue.opaque_textured;
 
-   // Render opaque textured primitives.
-   auto *vert = static_cast<BufferVertex *>(
-         cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
-   for (auto i = vertices.size(); i; i -= 3)
-   {
-      *vert++ = vertices[i - 3];
-      *vert++ = vertices[i - 2];
-      *vert++ = vertices[i - 1];
-   }
-
-   cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
-   counters.draw_calls++;
-   counters.vertices += vertices.size();
-   cmd->draw(vertices.size());
-}
-
-void Renderer::upload_texture(Domain domain, const Rect &rect, unsigned off_x, unsigned off_y)
-{
-	if (domain == Domain::Scaled)
+	// Render opaque textured primitives.
+	auto *vert = static_cast<BufferVertex *>(
+	    cmd->allocate_vertex_data(0, vertices.size() * sizeof(BufferVertex), sizeof(BufferVertex)));
+	for (auto i = vertices.size(); i; i -= 3)
 	{
-		last_surface = allocator.allocate(
-		    domain, { scaling * rect.x, scaling * rect.y, scaling * rect.width, scaling * rect.height },
-		    scaling * off_x, scaling * off_y, render_state.palette_offset_x, render_state.palette_offset_y);
+		*vert++ = vertices[i - 3];
+		*vert++ = vertices[i - 2];
+		*vert++ = vertices[i - 1];
 	}
-	else
-		last_surface = allocator.allocate(domain, rect, off_x, off_y, render_state.palette_offset_x,
-		                                  render_state.palette_offset_y);
 
-	last_surface.texture += queue.textures.size();
-	last_uv_scale_x = 1.0f / rect.width;
-	last_uv_scale_y = 1.0f / rect.height;
-
-	if (allocator.get_max_layer_count() >= MAX_LAYERS)
-		flush_texture_allocator();
+	cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestWrap);
+	counters.draw_calls++;
+	counters.vertices += vertices.size();
+	cmd->draw(vertices.size());
 }
 
 void Renderer::flush_blits()
@@ -1483,30 +1456,17 @@ Renderer::~Renderer()
 	flush();
 }
 
-void Renderer::flush_texture_allocator()
-{
-	counters.texture_flushes++;
-	ensure_command_buffer();
-	allocator.end(cmd.get(), scaled_framebuffer->get_view(), framebuffer->get_view());
-	unsigned num_textures = allocator.get_num_textures();
-	for (unsigned i = 0; i < num_textures; i++)
-		queue.textures.push_back(allocator.get_image(i));
-
-	allocator.begin();
-}
-
 void Renderer::reset_queue()
 {
 	queue.opaque.clear();
-   queue.opaque_scissor.clear();
+	queue.opaque_scissor.clear();
 	queue.opaque_textured.clear();
-   queue.opaque_textured_scissor.clear();
+	queue.opaque_textured_scissor.clear();
 	queue.textures.clear();
 	queue.semi_transparent.clear();
 	queue.semi_transparent_state.clear();
 	queue.semi_transparent_opaque.clear();
-   queue.scissors.clear();
-	allocator.begin();
+	queue.scissors.clear();
 	primitive_index = 0;
 	render_pass_is_feedback = false;
 }

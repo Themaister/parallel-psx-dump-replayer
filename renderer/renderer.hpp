@@ -2,7 +2,6 @@
 
 #include "atlas.hpp"
 #include "device.hpp"
-#include "texture.hpp"
 #include "vulkan.hpp"
 
 #ifdef VULKAN_WSI
@@ -136,7 +135,6 @@ public:
 	{
 		render_state.texture_mode = mode;
 		atlas.set_texture_mode(mode);
-		allocator.set_texture_mode(mode);
 	}
 
 	inline void set_semi_transparent(SemiTransparentMode state)
@@ -205,7 +203,6 @@ private:
 	void resolve(Domain target_domain, unsigned x, unsigned y) override;
 	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
-	void upload_texture(Domain target_domain, const Rect &rect, unsigned off_x, unsigned off_y) override;
 	void clear_quad(const Rect &rect, FBColor color) override;
 	void clear_quad_separate(const Rect &rect, FBColor color) override;
 
@@ -270,19 +267,16 @@ private:
 
 	struct SemiTransparentState
 	{
-		unsigned image_index;
-      int scissor_index;
+		int scissor_index;
 		SemiTransparentMode semi_transparent;
 		bool textured;
 		bool masked;
 
 		bool operator==(const SemiTransparentState &other) const
-      {
-         return image_index == other.image_index &&
-            scissor_index == other.scissor_index &&
-            semi_transparent == other.semi_transparent &&
-            textured == other.textured && masked == other.masked;
-      }
+		{
+			return scissor_index == other.scissor_index && semi_transparent == other.semi_transparent &&
+			       textured == other.textured && masked == other.masked;
+		}
 
 		bool operator!=(const SemiTransparentState &other) const
 		{
@@ -294,15 +288,15 @@ private:
 	{
 		// Non-textured primitives.
 		std::vector<BufferVertex> opaque;
-      std::vector<std::pair<unsigned, int>> opaque_scissor;
+		std::vector<std::pair<unsigned, int>> opaque_scissor;
 
-// Textured primitives, no semi-transparency.
+		// Textured primitives, no semi-transparency.
 		std::vector<BufferVertex> opaque_textured;
-      std::vector<std::pair<unsigned, int>> opaque_textured_scissor;
+		std::vector<std::pair<unsigned, int>> opaque_textured_scissor;
 
-// Textured primitives, semi-transparency enabled.
+		// Textured primitives, semi-transparency enabled.
 		std::vector<BufferVertex> semi_transparent_opaque;
-      std::vector<std::pair<unsigned, int>> semi_transparent_opaque_scissor;
+		std::vector<std::pair<unsigned, int>> semi_transparent_opaque_scissor;
 
 		std::vector<BufferVertex> semi_transparent;
 		std::vector<SemiTransparentState> semi_transparent_state;
@@ -316,11 +310,10 @@ private:
 		std::vector<BlitInfo> unscaled_blits;
 		std::vector<BlitInfo> unscaled_masked_blits;
 
-      std::vector<VkRect2D> scissors;
+		std::vector<VkRect2D> scissors;
 	} queue;
 	unsigned primitive_index = 0;
 	bool render_pass_is_feedback = false;
-	TextureSurface last_surface;
 	float last_uv_scale_x, last_uv_scale_y;
 
 	void render_opaque_primitives();
@@ -330,8 +323,6 @@ private:
 	void reset_queue();
 
 	float allocate_depth(const Rect &rect);
-	void flush_texture_allocator();
-	TextureAllocator allocator;
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
 	bool build_line_quad(Vertex *quad, const Vertex *line);
