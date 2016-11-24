@@ -86,7 +86,8 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	flush();
 
 	auto &rect = render_state.draw_rect;
-	queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
+	queue.scissors.push_back(
+	    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
 }
 
 void Renderer::set_scanout_semaphore(Semaphore semaphore)
@@ -205,7 +206,8 @@ void Renderer::set_draw_rect(const Rect &rect)
 	};
 
 	if (nequal(queue.scissors.back(), rect))
-		queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
+		queue.scissors.push_back(
+		    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
 }
 
 void Renderer::clear_rect(const Rect &rect, FBColor color)
@@ -1029,11 +1031,11 @@ void Renderer::dispatch(const vector<BufferVertex> &vertices, vector<pair<unsign
 			cmd->draw(3 * to_draw, 1, 3 * last_draw, 0);
 			counters.draw_calls++;
 			last_draw = i;
+
+			scissor = scissors[i].second;
+			cmd->set_scissor(scissor < 0 ? queue.default_scissor : queue.scissors[scissor]);
 		}
 		memcpy(vert, vertices.data() + 3 * scissors[i].first, 3 * sizeof(BufferVertex));
-
-		scissor = scissors[i].second;
-		cmd->set_scissor(scissor < 0 ? queue.default_scissor : queue.scissors[scissor]);
 	}
 
 	unsigned to_draw = size - last_draw;
@@ -1485,6 +1487,7 @@ void Renderer::reset_queue()
 	render_pass_is_feedback = false;
 
 	auto &rect = render_state.draw_rect;
-	queue.scissors.push_back({ { int(rect.x), int(rect.y) }, { rect.width, rect.height } });
+	queue.scissors.push_back(
+	    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
 }
 }
