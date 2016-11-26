@@ -16,6 +16,133 @@ using namespace PSX;
 using namespace std;
 using namespace Vulkan;
 
+struct CLIParser;
+struct CLICallbacks
+{
+	void add(const char *cli, const function<void(CLIParser &)> &func)
+	{
+		callbacks[cli] = func;
+	}
+	unordered_map<string, function<void(CLIParser &)>> callbacks;
+	function<void()> error_handler;
+	function<void(const char *)> default_handler;
+};
+
+struct CLIParser
+{
+	CLIParser(CLICallbacks cbs, int argc, char *argv[])
+	    : cbs(move(cbs))
+	    , argc(argc)
+	    , argv(argv)
+	{
+	}
+
+	bool parse()
+	{
+		try
+		{
+			while (argc && !ended_state)
+			{
+				const char *next = *argv++;
+				argc--;
+
+				if (*next != '-' && cbs.default_handler)
+				{
+					cbs.default_handler(next);
+				}
+				else
+				{
+					auto itr = cbs.callbacks.find(next);
+					if (itr == ::end(cbs.callbacks))
+					{
+						throw logic_error("Invalid argument.\n");
+					}
+
+					itr->second(*this);
+				}
+			}
+
+			return true;
+		}
+		catch (...)
+		{
+			if (cbs.error_handler)
+			{
+				cbs.error_handler();
+			}
+			return false;
+		}
+	}
+
+	void end()
+	{
+		ended_state = true;
+	}
+
+	uint32_t next_uint()
+	{
+		if (!argc)
+		{
+			throw logic_error("Tried to parse uint, but nothing left in arguments.\n");
+		}
+
+		uint32_t val = stoul(*argv);
+		if (val > numeric_limits<uint32_t>::max())
+		{
+			throw out_of_range("next_uint() out of range.\n");
+		}
+
+		argc--;
+		argv++;
+
+		return val;
+	}
+
+	double next_double()
+	{
+		if (!argc)
+		{
+			throw logic_error("Tried to parse double, but nothing left in arguments.\n");
+		}
+
+		double val = stod(*argv);
+
+		argc--;
+		argv++;
+
+		return val;
+	}
+
+	const char *next_string()
+	{
+		if (!argc)
+		{
+			throw logic_error("Tried to parse string, but nothing left in arguments.\n");
+		}
+
+		const char *ret = *argv;
+		argc--;
+		argv++;
+		return ret;
+	}
+
+	CLICallbacks cbs;
+	int argc;
+	char **argv;
+	bool ended_state = false;
+};
+
+struct CLIArguments
+{
+	const char *dump = nullptr;
+	const char *frame_output = nullptr;
+	const char *trace_output = nullptr;
+	unsigned trace_frame = 0;
+	unsigned scale = 4;
+	bool trace = false;
+	bool verbose = false;
+};
+
 //#define DUMP_VRAM
 #define SCALING 4
 //#define DETAIL_DUMP_FRAME 153
@@ -148,6 +275,7 @@ CommandLine read_line(FILE *file)
 	return line;
 }
 
+#if 0
 static void log_vertex(const CommandVertex &v)
 {
 	fprintf(stderr, "  x = %.1f, y = %.1f, w = %.1f, c = 0x%x, u = %u, v = %u\n", v.x, v.y, v.w, v.color, v.tx, v.ty);
@@ -161,6 +289,7 @@ static void log_state(const RenderState &s)
 	    s.texpage_x, s.texpage_y, s.clut_x, s.clut_y, s.texture_blend_mode, s.depth_shift, s.dither ? "on" : "off",
 	    s.blend_mode);
 }
+#endif
 
 static void set_renderer_state(Renderer &renderer, const RenderState &state)
 {
@@ -210,16 +339,16 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	}
 }
 
-static void dump_to_file(Device &device, Renderer &renderer, unsigned index, unsigned subindex)
+static void dump_to_file(const CLIArguments &args, Device &device, Renderer &renderer, unsigned index,
+                         unsigned subindex)
 {
 	unsigned width, height;
-	//auto buffer = renderer.scanout_to_buffer(true, width, height);
 	auto buffer = renderer.scanout_vram_to_buffer(width, height);
 	if (!buffer)
 		return;
 
 	char path[1024];
-	snprintf(path, sizeof(path), "dump/test-%06u-%06u.bmp", index, subindex);
+	snprintf(path, sizeof(path), "%s-%06u-%06u.bmp", args.trace_output, index, subindex);
 
 	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
 	for (unsigned i = 0; i < width * height; i++)
@@ -230,7 +359,7 @@ static void dump_to_file(Device &device, Renderer &renderer, unsigned index, uns
 	device.unmap_host_buffer(*buffer);
 }
 
-static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index)
+static void dump_vram_to_file(const CLIArguments &args, Device &device, Renderer &renderer, unsigned index)
 {
 	unsigned width, height;
 	auto buffer = renderer.scanout_vram_to_buffer(width, height);
@@ -238,7 +367,7 @@ static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index
 		return;
 
 	char path[1024];
-	snprintf(path, sizeof(path), "dump/test-vram-%06u.bmp", index);
+	snprintf(path, sizeof(path), "%s-vram-%06u.bmp", args.frame_output, index);
 
 	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
 	for (unsigned i = 0; i < width * height; i++)
@@ -249,8 +378,8 @@ static void dump_vram_to_file(Device &device, Renderer &renderer, unsigned index
 	device.unmap_host_buffer(*buffer);
 }
 
-static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &eof, unsigned &frame,
-                         unsigned &draw_call)
+static bool read_command(const CLIArguments &args, FILE *file, Device &device, Renderer &renderer, bool &eof,
+                         unsigned &frame, unsigned &draw_call)
 {
 	auto op = read_u32(file);
 	eof = false;
@@ -333,20 +462,12 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		};
 
 		set_renderer_state(renderer, state);
-#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
-		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
-			BREAKPOINT();
-#endif
-
 		renderer.draw_triangle(vertices);
 
-#ifdef DETAIL_DUMP_FRAME
-		if (frame == DETAIL_DUMP_FRAME)
-			dump_to_file(device, renderer, frame, draw_call);
-#endif
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
 
 		draw_call++;
-
 		break;
 	}
 
@@ -366,20 +487,12 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		};
 
 		set_renderer_state(renderer, state);
-#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
-		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
-			BREAKPOINT();
-#endif
-
 		renderer.draw_quad(vertices);
 
-#ifdef DETAIL_DUMP_FRAME
-		if (frame == DETAIL_DUMP_FRAME)
-			dump_to_file(device, renderer, frame, draw_call);
-#endif
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
 
 		draw_call++;
-
 		break;
 	}
 
@@ -417,17 +530,10 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 			break;
 		}
 
-#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
-		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
-			BREAKPOINT();
-#endif
-
 		renderer.draw_line(vertices);
 
-#ifdef DETAIL_DUMP_FRAME
-		if (frame == DETAIL_DUMP_FRAME)
-			dump_to_file(device, renderer, frame, draw_call);
-#endif
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
 
 		draw_call++;
 		break;
@@ -448,6 +554,10 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		uint16_t *ptr = renderer.begin_copy(handle);
 		fread(ptr, sizeof(uint16_t), width * height, file);
 		renderer.end_copy(handle);
+
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
+		draw_call++;
 		break;
 	}
 
@@ -459,20 +569,11 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		auto w = read_u32(file);
 		auto h = read_u32(file);
 
-#if defined(BREAK_FRAME) && defined(BREAK_DRAW)
-		if (frame == BREAK_FRAME && draw_call == BREAK_DRAW)
-			BREAKPOINT();
-#endif
-
 		renderer.clear_rect({ x, y, w, h }, color);
 
-#ifdef DETAIL_DUMP_FRAME
-		if (frame == DETAIL_DUMP_FRAME)
-			dump_to_file(device, renderer, frame, draw_call);
-#endif
-
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
 		draw_call++;
-
 		break;
 	}
 
@@ -490,6 +591,10 @@ static bool read_command(FILE *file, Device &device, Renderer &renderer, bool &e
 		renderer.set_force_mask_bit(set_mask);
 		if (src_x != dst_x || src_y != dst_y)
 			renderer.blit_vram({ dst_x, dst_y, w, h }, { src_x, src_y, w, h });
+
+		if (args.trace && frame == args.trace_frame)
+			dump_to_file(args, device, renderer, frame, draw_call);
+		draw_call++;
 		break;
 	}
 
@@ -513,20 +618,54 @@ static double gettime()
 	return ts.tv_sec + 1e-9 * ts.tv_nsec;
 }
 
-int main()
+static void print_help()
 {
+	fprintf(stderr, "rsx-player [dump] [--scale <scale>] [--dump-vram <path>] [--trace-frame <frame> <path>] "
+	                "[--verbose] [--help]\n");
+}
+
+int main(int argc, char *argv[])
+{
+	CLIArguments args;
+	CLICallbacks cbs;
+
+	cbs.add("--help", [](CLIParser &parser) {
+		print_help();
+		parser.end();
+	});
+	cbs.add("--dump-vram", [&args](CLIParser &parser) { args.frame_output = parser.next_string(); });
+	cbs.add("--trace-frame", [&args](CLIParser &parser) {
+		args.trace_frame = parser.next_uint();
+		args.trace_output = parser.next_string();
+		args.trace = true;
+	});
+	cbs.add("--scale", [&args](CLIParser &parser) { args.scale = parser.next_uint(); });
+	cbs.add("--verbose", [&args](CLIParser &) { args.verbose = true; });
+	cbs.error_handler = [] { print_help(); };
+	cbs.default_handler = [&args](const char *value) { args.dump = value; };
+	CLIParser parser{ move(cbs), argc - 1, argv + 1 };
+	if (!parser.parse())
+		return 1;
+	else if (parser.ended_state)
+		return 0;
+
+	if (!args.dump)
+	{
+		fprintf(stderr, "Didn't specify input file.\n");
+		print_help();
+		return 1;
+	}
+
 	WSI wsi;
 	wsi.init(1280, 960);
 	auto &device = wsi.get_device();
-	Renderer renderer(device, SCALING, nullptr);
+	Renderer renderer(device, args.scale, nullptr);
 
-#if 1
-	FILE *file = fopen("/tmp/silent.rsx", "rb");
+	FILE *file = fopen(args.dump, "rb");
 	if (!file)
 		return 1;
 
 	read_tag(file);
-#endif
 
 	bool eof = false;
 	unsigned frames = 0;
@@ -539,16 +678,12 @@ int main()
 		double start = gettime();
 		wsi.begin_frame();
 		renderer.reset_counters();
-
-#if 1
-		while (read_command(file, device, renderer, eof, frames, draw_call))
+		while (read_command(args, file, device, renderer, eof, frames, draw_call))
 			;
-#endif
 		renderer.scanout();
 
-#ifdef DUMP_VRAM
-		dump_vram_to_file(device, renderer, frames);
-#endif
+		if (args.frame_output)
+			dump_vram_to_file(args, device, renderer, frames);
 
 		renderer.flush();
 		wsi.end_frame();
@@ -556,17 +691,18 @@ int main()
 		total_time += end - start;
 		frames++;
 
-#if 1
-		if (renderer.counters.render_passes)
+		if (args.verbose)
 		{
-			LOG("========================\n");
-			LOG("Completed frame %u.\n", frames);
-			LOG("Render passes: %u\n", renderer.counters.render_passes);
-			LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-			LOG("Vertices: %u\n", renderer.counters.vertices);
-			LOG("========================\n");
+			if (renderer.counters.render_passes)
+			{
+				LOG("========================\n");
+				LOG("Completed frame %u.\n", frames);
+				LOG("Render passes: %u\n", renderer.counters.render_passes);
+				LOG("Draw calls: %u\n", renderer.counters.draw_calls);
+				LOG("Vertices: %u\n", renderer.counters.vertices);
+				LOG("========================\n");
+			}
 		}
-#endif
 	}
 
 	LOG("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);

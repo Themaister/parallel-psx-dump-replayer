@@ -14,9 +14,7 @@ add_subdirectory(atlas)
 add_subdirectory(renderer)
 add_subdirectory(stb)
 
-add_executable(toplevel main.cpp)
-target_include_directories(toplevel PRIVATE ${CMAKE_BINARY_DIR}/glsl)
-
-add_dependencies(toplevel shaders)
-target_link_libraries(toplevel renderer stb)
+add_executable(rsx-player main.cpp)
+add_dependencies(rsx-player shaders)
+target_link_libraries(rsx-player renderer stb)
 
