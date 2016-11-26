@@ -203,7 +203,7 @@ private:
 	void resolve(Domain target_domain, unsigned x, unsigned y) override;
 	void flush_render_pass(const Rect &rect) override;
 	void discard_render_pass() override;
-	void clear_quad(const Rect &rect, FBColor color) override;
+	void clear_quad(const Rect &rect, FBColor color, bool candidate) override;
 
 	struct
 	{
@@ -283,6 +283,13 @@ private:
 		}
 	};
 
+	struct ClearCandidate
+	{
+		Rect rect;
+		FBColor color;
+		float z;
+	};
+
 	struct OpaqueQueue
 	{
 		// Non-textured primitives.
@@ -310,6 +317,7 @@ private:
 		std::vector<BlitInfo> unscaled_masked_blits;
 
 		std::vector<VkRect2D> scissors;
+		std::vector<ClearCandidate> clear_candidates;
 		VkRect2D default_scissor;
 		bool scissor_invariant = false;
 	} queue;
@@ -332,6 +340,8 @@ private:
 
 	void flush_resolves();
 	void flush_blits();
+	void reset_scissor_queue();
+	const ClearCandidate *find_clear_candidate(const Rect &rect) const;
 
 	Rect compute_window_rect(const TextureWindow &window);
 

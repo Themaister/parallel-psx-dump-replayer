@@ -458,7 +458,10 @@ void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 	if (renderpass.inside && !renderpass.rect.intersects(rect))
 		flush_render_pass();
 	extend_render_pass(rect, false);
-	listener->clear_quad(rect, color);
+
+	// If the render pass area doesn't increase later, we can use loadOp == CLEAR instead of LOAD,
+	// which helps a lot on mobile GPUs.
+	listener->clear_quad(rect, color, renderpass.rect == rect);
 }
 
 void FBAtlas::set_draw_rect(const Rect &rect)

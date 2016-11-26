@@ -84,10 +84,7 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 	    device.create_buffer({ BufferDomain::Device, sizeof(quad_data), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT }, quad_data);
 
 	flush();
-
-	auto &rect = render_state.draw_rect;
-	queue.scissors.push_back(
-	    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
+	reset_scissor_queue();
 }
 
 void Renderer::set_scanout_semaphore(Semaphore semaphore)
@@ -929,7 +926,7 @@ void Renderer::draw_quad(const Vertex *vertices)
 	}
 }
 
-void Renderer::clear_quad(const Rect &rect, FBColor color)
+void Renderer::clear_quad(const Rect &rect, FBColor color, bool candidate)
 {
 	last_scanout.reset();
 	auto old = atlas.set_texture_mode(TextureMode::None);
@@ -949,12 +946,27 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 	queue.opaque.push_back(pos1);
 	queue.opaque_scissor.emplace_back(queue.opaque_scissor.size(), -1);
 	queue.opaque_scissor.emplace_back(queue.opaque_scissor.size(), -1);
+
+	if (candidate)
+		queue.clear_candidates.push_back({ rect, color, z });
+}
+
+const Renderer::ClearCandidate *Renderer::find_clear_candidate(const Rect &rect) const
+{
+	const ClearCandidate *ret = nullptr;
+	fprintf(stderr, "Render pass: %u, %u, %u, %u\n", rect.x, rect.y, rect.width, rect.height);
+	for (auto &c : queue.clear_candidates)
+	{
+		fprintf(stderr, "Candidate: %u, %u, %u, %u\n", c.rect.x, c.rect.y, c.rect.width, c.rect.height);
+		if (c.rect == rect)
+			ret = &c;
+	}
+	return ret;
 }
 
 void Renderer::flush_render_pass(const Rect &rect)
 {
 	ensure_command_buffer();
-	bool is_clear = false;
 
 	RenderPassInfo info = {};
 	info.clear_depth_stencil = { 1.0f, 0 };
@@ -968,11 +980,11 @@ void Renderer::flush_render_pass(const Rect &rect)
 	if (render_pass_is_feedback)
 		info.op_flags |= RENDER_PASS_OP_COLOR_FEEDBACK_BIT;
 
-	if (is_clear)
+	auto *clear_candidate = find_clear_candidate(rect);
+	if (clear_candidate)
 	{
-		//FBColor color = atlas.render_pass_clear_color();
-		FBColor color = 0;
-		fbcolor_to_rgba32f(info.clear_color[0].float32, color);
+		info.clear_depth_stencil.depth = clear_candidate->z;
+		fbcolor_to_rgba32f(info.clear_color[0].float32, clear_candidate->color);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
 	}
 	else
@@ -1476,6 +1488,14 @@ Renderer::~Renderer()
 	flush();
 }
 
+void Renderer::reset_scissor_queue()
+{
+	queue.scissors.clear();
+	auto &rect = render_state.draw_rect;
+	queue.scissors.push_back(
+	    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
+}
+
 void Renderer::reset_queue()
 {
 	queue.opaque.clear();
@@ -1487,12 +1507,10 @@ void Renderer::reset_queue()
 	queue.semi_transparent_state.clear();
 	queue.semi_transparent_opaque.clear();
 	queue.semi_transparent_opaque_scissor.clear();
-	queue.scissors.clear();
+	queue.clear_candidates.clear();
 	primitive_index = 0;
 	render_pass_is_feedback = false;
 
-	auto &rect = render_state.draw_rect;
-	queue.scissors.push_back(
-	    { { int(rect.x * scaling), int(rect.y * scaling) }, { rect.width * scaling, rect.height * scaling } });
+	reset_scissor_queue();
 }
 }

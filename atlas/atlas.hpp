@@ -158,7 +158,7 @@ public:
 	virtual void resolve(Domain target_domain, unsigned x, unsigned y) = 0;
 	virtual void flush_render_pass(const Rect &rect) = 0;
 	virtual void discard_render_pass() = 0;
-	virtual void clear_quad(const Rect &rect, FBColor color) = 0;
+	virtual void clear_quad(const Rect &rect, FBColor color, bool clear_candidate) = 0;
 	virtual void set_scissored_invariant(bool invariant) = 0;
 };
 
