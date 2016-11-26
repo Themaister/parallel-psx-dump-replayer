@@ -698,6 +698,8 @@ int main(int argc, char *argv[])
 				LOG("========================\n");
 				LOG("Completed frame %u.\n", frames);
 				LOG("Render passes: %u\n", renderer.counters.render_passes);
+				LOG("Readback pixels: %u\n", renderer.counters.fragment_readback_pixels);
+				LOG("Writeout pixels: %u\n", renderer.counters.fragment_writeout_pixels);
 				LOG("Draw calls: %u\n", renderer.counters.draw_calls);
 				LOG("Vertices: %u\n", renderer.counters.vertices);
 				LOG("========================\n");
