@@ -521,7 +521,7 @@ int main()
 	Renderer renderer(device, SCALING, nullptr);
 
 #if 1
-	FILE *file = fopen("/tmp/crash.rsx", "rb");
+	FILE *file = fopen("/tmp/silent.rsx", "rb");
 	if (!file)
 		return 1;
 
@@ -563,7 +563,6 @@ int main()
 			LOG("Completed frame %u.\n", frames);
 			LOG("Render passes: %u\n", renderer.counters.render_passes);
 			LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-			LOG("Texture flushes: %u\n", renderer.counters.texture_flushes);
 			LOG("Vertices: %u\n", renderer.counters.vertices);
 			LOG("========================\n");
 		}

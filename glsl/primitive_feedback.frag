@@ -45,6 +45,10 @@ void main()
    FragColor = vec4(blended, vColor.a);
 #endif
 
+   // Get round down behavior instead of round-to-nearest.
+   // This is required for various "fade" out effects.
+   FragColor.rgb -= 0.5 / 255.0;
+
 #if 0
 #if defined(TEXTURED)
    if ((vParam.z & 0x100) != 0)
