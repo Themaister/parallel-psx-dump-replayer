@@ -22,7 +22,8 @@ enum class Stage : unsigned
 {
 	Compute,
 	Transfer,
-	Fragment
+	Fragment,
+	FragmentTexture
 };
 
 enum class TextureMode
@@ -139,6 +140,10 @@ enum StatusFlag
 	STATUS_FRAGMENT_SFB_WRITE = 1 << 11,
 	STATUS_FRAGMENT_FB_READ = 1 << 12,
 	STATUS_FRAGMENT_FB_WRITE = 1 << 13,
+
+	// A special stage to allow fragment to detect when it's causing a feedback loop with texture read -> fragment write.
+	// This flag is added in combination with FRAGMENT_FB_READ.
+	STATUS_TEXTURE_READ = 1 << 14,
 
 	STATUS_FB_READ = STATUS_COMPUTE_FB_READ | STATUS_TRANSFER_FB_READ | STATUS_FRAGMENT_FB_READ,
 	STATUS_FB_WRITE = STATUS_COMPUTE_FB_WRITE | STATUS_TRANSFER_FB_WRITE | STATUS_FRAGMENT_FB_WRITE,

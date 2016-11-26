@@ -98,9 +98,9 @@ void FBAtlas::read_texture()
 		sync_domain(domain, palette_rect);
 	}
 
-	read_domain(domain, Stage::Fragment, shifted);
+	read_domain(domain, Stage::FragmentTexture, shifted);
 	if (palette)
-		read_domain(domain, Stage::Fragment, palette_rect);
+		read_domain(domain, Stage::FragmentTexture, palette_rect);
 }
 
 bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
@@ -130,11 +130,11 @@ bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 			resolve_domains = STATUS_TRANSFER_FB_WRITE | STATUS_FB_ONLY;
 		else if (stage == Stage::Fragment)
 		{
-			resolve_domains = STATUS_FRAGMENT_FB_WRITE | STATUS_FB_ONLY;
 			// Write-after-write in fragment is handled implicitly.
 			// Write-after-read means rendering to a block after reading it as a texture.
 			// This is a hazard we must handle.
-			hazard_domains &= ~STATUS_FRAGMENT_FB_WRITE;
+			hazard_domains &= ~STATUS_FRAGMENT;
+			resolve_domains = STATUS_FRAGMENT_FB_WRITE | STATUS_FB_ONLY;
 		}
 	}
 	else
@@ -147,7 +147,7 @@ bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 			// Write-after-write in fragment is handled implicitly.
 			// Write-after-read means rendering to a block after reading it as a texture.
 			// This is a hazard we must handle.
-			hazard_domains &= ~STATUS_FRAGMENT_SFB_WRITE;
+			hazard_domains &= ~STATUS_FRAGMENT;
 			resolve_domains = STATUS_FRAGMENT_SFB_WRITE;
 		}
 		else if (stage == Stage::Transfer)
@@ -161,7 +161,7 @@ bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 
 	// Trying to update VRAM before fragment is done reading it.
 	// We could use copy-on-write here to avoid flushing, but this scenario is very rare.
-	if (write_domains & STATUS_FRAGMENT_FB_READ)
+	if (write_domains & STATUS_TEXTURE_READ)
 		flush_render_pass();
 
 	if (write_domains)
@@ -201,8 +201,13 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 			resolve_domains = STATUS_TRANSFER_FB_READ;
 		else if (stage == Stage::Fragment)
 		{
-			resolve_domains = STATUS_FRAGMENT_FB_READ;
 			hazard_domains &= ~STATUS_FRAGMENT;
+			resolve_domains = STATUS_FRAGMENT_FB_READ;
+		}
+		else if (stage == Stage::FragmentTexture)
+		{
+			hazard_domains &= ~STATUS_FRAGMENT;
+			resolve_domains = STATUS_FRAGMENT_FB_READ | STATUS_TEXTURE_READ;
 		}
 	}
 	else
@@ -216,6 +221,11 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 		{
 			hazard_domains &= ~STATUS_FRAGMENT;
 			resolve_domains = STATUS_FRAGMENT_SFB_READ;
+		}
+		else if (stage == Stage::FragmentTexture)
+		{
+			hazard_domains &= ~STATUS_FRAGMENT;
+			resolve_domains = STATUS_FRAGMENT_SFB_READ | STATUS_TEXTURE_READ;
 		}
 	}
 
@@ -364,6 +374,10 @@ void FBAtlas::flush_render_pass()
 	if (!renderpass.inside)
 		return;
 
+	// Clear out the "shadow" stage.
+	for (auto &f : fb_info)
+		f &= ~STATUS_TEXTURE_READ;
+
 	renderpass.inside = false;
 	write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
 	listener->flush_render_pass(renderpass.rect);
@@ -396,6 +410,12 @@ void FBAtlas::extend_render_pass(const Rect &rect, bool scissor)
 
 		// Avoid sync/write domain flushing our own render pass.
 		renderpass.inside = false;
+
+		// If we cleared the screen and we created a clear candidate,
+		// everything inside this render pass can be safely discarded.
+		if (!scissor && scissored_rect == renderpass.rect)
+			discard_render_pass();
+
 		sync_domain(Domain::Scaled, renderpass.rect);
 		if (write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect))
 		{
@@ -455,8 +475,11 @@ void FBAtlas::write_fragment(const Rect &rect)
 
 void FBAtlas::clear_rect(const Rect &rect, FBColor color)
 {
+	// If we're clearing completely outside the renderpass, we're probably doing another render pass
+	// somewhere else, so end the current one and start a new one instead.
 	if (renderpass.inside && !renderpass.rect.intersects(rect))
 		flush_render_pass();
+
 	extend_render_pass(rect, false);
 
 	// If the render pass area doesn't increase later, we can use loadOp == CLEAR instead of LOAD,
@@ -503,7 +526,7 @@ void FBAtlas::notify_external_barrier(StatusFlags domains)
 
 void FBAtlas::pipeline_barrier(StatusFlags domains)
 {
-	if (domains & STATUS_FRAGMENT_SFB_WRITE)
+	if (domains & (STATUS_FRAGMENT_SFB_WRITE | STATUS_FRAGMENT_FB_READ))
 		flush_render_pass();
 	listener->hazard(domains);
 	notify_external_barrier(domains);
