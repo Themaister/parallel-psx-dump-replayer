@@ -68,13 +68,13 @@ void FBAtlas::read_texture()
 	{
 	case TextureMode::Palette4bpp:
 		shifted.x >>= 2;
-		shifted.width >>= 2;
+		shifted.width = (shifted.width + 3) >> 2;
 		palette = true;
 		break;
 
 	case TextureMode::Palette8bpp:
 		shifted.x >>= 1;
-		shifted.width >>= 1;
+		shifted.width = (shifted.width + 1) >> 1;
 		palette = true;
 		break;
 
@@ -439,13 +439,13 @@ void FBAtlas::write_fragment(const Rect &rect)
 		{
 		case TextureMode::Palette4bpp:
 			shifted.x >>= 2;
-			shifted.width >>= 2;
+			shifted.width = (shifted.width + 3) >> 2;
 			reads_palette = true;
 			break;
 
 		case TextureMode::Palette8bpp:
 			shifted.x >>= 1;
-			shifted.width >>= 1;
+			shifted.width = (shifted.width + 1) >> 1;
 			reads_palette = true;
 			break;
 
