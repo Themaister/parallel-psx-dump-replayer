@@ -47,7 +47,9 @@ void main()
 
    // Get round down behavior instead of round-to-nearest.
    // This is required for various "fade" out effects.
-   FragColor.rgb -= 0.5 / 255.0;
+   // However, don't accidentially round down if we are already rounded to avoid
+   // unintended feedback effects.
+   FragColor.rgb -= 0.49 / 255.0;
 
 #if 0
 #if defined(TEXTURED)
