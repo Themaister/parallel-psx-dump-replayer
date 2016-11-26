@@ -342,7 +342,7 @@ ImageHandle Renderer::scanout_to_texture()
 		if (!reuseable_scanout || reuseable_scanout->get_create_info().width != info.width ||
 		    reuseable_scanout->get_create_info().height != info.height)
 		{
-			LOG("Creating new scanout image.\n");
+			//LOG("Creating new scanout image.\n");
 			info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 			info.usage =
 			    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -403,7 +403,7 @@ ImageHandle Renderer::scanout_to_texture()
 	if (!reuseable_scanout || reuseable_scanout->get_create_info().width != info.width ||
 	    reuseable_scanout->get_create_info().height != info.height)
 	{
-		LOG("Creating new scanout image.\n");
+		//LOG("Creating new scanout image.\n");
 		info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 		info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		reuseable_scanout = device.create_image(info);
@@ -694,8 +694,6 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 
 			unsigned width = max_u - min_u + 1;
 			unsigned height = max_v - min_v + 1;
-			width = std::max(width, 8u);
-			height = std::max(height, 8u);
 
 			width = min(width, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
 			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
@@ -954,10 +952,8 @@ void Renderer::clear_quad(const Rect &rect, FBColor color, bool candidate)
 const Renderer::ClearCandidate *Renderer::find_clear_candidate(const Rect &rect) const
 {
 	const ClearCandidate *ret = nullptr;
-	fprintf(stderr, "Render pass: %u, %u, %u, %u\n", rect.x, rect.y, rect.width, rect.height);
 	for (auto &c : queue.clear_candidates)
 	{
-		fprintf(stderr, "Candidate: %u, %u, %u, %u\n", c.rect.x, c.rect.y, c.rect.width, c.rect.height);
 		if (c.rect == rect)
 			ret = &c;
 	}
@@ -1376,8 +1372,8 @@ void Renderer::blit_vram(const Rect &dst, const Rect &src)
 
 		cmd->set_storage_texture(0, 0, domain == Domain::Scaled ? *scaled_views[0] : framebuffer->get_view());
 		cmd->dispatch(factor, factor, 1);
-		LOG("Intersecting blit_vram, hitting slow path (src: %u, %u, dst: %u, %u, size: %u, %u)\n", src.x, src.y, dst.x,
-		    dst.y, dst.width, dst.height);
+		//LOG("Intersecting blit_vram, hitting slow path (src: %u, %u, dst: %u, %u, size: %u, %u)\n", src.x, src.y, dst.x,
+		//    dst.y, dst.width, dst.height);
 	}
 	else
 	{
