@@ -1,6 +1,8 @@
 #version 310 es
 precision mediump float;
 
+#include "common.h"
+
 layout(location = 0) in highp vec2 vUV;
 
 #if defined(SCALED)
@@ -34,9 +36,7 @@ void main()
     FragColor = vec4(rgb, 1.0);
 #else
     uint value = textureLod(uTexture, vUV, 0.0).x;
-    uvec4 color = (uvec4(value) >> uvec4(0u, 5u, 10u, 15u)) & uvec4(31u, 31u, 31u, 1u);
-    vec4 unorm = vec4(color) / vec4(31.0, 31.0, 31.0, 1.0);
-    FragColor = unorm;
+    FragColor = abgr1555(value);
 #endif
 #endif
 }
