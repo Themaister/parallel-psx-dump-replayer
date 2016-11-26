@@ -954,7 +954,7 @@ void Renderer::clear_quad(const Rect &rect, FBColor color)
 void Renderer::flush_render_pass(const Rect &rect)
 {
 	ensure_command_buffer();
-	bool is_clear = atlas.render_pass_is_clear();
+	bool is_clear = false;
 
 	RenderPassInfo info = {};
 	info.clear_depth_stencil = { 1.0f, 0 };
@@ -970,12 +970,17 @@ void Renderer::flush_render_pass(const Rect &rect)
 
 	if (is_clear)
 	{
-		FBColor color = atlas.render_pass_clear_color();
+		//FBColor color = atlas.render_pass_clear_color();
+		FBColor color = 0;
 		fbcolor_to_rgba32f(info.clear_color[0].float32, color);
 		info.op_flags |= RENDER_PASS_OP_CLEAR_COLOR_BIT;
 	}
 	else
+	{
 		info.op_flags |= RENDER_PASS_OP_LOAD_COLOR_BIT;
+		counters.fragment_readback_pixels += rect.width * rect.height * scaling * scaling;
+	}
+	counters.fragment_writeout_pixels += rect.width * rect.height * scaling * scaling;
 
 	info.render_area.offset = { int(rect.x * scaling), int(rect.y * scaling) };
 	info.render_area.extent = { rect.width * scaling, rect.height * scaling };

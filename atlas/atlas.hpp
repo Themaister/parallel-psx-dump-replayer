@@ -202,16 +202,6 @@ public:
 		renderpass.palette_offset_y = y;
 	}
 
-	bool render_pass_is_clear() const
-	{
-		return renderpass.clean_clear;
-	}
-
-	FBColor render_pass_clear_color() const
-	{
-		return renderpass.color;
-	}
-
 	void pipeline_barrier(StatusFlags domains);
 	void notify_external_barrier(StatusFlags domains);
 	void flush_render_pass();
@@ -221,7 +211,7 @@ private:
 	HazardListener *listener = nullptr;
 
 	void read_domain(Domain domain, Stage stage, const Rect &rect);
-	void write_domain(Domain domain, Stage stage, const Rect &rect);
+	bool write_domain(Domain domain, Stage stage, const Rect &rect);
 	void sync_domain(Domain domain, const Rect &rect);
 	void read_texture();
 	Domain find_suitable_domain(const Rect &rect);
@@ -234,9 +224,7 @@ private:
 		unsigned texture_offset_x = 0, texture_offset_y = 0;
 		unsigned palette_offset_x = 0, palette_offset_y = 0;
 		TextureMode texture_mode = TextureMode::None;
-		FBColor color = 0;
 		bool inside = false;
-		bool clean_clear = false;
 	} renderpass;
 
 	void extend_render_pass(const Rect &rect, bool scissor);

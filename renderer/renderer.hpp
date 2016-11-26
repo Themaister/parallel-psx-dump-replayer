@@ -180,8 +180,9 @@ public:
 	struct
 	{
 		unsigned render_passes = 0;
+		unsigned fragment_readback_pixels = 0;
+		unsigned fragment_writeout_pixels = 0;
 		unsigned draw_calls = 0;
-		unsigned texture_flushes = 0;
 		unsigned vertices = 0;
 		unsigned native_draw_calls = 0;
 	} counters;

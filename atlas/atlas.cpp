@@ -103,7 +103,7 @@ void FBAtlas::read_texture()
 		read_domain(domain, Stage::Fragment, palette_rect);
 }
 
-void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
+bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 {
 	if (inside_render_pass(rect))
 		flush_render_pass();
@@ -131,7 +131,10 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 		else if (stage == Stage::Fragment)
 		{
 			resolve_domains = STATUS_FRAGMENT_FB_WRITE | STATUS_FB_ONLY;
-			hazard_domains &= ~STATUS_FRAGMENT;
+			// Write-after-write in fragment is handled implicitly.
+			// Write-after-read means rendering to a block after reading it as a texture.
+			// This is a hazard we must handle.
+			hazard_domains &= ~STATUS_FRAGMENT_FB_WRITE;
 		}
 	}
 	else
@@ -141,7 +144,10 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 			resolve_domains = STATUS_COMPUTE_SFB_WRITE;
 		else if (stage == Stage::Fragment)
 		{
-			hazard_domains &= ~STATUS_FRAGMENT;
+			// Write-after-write in fragment is handled implicitly.
+			// Write-after-read means rendering to a block after reading it as a texture.
+			// This is a hazard we must handle.
+			hazard_domains &= ~STATUS_FRAGMENT_SFB_WRITE;
 			resolve_domains = STATUS_FRAGMENT_SFB_WRITE;
 		}
 		else if (stage == Stage::Transfer)
@@ -164,6 +170,8 @@ void FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 	for (unsigned y = ybegin; y <= yend; y++)
 		for (unsigned x = xbegin; x <= xend; x++)
 			info(x, y) = (info(x, y) & ~STATUS_OWNERSHIP_MASK) | resolve_domains;
+
+	return (write_domains & STATUS_FRAGMENT_FB_READ) != 0;
 }
 
 void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
@@ -380,9 +388,7 @@ void FBAtlas::extend_render_pass(const Rect &rect, bool scissor)
 		renderpass.rect = scissored_rect;
 		sync_domain(Domain::Scaled, renderpass.rect);
 		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
-
 		renderpass.inside = true;
-		renderpass.clean_clear = false;
 	}
 	else if (!renderpass.rect.contains(scissored_rect))
 	{
@@ -391,7 +397,13 @@ void FBAtlas::extend_render_pass(const Rect &rect, bool scissor)
 		// Avoid sync/write domain flushing our own render pass.
 		renderpass.inside = false;
 		sync_domain(Domain::Scaled, renderpass.rect);
-		write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect);
+		if (write_domain(Domain::Scaled, Stage::Fragment, renderpass.rect))
+		{
+			// If render pass was flushed here due to write-after-read hazards, set rect to
+			// our new scissored_rect instead.
+			renderpass.rect = scissored_rect;
+		}
+
 		renderpass.inside = true;
 	}
 }
