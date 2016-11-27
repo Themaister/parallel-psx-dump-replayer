@@ -804,67 +804,88 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline(unsigned prims, i
 
 bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 {
-	float dx = input[1].x - input[0].x;
-	float dy = input[1].y - input[0].y;
+	const float dx = input[1].x - input[0].x;
+	const float dy = input[1].y - input[0].y;
 	if (dx == 0.0f && dy == 0.0f)
 		return false;
 
+	const float abs_dx = fabsf(dx);
+	const float abs_dy = fabsf(dy);
+	float fill_dx, fill_dy;
+	float dxdk, dydk;
+
+	float pad_x0 = 0.0f;
+	float pad_x1 = 0.0f;
+	float pad_y0 = 0.0f;
+	float pad_y1 = 0.0f;
+
 	// Check for vertical or horizontal major lines.
-	bool horiz_major;
-	bool dx_pos = false;
-	if (fabsf(dy) > fabs(dx))
+	// When expanding to a rect, do so in the appropriate direction.
+	if (abs_dx > abs_dy)
 	{
-		dx = 1.0f;
-		dy = 0.0f;
-		horiz_major = false;
-	}
-	else
-	{
-		dx_pos = dx > 0.0f;
-		dx = 0.0f;
-		dy = 1.0f;
-		horiz_major = true;
-	}
+		fill_dx = 0.0f;
+		fill_dy = 1.0f;
+		dxdk = 1.0f;
+		dydk = dy / abs_dx;
 
-	float x0 = input[0].x;
-	float x1 = input[1].x;
-	float y0 = input[0].y;
-	float y1 = input[1].y;
-
-	output[0].x = x0;
-	output[0].y = y0;
-	output[1].x = x0 + dx;
-	output[1].y = y0 + dy;
-	output[2].x = x1;
-	output[2].y = y1;
-	output[3].x = x1 + dx;
-	output[3].y = y1 + dy;
-
-	// Lower-right coordinates are inclusive for lines, so just bump the X coord.
-	// Technically, this screws with varying interpolation, but we don't have textured lines,
-	// so this should be fine.
-	if (horiz_major)
-	{
-		if (dx_pos)
+		if (dx > 0.0f)
 		{
-			output[2].x += 1.0f;
-			output[3].x += 1.0f;
+			// Right
+			pad_x1 = 1.0f;
+			pad_y1 = dydk;
 		}
 		else
 		{
-			output[0].x += 1.0f;
-			output[1].x += 1.0f;
+			// Left
+			pad_x0 = 1.0f;
+			pad_y0 = -dydk;
+		}
+	}
+	else
+	{
+		fill_dx = 1.0f;
+		fill_dy = 0.0f;
+		dydk = 1.0f;
+		dxdk = dx / abs_dy;
+
+		if (dy > 0.0f)
+		{
+			// Down
+			pad_y1 = 1.0f;
+			pad_x1 = dxdk;
+		}
+		else
+		{
+			// Up
+			pad_y0 = 1.0f;
+			pad_x0 = -dxdk;
 		}
 	}
 
+	const float x0 = input[0].x;
+	const float y0 = input[0].y;
+	const float c0 = input[0].color;
+	const float x1 = input[1].x;
+	const float y1 = input[1].y;
+	const float c1 = input[1].color;
+
+	output[0].x = x0 + pad_x0;
+	output[0].y = y0 + pad_y0;
+	output[1].x = x0 + fill_dx + pad_x0;
+	output[1].y = y0 + fill_dy + pad_y0;
+	output[2].x = x1 + pad_x1;
+	output[2].y = y1 + pad_y1;
+	output[3].x = x1 + fill_dx + pad_x1;
+	output[3].y = y1 + fill_dy + pad_y1;
+
 	output[0].w = 1.0f;
+	output[0].color = c0;
 	output[1].w = 1.0f;
+	output[1].color = c0;
 	output[2].w = 1.0f;
+	output[2].color = c1;
 	output[3].w = 1.0f;
-	output[0].color = input[0].color;
-	output[1].color = input[0].color;
-	output[2].color = input[1].color;
-	output[3].color = input[1].color;
+	output[3].color = c1;
 	return true;
 }
 
