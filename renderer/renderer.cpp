@@ -33,6 +33,13 @@ Renderer::Renderer(Device &device, unsigned scaling, const SaveState *state)
 		state ? state->vram.data() : nullptr, 0, 0,
 	};
 	framebuffer = device.create_image(info, state ? &initial_vram : nullptr);
+
+	info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	info.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+	info.format = VK_FORMAT_R8_UNORM;
+	info.levels = 1;
+	bias_framebuffer = device.create_image(info, nullptr);
+
 	info.width *= scaling;
 	info.height *= scaling;
 	info.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -190,6 +197,8 @@ void Renderer::init_pipelines()
 	                                                mipmap_energy_frag, sizeof(mipmap_energy_frag));
 	pipelines.mipmap_energy_first = device.create_program(mipmap_shifted_vert, sizeof(mipmap_shifted_vert),
 	                                                      mipmap_energy_first_frag, sizeof(mipmap_energy_first_frag));
+	pipelines.mipmap_energy_blur = device.create_program(mipmap_shifted_vert, sizeof(mipmap_shifted_vert),
+	                                                     mipmap_energy_blur_frag, sizeof(mipmap_energy_blur_frag));
 }
 
 void Renderer::set_draw_rect(const Rect &rect)
@@ -280,19 +289,39 @@ void Renderer::mipmap_framebuffer()
 {
 	auto &rect = render_state.display_mode;
 	unsigned levels = scaled_views.size();
-	for (unsigned i = 1; i < levels; i++)
+	for (unsigned i = 1; i <= levels; i++)
 	{
 		RenderPassInfo rp;
-		unsigned current_scale = scaling >> i;
-		rp.color_attachments[0] = scaled_views[i].get();
+		unsigned current_scale = max(scaling >> i, 1u);
+
+		if (i == levels)
+			rp.color_attachments[0] = &bias_framebuffer->get_view();
+		else
+			rp.color_attachments[0] = scaled_views[i].get();
+
 		rp.num_color_attachments = 1;
 		rp.op_flags = RENDER_PASS_OP_STORE_COLOR_BIT;
 		rp.render_area = { { int(rect.x * current_scale), int(rect.y * current_scale) },
 			               { rect.width * current_scale, rect.height * current_scale } };
 
+		if (i == levels)
+		{
+			rp.op_flags |= RENDER_PASS_OP_COLOR_OPTIMAL_BIT;
+			cmd->image_barrier(*bias_framebuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+			                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+			bias_framebuffer->set_layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		}
+
 		cmd->begin_render_pass(rp);
 
-		cmd->set_program(i == 1 ? *pipelines.mipmap_energy_first : *pipelines.mipmap_energy);
+		if (i == levels)
+			cmd->set_program(*pipelines.mipmap_energy_blur);
+		else if (i == 1)
+			cmd->set_program(*pipelines.mipmap_energy_first);
+		else
+			cmd->set_program(*pipelines.mipmap_energy);
+
 		cmd->set_texture(0, 0, *scaled_views[i - 1], StockSampler::LinearClamp);
 
 		cmd->set_quad_state();
@@ -302,10 +331,16 @@ void Renderer::mipmap_framebuffer()
 			float offset[2];
 			float range[2];
 			float inv_resolution[2];
+			float uv_min[2];
+			float uv_max[2];
 		};
-		Push push = { { float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
-			          { float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT },
-			          { 1.0f / (FB_WIDTH * current_scale), 1.0f / (FB_HEIGHT * current_scale) } };
+		Push push = {
+			{ float(rect.x) / FB_WIDTH, float(rect.y) / FB_HEIGHT },
+			{ float(rect.width) / FB_WIDTH, float(rect.height) / FB_HEIGHT },
+			{ 1.0f / (FB_WIDTH * current_scale), 1.0f / (FB_HEIGHT * current_scale) },
+			{ (rect.x + 0.5f) / FB_WIDTH, (rect.y + 0.5f) / FB_HEIGHT },
+			{ (rect.x + rect.width - 0.5f) / FB_WIDTH, (rect.y + rect.height - 0.5f) / FB_HEIGHT },
+		};
 		cmd->push_constants(&push, 0, sizeof(push));
 		cmd->set_vertex_attrib(0, 0, VK_FORMAT_R8G8_SNORM, 0);
 		cmd->set_primitive_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
@@ -314,9 +349,21 @@ void Renderer::mipmap_framebuffer()
 		cmd->draw(4);
 
 		cmd->end_render_pass();
-		cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-		                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-		                   VK_ACCESS_SHADER_READ_BIT);
+
+		if (i == levels)
+		{
+			cmd->image_barrier(*bias_framebuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+			                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			                   VK_ACCESS_SHADER_READ_BIT);
+			bias_framebuffer->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+		else
+		{
+			cmd->image_barrier(*scaled_framebuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+			                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			                   VK_ACCESS_SHADER_READ_BIT);
+		}
 	}
 }
 
@@ -436,6 +483,7 @@ ImageHandle Renderer::scanout_to_texture()
 	{
 		cmd->set_program(*pipelines.mipmap_resolve);
 		cmd->set_texture(0, 0, scaled_framebuffer->get_view(), StockSampler::TrilinearClamp);
+		cmd->set_texture(0, 1, bias_framebuffer->get_view(), StockSampler::LinearClamp);
 	}
 
 	cmd->set_vertex_binding(0, *quad, 0, 2);

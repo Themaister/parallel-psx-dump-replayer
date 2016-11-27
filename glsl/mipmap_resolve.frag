@@ -3,6 +3,7 @@ precision mediump float;
 
 layout(location = 0) out vec4 FragColor;
 layout(set = 0, binding = 0) uniform sampler2D uTexture;
+layout(set = 0, binding = 1) uniform sampler2D uLOD;
 layout(location = 0) in vec2 vUV;
 
 layout(push_constant, std430) uniform Registers
@@ -17,7 +18,7 @@ layout(push_constant, std430) uniform Registers
 void main()
 {
    vec2 lod_uv = clamp(vUV, registers.uv_min, registers.uv_max);
-   float b = textureLod(uTexture, lod_uv, registers.max_bias).a;
+   float b = textureLod(uLOD, lod_uv, 0.0).x;
    FragColor = textureLod(uTexture, lod_uv, registers.max_bias * b);
 }
 

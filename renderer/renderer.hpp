@@ -191,6 +191,7 @@ private:
 	Vulkan::Device &device;
 	unsigned scaling;
 	Vulkan::ImageHandle scaled_framebuffer;
+	Vulkan::ImageHandle bias_framebuffer;
 	Vulkan::ImageHandle framebuffer;
 	Vulkan::ImageHandle depth;
 	Vulkan::Semaphore scanout_semaphore;
@@ -238,6 +239,7 @@ private:
 		Vulkan::ProgramHandle mipmap_resolve;
 		Vulkan::ProgramHandle mipmap_energy_first;
 		Vulkan::ProgramHandle mipmap_energy;
+		Vulkan::ProgramHandle mipmap_energy_blur;
 	} pipelines;
 
 	Vulkan::ImageHandle dither_lut;

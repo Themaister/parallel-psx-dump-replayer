@@ -54,4 +54,5 @@ add_shader(mipmap.shifted.vert mipmap.vert -DSHIFT_QUAD)
 add_shader(mipmap.resolve.frag mipmap_resolve.frag)
 add_shader(mipmap.energy.first.frag mipmap_energy.frag -DFIRST_PASS)
 add_shader(mipmap.energy.frag mipmap_energy.frag)
+add_shader(mipmap.energy.blur.frag mipmap_blur.frag)
 

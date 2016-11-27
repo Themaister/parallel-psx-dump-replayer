@@ -115,4 +115,7 @@ static const uint32_t mipmap_resolve_frag[] =
 static const uint32_t mipmap_energy_frag[] =
 #include "mipmap.energy.frag.inc"
     ;
+static const uint32_t mipmap_energy_blur_frag[] =
+#include "mipmap.energy.blur.frag.inc"
+    ;
 }
