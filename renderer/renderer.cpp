@@ -862,21 +862,21 @@ bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 		}
 	}
 
-	const float x0 = input[0].x;
-	const float y0 = input[0].y;
+	const float x0 = input[0].x + pad_x0;
+	const float y0 = input[0].y + pad_y0;
 	const float c0 = input[0].color;
-	const float x1 = input[1].x;
-	const float y1 = input[1].y;
+	const float x1 = input[1].x + pad_x1;
+	const float y1 = input[1].y + pad_y1;
 	const float c1 = input[1].color;
 
-	output[0].x = x0 + pad_x0;
-	output[0].y = y0 + pad_y0;
-	output[1].x = x0 + fill_dx + pad_x0;
-	output[1].y = y0 + fill_dy + pad_y0;
-	output[2].x = x1 + pad_x1;
-	output[2].y = y1 + pad_y1;
-	output[3].x = x1 + fill_dx + pad_x1;
-	output[3].y = y1 + fill_dy + pad_y1;
+	output[0].x = x0;
+	output[0].y = y0;
+	output[1].x = x0 + fill_dx;
+	output[1].y = y0 + fill_dy;
+	output[2].x = x1;
+	output[2].y = y1;
+	output[3].x = x1 + fill_dx;
+	output[3].y = y1 + fill_dy;
 
 	output[0].w = 1.0f;
 	output[0].color = c0;
