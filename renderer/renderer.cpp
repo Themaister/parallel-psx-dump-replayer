@@ -802,12 +802,33 @@ std::vector<Renderer::BufferVertex> *Renderer::select_pipeline(unsigned prims, i
 	}
 }
 
-bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
+void Renderer::build_line_quad(Vertex *output, const Vertex *input)
 {
 	const float dx = input[1].x - input[0].x;
 	const float dy = input[1].y - input[0].y;
 	if (dx == 0.0f && dy == 0.0f)
-		return false;
+	{
+		// Degenerate, render a point.
+		output[0].x = input[0].x;
+		output[0].y = input[0].y;
+		output[1].x = input[0].x + 1.0f;
+		output[1].y = input[0].y;
+		output[2].x = input[1].x;
+		output[2].y = input[1].y + 1.0f;
+		output[3].x = input[1].x + 1.0f;
+		output[3].y = input[1].y + 1.0f;
+
+		auto c = input[0].color;
+		output[0].w = 1.0f;
+		output[0].color = c;
+		output[1].w = 1.0f;
+		output[1].color = c;
+		output[2].w = 1.0f;
+		output[2].color = c;
+		output[3].w = 1.0f;
+		output[3].color = c;
+		return;
+	}
 
 	const float abs_dx = fabsf(dx);
 	const float abs_dy = fabsf(dy);
@@ -821,6 +842,9 @@ bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 
 	// Check for vertical or horizontal major lines.
 	// When expanding to a rect, do so in the appropriate direction.
+	// FIXME: This scheme seems to kinda work, but it seems very hard to find a method
+	// that looks perfect on every game.
+	// Vagrant Story speech bubbles are a very good test case here!
 	if (abs_dx > abs_dy)
 	{
 		fill_dx = 0.0f;
@@ -886,7 +910,6 @@ bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 	output[2].color = c1;
 	output[3].w = 1.0f;
 	output[3].color = c1;
-	return true;
 }
 
 void Renderer::draw_line(const Vertex *vertices)
@@ -894,8 +917,8 @@ void Renderer::draw_line(const Vertex *vertices)
 	// We can move this to GPU, but means more draw calls and more pipeline swapping.
 	// This should be plenty fast for the quite small amount of lines games render.
 	Vertex vert[4];
-	if (build_line_quad(vert, vertices))
-		draw_quad(vert);
+	build_line_quad(vert, vertices);
+	draw_quad(vert);
 }
 
 void Renderer::draw_triangle(const Vertex *vertices)

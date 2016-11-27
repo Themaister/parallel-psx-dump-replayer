@@ -335,7 +335,7 @@ private:
 	float allocate_depth(const Rect &rect);
 
 	void build_attribs(BufferVertex *verts, const Vertex *vertices, unsigned count);
-	bool build_line_quad(Vertex *quad, const Vertex *line);
+	void build_line_quad(Vertex *quad, const Vertex *line);
 	std::vector<BufferVertex> *select_pipeline(unsigned prims, int scissor);
 
 	void flush_resolves();
