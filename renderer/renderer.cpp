@@ -809,24 +809,53 @@ bool Renderer::build_line_quad(Vertex *output, const Vertex *input)
 	if (dx == 0.0f && dy == 0.0f)
 		return false;
 
-	// Flip 90 degrees and normalize the vector.
-	float norm = 0.5f / sqrtf(dx * dx + dy * dy);
-	float rot90_dx = dy * norm;
-	float rot90_dy = -dx * norm;
+	// Check for vertical or horizontal major lines.
+	bool horiz_major;
+	bool dx_pos = false;
+	if (fabsf(dy) > fabs(dx))
+	{
+		dx = 1.0f;
+		dy = 0.0f;
+		horiz_major = false;
+	}
+	else
+	{
+		dx_pos = dx > 0.0f;
+		dx = 0.0f;
+		dy = 1.0f;
+		horiz_major = true;
+	}
 
 	float x0 = input[0].x;
 	float x1 = input[1].x;
 	float y0 = input[0].y;
 	float y1 = input[1].y;
 
-	output[0].x = x0 - rot90_dx;
-	output[0].y = y0 - rot90_dy;
-	output[1].x = x0 + rot90_dx;
-	output[1].y = y0 + rot90_dy;
-	output[2].x = x1 - rot90_dx;
-	output[2].y = y1 - rot90_dy;
-	output[3].x = x1 + rot90_dx;
-	output[3].y = y1 + rot90_dy;
+	output[0].x = x0;
+	output[0].y = y0;
+	output[1].x = x0 + dx;
+	output[1].y = y0 + dy;
+	output[2].x = x1;
+	output[2].y = y1;
+	output[3].x = x1 + dx;
+	output[3].y = y1 + dy;
+
+	// Lower-right coordinates are inclusive for lines, so just bump the X coord.
+	// Technically, this screws with varying interpolation, but we don't have textured lines,
+	// so this should be fine.
+	if (horiz_major)
+	{
+		if (dx_pos)
+		{
+			output[2].x += 1.0f;
+			output[3].x += 1.0f;
+		}
+		else
+		{
+			output[0].x += 1.0f;
+			output[1].x += 1.0f;
+		}
+	}
 
 	output[0].w = 1.0f;
 	output[1].w = 1.0f;
