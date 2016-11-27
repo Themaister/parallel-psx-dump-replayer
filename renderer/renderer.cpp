@@ -474,7 +474,7 @@ ImageHandle Renderer::scanout_to_texture()
 		cmd->set_program(*pipelines.bpp24_quad_blitter);
 		cmd->set_texture(0, 0, framebuffer->get_view(), StockSampler::NearestClamp);
 	}
-	else if (scaling == 1)
+	else if (!render_state.adaptive_smoothing || scaling == 1)
 	{
 		cmd->set_program(*pipelines.scaled_quad_blitter);
 		cmd->set_texture(0, 0, *scaled_views[0], StockSampler::LinearClamp);

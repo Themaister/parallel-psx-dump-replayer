@@ -58,6 +58,7 @@ public:
 		bool display_on = false;
 		bool bpp24 = false;
 		bool dither = false;
+		bool adaptive_smoothing = true;
 	};
 
 	struct SaveState
@@ -68,6 +69,11 @@ public:
 
 	Renderer(Vulkan::Device &device, unsigned scaling, const SaveState *save_state);
 	~Renderer();
+
+	void set_adaptive_smoothing(bool enable)
+	{
+		render_state.adaptive_smoothing = enable;
+	}
 
 	void set_draw_rect(const Rect &rect);
 	inline void set_draw_offset(int x, int y)
