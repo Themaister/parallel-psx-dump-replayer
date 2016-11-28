@@ -23,7 +23,6 @@ public:
 	ChainDataAllocation allocate(VkDeviceSize size);
 	void discard();
 	void reset();
-	void flush();
 
 private:
 	Device *device;
@@ -32,6 +31,7 @@ private:
 	VkBufferUsageFlags usage;
 
 	std::vector<BufferHandle> buffers;
+	std::vector<BufferHandle> large_buffers;
 	unsigned chain_index = 0;
 	unsigned start_flush_index = 0;
 	VkDeviceSize offset = 0;

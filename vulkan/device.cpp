@@ -273,11 +273,6 @@ void Device::submit_queue(Fence *fence, Semaphore *semaphore)
 	if (frame().submissions.empty())
 		return;
 
-	frame().ubo_chain.flush();
-	frame().vbo_chain.flush();
-	frame().ibo_chain.flush();
-	frame().staging_chain.flush();
-
 	vector<VkCommandBuffer> cmds;
 	cmds.reserve(frame().submissions.size());
 
@@ -714,8 +709,9 @@ uint32_t Device::find_memory_type(BufferDomain domain, uint32_t mask)
 		break;
 
 	case BufferDomain::Host:
-		desired = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		fallback = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+		desired = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+		          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		fallback = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		break;
 
 	case BufferDomain::CachedHost:

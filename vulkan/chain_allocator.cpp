@@ -22,13 +22,24 @@ ChainAllocator::~ChainAllocator()
 void ChainAllocator::reset()
 {
 	buffers.clear();
+	large_buffers.clear();
 	offset = 0;
 	chain_index = 0;
 }
 
 ChainDataAllocation ChainAllocator::allocate(VkDeviceSize size)
 {
-	VK_ASSERT(size <= block_size);
+	// Fallback to dedicated allocation.
+	if (size > block_size)
+	{
+		auto buffer = device->create_buffer({ BufferDomain::Host, size, usage }, nullptr);
+		ChainDataAllocation alloc = {};
+		alloc.data = device->map_host_buffer(*buffer, MEMORY_ACCESS_WRITE);
+		alloc.offset = 0;
+		alloc.buffer = buffer.get();
+		large_buffers.push_back(buffer);
+		return alloc;
+	}
 
 	offset = (offset + alignment - 1) & ~(alignment - 1);
 	if (offset + size > block_size)
@@ -56,18 +67,6 @@ void ChainAllocator::discard()
 	chain_index = 0;
 	offset = 0;
 	start_flush_index = 0;
-}
-
-void ChainAllocator::flush()
-{
-	for (unsigned i = start_flush_index; i <= chain_index; i++)
-	{
-		// FIXME: Add explicit flush.
-		device->unmap_host_buffer(*buffers[i]);
-		host = static_cast<uint8_t *>(device->map_host_buffer(*buffers.back(), MEMORY_ACCESS_WRITE));
-	}
-	start_flush_index = chain_index;
-
-	// FIXME: Implement
+	large_buffers.clear();
 }
 }
