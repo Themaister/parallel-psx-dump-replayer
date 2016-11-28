@@ -22,6 +22,7 @@ void main()
    int src_x = registers.src.x;
    int dst_x = registers.dst.x;
    ivec2 offset = ivec2(gl_WorkGroupID.xy);
+   ivec2 mask = ivec2(1024, 512) * ivec2(gl_NumWorkGroups.xy) - 1;
 
    bool read_after_write = registers.src.y == registers.dst.y;
 
@@ -52,7 +53,7 @@ void main()
          DECL_CACHE;
          if (local_x < registers.extent.x)
          {
-            ivec2 coord = (registers.scaling * ivec2(src_x + local_x, registers.src.y + y) + offset) & ivec2(1023, 511);
+            ivec2 coord = (registers.scaling * ivec2(src_x + local_x, registers.src.y + y) + offset) & mask;
             cache = imageLoad(uFramebuffer, coord).LOAD_SWIZZLE;
          }
 
@@ -62,7 +63,7 @@ void main()
 
          if (local_x < registers.extent.x)
          {
-            ivec2 coord = (registers.scaling * ivec2(dst_x + local_x, registers.dst.y + y) + offset) & ivec2(1023, 511);
+            ivec2 coord = (registers.scaling * ivec2(dst_x + local_x, registers.dst.y + y) + offset) & mask;
 #ifdef MASKED
             DECL_MASK_CACHE;
             mask_cache = imageLoad(uFramebuffer, coord).LOAD_SWIZZLE;

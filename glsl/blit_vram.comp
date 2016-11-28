@@ -29,8 +29,9 @@ void main()
     if (all(lessThan(gl_GlobalInvocationID.xy, rects[gl_WorkGroupID.z].extent)))
     {
         uvec4 offsets = rects[gl_WorkGroupID.z].offsets;
-        uvec2 src_coord = (gl_GlobalInvocationID.xy + offsets.xy) & uvec2(1023u, 511u);
-        uvec2 dst_coord = (gl_GlobalInvocationID.xy + offsets.zw) & uvec2(1023u, 511u);
+        uvec2 mask = uvec2(1024u, 512u) * gl_NumWorkGroups.xy - 1u;
+        uvec2 src_coord = (gl_GlobalInvocationID.xy + offsets.xy) & mask;
+        uvec2 dst_coord = (gl_GlobalInvocationID.xy + offsets.zw) & mask;
 #if defined(SCALED)
         vec4 value = texelFetch(uImage, ivec2(src_coord), 0);
 #ifdef MASKED
