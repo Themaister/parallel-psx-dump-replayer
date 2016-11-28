@@ -220,6 +220,9 @@ void Renderer::clear_rect(const Rect &rect, FBColor color)
 {
 	last_scanout.reset();
 	atlas.clear_rect(rect, color);
+
+	VK_ASSERT(rect.x + rect.width <= FB_WIDTH);
+	VK_ASSERT(rect.y + rect.height <= FB_HEIGHT);
 }
 
 Rect Renderer::compute_window_rect(const TextureWindow &window)
@@ -743,23 +746,22 @@ void Renderer::build_attribs(BufferVertex *output, const Vertex *vertices, unsig
 			unsigned width = max_u - min_u + 1;
 			unsigned height = max_v - min_v + 1;
 
-			width = min(width, FB_WIDTH - (render_state.texture_offset_x + (min_u >> shift)));
-			height = min(height, FB_HEIGHT - (render_state.texture_offset_y + min_v));
-
 			if (max_u > 255 || max_v > 255) // Wraparound behavior, assume the whole page is hit.
-			{
-				atlas.set_texture_window({ 0, 0, min(256u, FB_WIDTH - render_state.texture_offset_x),
-				                           min(256u, FB_HEIGHT - render_state.texture_offset_y) });
-			}
+				atlas.set_texture_window({ 0, 0, 256u >> shift, 256 });
 			else
+			{
+				min_u >>= shift;
+				max_u = (max_u + (1 << shift) - 1) >> shift;
+				width = max_u - min_u + 1;
 				atlas.set_texture_window({ min_u, min_v, width, height });
+			}
 		}
 		else
 		{
 			// If we have a masked texture window, assume this is the true rect we should use.
 			auto effective_rect = render_state.cached_window_rect;
-			VK_ASSERT(render_state.texture_offset_x + (effective_rect.width >> shift) <= FB_WIDTH);
-			atlas.set_texture_window(effective_rect);
+			atlas.set_texture_window(
+			    { effective_rect.x >> shift, effective_rect.y, effective_rect.width >> shift, effective_rect.height });
 		}
 	}
 

@@ -67,14 +67,7 @@ void FBAtlas::read_texture()
 	switch (renderpass.texture_mode)
 	{
 	case TextureMode::Palette4bpp:
-		shifted.x >>= 2;
-		shifted.width = (shifted.width + 3) >> 2;
-		palette = true;
-		break;
-
 	case TextureMode::Palette8bpp:
-		shifted.x >>= 1;
-		shifted.width = (shifted.width + 1) >> 1;
 		palette = true;
 		break;
 
@@ -93,10 +86,7 @@ void FBAtlas::read_texture()
 		                  renderpass.texture_mode == TextureMode::Palette8bpp ? 256u : 16u, 1 };
 
 	if (palette)
-	{
-		palette_rect.width = min(palette_rect.width, FB_WIDTH - palette_rect.x);
 		sync_domain(domain, palette_rect);
-	}
 
 	read_domain(domain, Stage::FragmentTexture, shifted);
 	if (palette)
@@ -112,11 +102,6 @@ bool FBAtlas::write_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
-
-	assert(xbegin < NUM_BLOCKS_X);
-	assert(xend < NUM_BLOCKS_X);
-	assert(ybegin < NUM_BLOCKS_Y);
-	assert(yend < NUM_BLOCKS_Y);
 
 	unsigned write_domains = 0;
 	unsigned hazard_domains = 0;
@@ -184,11 +169,6 @@ void FBAtlas::read_domain(Domain domain, Stage stage, const Rect &rect)
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
 
-	assert(xbegin < NUM_BLOCKS_X);
-	assert(xend < NUM_BLOCKS_X);
-	assert(ybegin < NUM_BLOCKS_Y);
-	assert(yend < NUM_BLOCKS_Y);
-
 	unsigned write_domains = 0;
 	unsigned hazard_domains = 0;
 	unsigned resolve_domains = 0;
@@ -250,11 +230,6 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 	unsigned xend = (rect.x + rect.width - 1) / BLOCK_WIDTH;
 	unsigned ybegin = rect.y / BLOCK_HEIGHT;
 	unsigned yend = (rect.y + rect.height - 1) / BLOCK_HEIGHT;
-
-	assert(xbegin < NUM_BLOCKS_X);
-	assert(xend < NUM_BLOCKS_X);
-	assert(ybegin < NUM_BLOCKS_Y);
-	assert(yend < NUM_BLOCKS_Y);
 
 	// If we need to see a "clean" version
 	// of a framebuffer domain, we need to see
@@ -323,7 +298,7 @@ void FBAtlas::sync_domain(Domain domain, const Rect &rect)
 			{
 				mask &= ~STATUS_OWNERSHIP_MASK;
 				mask |= resolve_domains;
-				listener->resolve(domain, BLOCK_WIDTH * x, BLOCK_HEIGHT * y);
+				listener->resolve(domain, (BLOCK_WIDTH * x) & (FB_WIDTH - 1), (BLOCK_HEIGHT * y) & (FB_HEIGHT - 1));
 			}
 		}
 	}
@@ -438,14 +413,7 @@ void FBAtlas::write_fragment(const Rect &rect)
 		switch (renderpass.texture_mode)
 		{
 		case TextureMode::Palette4bpp:
-			shifted.x >>= 2;
-			shifted.width = (shifted.width + 3) >> 2;
-			reads_palette = true;
-			break;
-
 		case TextureMode::Palette8bpp:
-			shifted.x >>= 1;
-			shifted.width = (shifted.width + 1) >> 1;
 			reads_palette = true;
 			break;
 

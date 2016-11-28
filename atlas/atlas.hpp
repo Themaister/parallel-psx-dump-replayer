@@ -236,11 +236,15 @@ private:
 
 	StatusFlags &info(unsigned block_x, unsigned block_y)
 	{
+		block_x &= NUM_BLOCKS_X - 1;
+		block_y &= NUM_BLOCKS_Y - 1;
 		return fb_info[NUM_BLOCKS_X * block_y + block_x];
 	}
 
 	const StatusFlags &info(unsigned block_x, unsigned block_y) const
 	{
+		block_x &= NUM_BLOCKS_X - 1;
+		block_y &= NUM_BLOCKS_Y - 1;
 		return fb_info[NUM_BLOCKS_X * block_y + block_x];
 	}
 
