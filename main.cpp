@@ -704,6 +704,12 @@ int main(int argc, char *argv[])
 				LOG("Vertices: %u\n", renderer.counters.vertices);
 				LOG("========================\n");
 			}
+			else
+			{
+				LOG("========================\n");
+				LOG("Completed frame %u.\n", frames);
+				LOG("========================\n");
+			}
 		}
 	}
 
