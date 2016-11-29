@@ -29,7 +29,7 @@ void main()
     int shift = 8 * (coord.x & 1);
     coord.x = base_x;
     vec2 uv = (vec2(coord) + 0.5) / vec2(1024.0, 512.0) + registers.offset;
-    uint value = textureLod(uTexture, uv, 0.0).x | (textureLodOffset(uTexture, uv, 0.0, ivec2(1, 0)).x << 16u);
+    uint value = (textureLod(uTexture, uv, 0.0).x & 0xffffu) | (textureLodOffset(uTexture, uv, 0.0, ivec2(1, 0)).x << 16u);
     value >>= uint(shift);
 
     vec3 rgb = vec3((uvec3(value) >> uvec3(0u, 8u, 16u)) & 0xffu) / 255.0;

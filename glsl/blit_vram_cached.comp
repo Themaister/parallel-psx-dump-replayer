@@ -44,7 +44,7 @@ void main()
 #define DECL_MASK_CACHE uint mask_cache
 #define LOAD_SWIZZLE r
 #define STORE_CACHE uvec4(cache)
-#define TEST_CACHE(v) ((v) < 0x8000u)
+#define TEST_CACHE(v) (((v) & 0x8000u) == 0u)
 #endif
 
          // This way isn't great for cache, but we can run scaling * scaling independent workgroups as pixels
