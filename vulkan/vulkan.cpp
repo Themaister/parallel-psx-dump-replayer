@@ -7,7 +7,9 @@
 #include <GLFW/glfw3.h>
 #endif
 
+#ifdef HAVE_DYLIB
 #include <dlfcn.h>
+#endif
 
 using namespace std;
 
@@ -38,6 +40,7 @@ bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
 {
 	if (!addr)
 	{
+#ifdef HAVE_DYLIB
 		static void *module;
 		if (!module)
 		{
@@ -49,6 +52,9 @@ bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
 		addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(module, "vkGetInstanceProcAddr"));
 		if (!addr)
 			return false;
+#else
+		return false;
+#endif
 	}
 
 	vulkan_symbol_wrapper_init(addr);
