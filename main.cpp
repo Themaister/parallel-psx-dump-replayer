@@ -1,13 +1,10 @@
 #include "device.hpp"
 #include "renderer/renderer.hpp"
 #include "stb_image_write.h"
+#include "cli_parser.hpp"
 
-#ifdef VULKAN_WSI
-#include "wsi.hpp"
-#endif
 #include <cmath>
 #include <random>
-#include <renderer.hpp>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
@@ -15,133 +12,7 @@
 using namespace PSX;
 using namespace std;
 using namespace Vulkan;
-
-struct CLIParser;
-struct CLICallbacks
-{
-	void add(const char *cli, const function<void(CLIParser &)> &func)
-	{
-		callbacks[cli] = func;
-	}
-	unordered_map<string, function<void(CLIParser &)>> callbacks;
-	function<void()> error_handler;
-	function<void(const char *)> default_handler;
-};
-
-struct CLIParser
-{
-	CLIParser(CLICallbacks cbs, int argc, char *argv[])
-	    : cbs(move(cbs))
-	    , argc(argc)
-	    , argv(argv)
-	{
-	}
-
-	bool parse()
-	{
-		try
-		{
-			while (argc && !ended_state)
-			{
-				const char *next = *argv++;
-				argc--;
-
-				if (*next != '-' && cbs.default_handler)
-				{
-					cbs.default_handler(next);
-				}
-				else
-				{
-					auto itr = cbs.callbacks.find(next);
-					if (itr == ::end(cbs.callbacks))
-					{
-						throw logic_error("Invalid argument.\n");
-					}
-
-					itr->second(*this);
-				}
-			}
-
-			return true;
-		}
-		catch (...)
-		{
-			if (cbs.error_handler)
-			{
-				cbs.error_handler();
-			}
-			return false;
-		}
-	}
-
-	void end()
-	{
-		ended_state = true;
-	}
-
-	uint32_t next_uint()
-	{
-		if (!argc)
-		{
-			throw logic_error("Tried to parse uint, but nothing left in arguments.\n");
-		}
-
-		uint32_t val = stoul(*argv);
-		if (val > numeric_limits<uint32_t>::max())
-		{
-			throw out_of_range("next_uint() out of range.\n");
-		}
-
-		argc--;
-		argv++;
-
-		return val;
-	}
-
-	double next_double()
-	{
-		if (!argc)
-		{
-			throw logic_error("Tried to parse double, but nothing left in arguments.\n");
-		}
-
-		double val = stod(*argv);
-
-		argc--;
-		argv++;
-
-		return val;
-	}
-
-	const char *next_string()
-	{
-		if (!argc)
-		{
-			throw logic_error("Tried to parse string, but nothing left in arguments.\n");
-		}
-
-		const char *ret = *argv;
-		argc--;
-		argv++;
-		return ret;
-	}
-
-	CLICallbacks cbs;
-	int argc;
-	char **argv;
-	bool ended_state = false;
-};
-
-struct CLIArguments
-{
-	const char *dump = nullptr;
-	const char *frame_output = nullptr;
-	const char *trace_output = nullptr;
-	unsigned trace_frame = 0;
-	unsigned scale = 4;
-	bool trace = false;
-	bool verbose = false;
-};
+using namespace Util;
 
 //#define DUMP_VRAM
 #define SCALING 4
@@ -296,7 +167,7 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	renderer.set_texture_color_modulate(state.texture_blend_mode == 2);
 	renderer.set_palette_offset(state.clut_x, state.clut_y);
 	renderer.set_texture_offset(state.texpage_x, state.texpage_y);
-	renderer.set_dither(state.dither);
+	//renderer.set_dither(state.dither);
 	renderer.set_mask_test(state.mask_test);
 	renderer.set_force_mask_bit(state.set_mask);
 	if (state.texture_blend_mode != 0)

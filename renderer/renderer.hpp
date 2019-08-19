@@ -1,12 +1,9 @@
 #pragma once
 
-#include "atlas.hpp"
+#include "../atlas/atlas.hpp"
+#include "../vulkan/device.hpp"
+#include "context.hpp"
 #include "device.hpp"
-#include "vulkan.hpp"
-
-#ifdef VULKAN_WSI
-#include "wsi.hpp"
-#endif
 
 #include <string.h>
 
@@ -25,6 +22,11 @@ struct TextureWindow
 	uint8_t mask_x, mask_y, or_x, or_y;
 };
 
+struct UVRect
+{
+	uint16_t min_u, min_v, max_u, max_v;
+};
+
 enum class SemiTransparentMode
 {
 	None,
@@ -37,6 +39,24 @@ enum class SemiTransparentMode
 class Renderer : private HazardListener
 {
 public:
+	enum class ScanoutMode
+	{
+		// Use extra precision bits.
+		ABGR1555_555,
+		// Use extra precision bits to dither down to a native ABGR1555 image.
+		// The dither happens in the wrong place, but should be "good" enough to feel authentic.
+		ABGR1555_Dither,
+		// MDEC
+		BGR24
+	};
+
+	enum class ScanoutFilter
+	{
+		None,
+		SSAA,
+		MDEC_YUV
+	};
+
 	struct RenderState
 	{
 		Rect display_mode;
@@ -52,13 +72,17 @@ public:
 
 		TextureMode texture_mode = TextureMode::None;
 		SemiTransparentMode semi_transparent = SemiTransparentMode::None;
+		ScanoutMode scanout_mode = ScanoutMode::ABGR1555_555;
+		ScanoutFilter scanout_filter = ScanoutFilter::None;
+		bool dither_native_resolution = false;
 		bool force_mask_bit = false;
 		bool texture_color_modulate = false;
 		bool mask_test = false;
 		bool display_on = false;
-		bool bpp24 = false;
-		bool dither = false;
+		//bool dither = false;
 		bool adaptive_smoothing = true;
+
+		UVRect UVLimits;
 	};
 
 	struct SaveState
@@ -67,7 +91,7 @@ public:
 		RenderState state;
 	};
 
-	Renderer(Vulkan::Device &device, unsigned scaling, const SaveState *save_state);
+	Renderer(Vulkan::Device &device, unsigned scaling, unsigned msaa, const SaveState *save_state);
 	~Renderer();
 
 	void set_adaptive_smoothing(bool enable)
@@ -103,18 +127,23 @@ public:
 	}
 
 	Vulkan::BufferHandle copy_cpu_to_vram(const Rect &rect);
+	void copy_vram_to_cpu_synchronous(const Rect &rect, uint16_t *vram);
 	uint16_t *begin_copy(Vulkan::BufferHandle handle);
 	void end_copy(Vulkan::BufferHandle handle);
 
 	void blit_vram(const Rect &dst, const Rect &src);
-
-	void set_display_mode(const Rect &rect, bool bpp24)
+	void set_display_mode(const Rect &rect, ScanoutMode mode)
 	{
-		if (rect != render_state.display_mode || bpp24 != render_state.bpp24)
+		if (rect != render_state.display_mode || render_state.scanout_mode != mode)
 			last_scanout.reset();
 
 		render_state.display_mode = rect;
-		render_state.bpp24 = bpp24;
+		render_state.scanout_mode = mode;
+	}
+
+	void set_display_filter(ScanoutFilter filter)
+	{
+		render_state.scanout_filter = filter;
 	}
 
 	void toggle_display(bool enable)
@@ -125,9 +154,16 @@ public:
 		render_state.display_on = enable;
 	}
 
+#if 0
 	void set_dither(bool dither)
 	{
 		render_state.dither = dither;
+	}
+#endif
+
+	void set_dither_native_resolution(bool enable)
+	{
+		render_state.dither_native_resolution = enable;
 	}
 
 	void set_scanout_semaphore(Vulkan::Semaphore semaphore);
@@ -162,6 +198,14 @@ public:
 		render_state.texture_color_modulate = enable;
 	}
 
+	inline void set_UV_limits(uint16_t min_u, uint16_t min_v, uint16_t max_u, uint16_t max_v)
+	{
+		render_state.UVLimits.min_u = min_u;
+		render_state.UVLimits.min_v = min_v;
+		render_state.UVLimits.max_u = max_u;
+		render_state.UVLimits.max_v = max_v;
+	}
+
 	// Draw commands
 	void clear_rect(const Rect &rect, FBColor color);
 	void draw_line(const Vertex *vertices);
@@ -172,7 +216,7 @@ public:
 
 	void reset_counters()
 	{
-		memset(&counters, 0, sizeof(counters));
+		counters = {};
 	}
 
 	void flush()
@@ -181,6 +225,16 @@ public:
 			device.submit(cmd);
 		cmd.reset();
 		device.flush_frame();
+	}
+
+	Vulkan::Fence flush_and_signal()
+	{
+		Vulkan::Fence fence;
+		if (cmd)
+			device.submit(cmd, &fence);
+		cmd.reset();
+		device.flush_frame();
+		return fence;
 	}
 
 	struct
@@ -193,13 +247,31 @@ public:
 		unsigned native_draw_calls = 0;
 	} counters;
 
+	enum class FilterMode
+	{
+		NearestNeighbor = 0,
+		XBR = 1,
+		SABR = 2,
+		Bilinear = 3,
+		Bilinear3Point = 4,
+		JINC2 = 5
+	};
+
+	void set_filter_mode(FilterMode mode);
+	ScanoutMode get_scanout_mode() const
+	{
+		return render_state.scanout_mode;
+	}
+
 private:
 	Vulkan::Device &device;
 	unsigned scaling;
+	unsigned msaa;
+	FilterMode primitive_filter_mode = FilterMode::NearestNeighbor;
 	Vulkan::ImageHandle scaled_framebuffer;
+	Vulkan::ImageHandle scaled_framebuffer_msaa;
 	Vulkan::ImageHandle bias_framebuffer;
 	Vulkan::ImageHandle framebuffer;
-	Vulkan::ImageHandle depth;
 	Vulkan::Semaphore scanout_semaphore;
 	std::vector<Vulkan::ImageViewHandle> scaled_views;
 	FBAtlas atlas;
@@ -214,43 +286,55 @@ private:
 
 	struct
 	{
-		Vulkan::ProgramHandle copy_to_vram;
-		Vulkan::ProgramHandle copy_to_vram_masked;
-		Vulkan::ProgramHandle unscaled_quad_blitter;
-		Vulkan::ProgramHandle scaled_quad_blitter;
-		Vulkan::ProgramHandle bpp24_quad_blitter;
-		Vulkan::ProgramHandle resolve_to_scaled;
-		Vulkan::ProgramHandle resolve_to_unscaled;
-		Vulkan::ProgramHandle blit_vram_unscaled;
-		Vulkan::ProgramHandle blit_vram_scaled;
-		Vulkan::ProgramHandle blit_vram_unscaled_masked;
-		Vulkan::ProgramHandle blit_vram_scaled_masked;
-		Vulkan::ProgramHandle blit_vram_cached_unscaled;
-		Vulkan::ProgramHandle blit_vram_cached_scaled;
-		Vulkan::ProgramHandle blit_vram_cached_unscaled_masked;
-		Vulkan::ProgramHandle blit_vram_cached_scaled_masked;
-		Vulkan::ProgramHandle opaque_flat;
-		Vulkan::ProgramHandle opaque_textured;
-		Vulkan::ProgramHandle opaque_semi_transparent;
-		Vulkan::ProgramHandle semi_transparent;
-		Vulkan::ProgramHandle semi_transparent_masked_add;
-		Vulkan::ProgramHandle semi_transparent_masked_average;
-		Vulkan::ProgramHandle semi_transparent_masked_sub;
-		Vulkan::ProgramHandle semi_transparent_masked_add_quarter;
-		Vulkan::ProgramHandle flat_masked_add;
-		Vulkan::ProgramHandle flat_masked_average;
-		Vulkan::ProgramHandle flat_masked_sub;
-		Vulkan::ProgramHandle flat_masked_add_quarter;
+		Vulkan::Program *copy_to_vram;
+		Vulkan::Program *copy_to_vram_masked;
+		Vulkan::Program *unscaled_quad_blitter;
+		Vulkan::Program *scaled_quad_blitter;
+		Vulkan::Program *unscaled_dither_quad_blitter;
+		Vulkan::Program *scaled_dither_quad_blitter;
+		Vulkan::Program *bpp24_quad_blitter;
+		Vulkan::Program *bpp24_yuv_quad_blitter;
+		Vulkan::Program *resolve_to_scaled;
+		Vulkan::Program *resolve_to_unscaled;
 
-		Vulkan::ProgramHandle mipmap_resolve;
-		Vulkan::ProgramHandle mipmap_energy_first;
-		Vulkan::ProgramHandle mipmap_energy;
-		Vulkan::ProgramHandle mipmap_energy_blur;
+		Vulkan::Program *blit_vram_scaled;
+		Vulkan::Program *blit_vram_scaled_masked;
+
+		Vulkan::Program *blit_vram_cached_scaled;
+		Vulkan::Program *blit_vram_cached_scaled_masked;
+		Vulkan::Program *blit_vram_msaa_cached_scaled;
+		Vulkan::Program *blit_vram_msaa_cached_scaled_masked;
+
+		Vulkan::Program *blit_vram_unscaled;
+		Vulkan::Program *blit_vram_unscaled_masked;
+		Vulkan::Program *blit_vram_cached_unscaled;
+		Vulkan::Program *blit_vram_cached_unscaled_masked;
+
+		Vulkan::Program *opaque_flat;
+		Vulkan::Program *opaque_textured;
+		Vulkan::Program *opaque_semi_transparent;
+		Vulkan::Program *semi_transparent;
+		Vulkan::Program *semi_transparent_masked_add;
+		Vulkan::Program *semi_transparent_masked_average;
+		Vulkan::Program *semi_transparent_masked_sub;
+		Vulkan::Program *semi_transparent_masked_add_quarter;
+		Vulkan::Program *flat_masked_add;
+		Vulkan::Program *flat_masked_average;
+		Vulkan::Program *flat_masked_sub;
+		Vulkan::Program *flat_masked_add_quarter;
+
+		Vulkan::Program *mipmap_resolve;
+		Vulkan::Program *mipmap_dither_resolve;
+		Vulkan::Program *mipmap_energy_first;
+		Vulkan::Program *mipmap_energy;
+		Vulkan::Program *mipmap_energy_blur;
 	} pipelines;
 
 	Vulkan::ImageHandle dither_lut;
 
 	void init_pipelines();
+	void init_primitive_pipelines();
+	void init_primitive_feedback_pipelines();
 	void ensure_command_buffer();
 
 	RenderState render_state;
@@ -262,6 +346,7 @@ private:
 		TextureWindow window;
 		int16_t pal_x, pal_y, params;
 		int16_t u, v, base_uv_x, base_uv_y;
+		uint16_t min_u, min_v, max_u, max_v;
 	};
 
 	struct BlitInfo
@@ -269,7 +354,8 @@ private:
 		uint32_t src_offset[2];
 		uint32_t dst_offset[2];
 		uint32_t extent[2];
-		uint32_t padding[2];
+		uint32_t mask;
+		uint32_t sample;
 	};
 
 	struct SemiTransparentState
