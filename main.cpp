@@ -57,7 +57,7 @@ static void read_tag(FILE *file)
 	char buffer[8];
 	if (fread(buffer, sizeof(buffer), 1, file) != 1)
 		throw runtime_error("Failed to read tag.");
-	if (memcmp(buffer, "RSXDUMP2", sizeof(buffer)))
+	if (memcmp(buffer, "RSXDUMP3", sizeof(buffer)))
 		throw runtime_error("Failed to read tag.");
 }
 
@@ -66,6 +66,14 @@ static uint32_t read_u32(FILE *file)
 	uint32_t val;
 	if (fread(&val, sizeof(val), 1, file) != 1)
 		throw runtime_error("Failed to read u32");
+	return val;
+}
+
+static uint16_t read_u16(FILE *file)
+{
+	uint16_t val;
+	if (fread(&val, sizeof(val), 1, file) != 1)
+		throw runtime_error("Failed to read u16");
 	return val;
 }
 
@@ -96,6 +104,7 @@ struct RenderState
 {
 	uint16_t texpage_x, texpage_y;
 	uint16_t clut_x, clut_y;
+	uint16_t min_u, min_v, max_u, max_v;
 	uint8_t texture_blend_mode;
 	uint8_t depth_shift;
 	bool dither;
@@ -129,6 +138,10 @@ RenderState read_state(FILE *file)
 	state.blend_mode = read_u32(file);
 	state.mask_test = read_u32(file) != 0;
 	state.set_mask = read_u32(file) != 0;
+	state.min_u = read_u16(file);
+	state.min_v = read_u16(file);
+	state.max_u = read_u16(file);
+	state.max_v = read_u16(file);
 	return state;
 }
 
@@ -182,6 +195,7 @@ static void set_renderer_state(Renderer &renderer, const RenderState &state)
 	//renderer.set_dither(state.dither);
 	renderer.set_mask_test(state.mask_test);
 	renderer.set_force_mask_bit(state.set_mask);
+	renderer.set_UV_limits(state.min_u, state.min_v, state.max_u, state.max_v);
 	if (state.texture_blend_mode != 0)
 	{
 		switch (state.depth_shift)
