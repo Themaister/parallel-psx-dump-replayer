@@ -1,3 +1,6 @@
 [submodule "vulkan/SPIRV-Cross"]
 	path = vulkan/SPIRV-Cross
 	url = git://github.com/KhronosGroup/SPIRV-Cross
+[submodule "Granite"]
+	path = Granite
+	url = git://github.com/Themaister/Granite
