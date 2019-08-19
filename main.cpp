@@ -1,7 +1,8 @@
 #include "device.hpp"
 #include "renderer/renderer.hpp"
-#include "stb_image_write.h"
 #include "cli_parser.hpp"
+#include "stb_image_write.h"
+#include "util.hpp"
 
 #include <cmath>
 #include <random>
@@ -15,12 +16,11 @@ using namespace Vulkan;
 using namespace Util;
 
 //#define DUMP_VRAM
-#define SCALING 4
+//#define SCALING 4
 //#define DETAIL_DUMP_FRAME 153
 //#define BREAK_FRAME 40
 //#define BREAK_DRAW 216
-
-#define BREAKPOINT __builtin_trap
+//#define BREAKPOINT __builtin_trap
 
 enum
 {
@@ -38,6 +38,18 @@ enum
 	RSX_FILL_RECT,
 	RSX_COPY_RECT,
 	RSX_TOGGLE_DISPLAY
+};
+
+struct CLIArguments
+{
+	const char *dump = nullptr;
+	const char *frame_output = nullptr;
+	const char *trace_output = nullptr;
+	unsigned trace_frame = 0;
+	unsigned scale = 1;
+	unsigned msaa = 1;
+	bool trace = false;
+	bool verbose = false;
 };
 
 static void read_tag(FILE *file)
@@ -221,13 +233,13 @@ static void dump_to_file(const CLIArguments &args, Device &device, Renderer &ren
 	char path[1024];
 	snprintf(path, sizeof(path), "%s-%06u-%06u.bmp", args.trace_output, index, subindex);
 
-	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ_BIT));
 	for (unsigned i = 0; i < width * height; i++)
 		data[i] |= 0xff000000u;
 
 	if (!stbi_write_bmp(path, width, height, 4, data))
-		LOG("Failed to write image.");
-	device.unmap_host_buffer(*buffer);
+		LOGE("Failed to write image.");
+	device.unmap_host_buffer(*buffer, MEMORY_ACCESS_READ_BIT);
 }
 
 static void dump_vram_to_file(const CLIArguments &args, Device &device, Renderer &renderer, unsigned index)
@@ -240,13 +252,13 @@ static void dump_vram_to_file(const CLIArguments &args, Device &device, Renderer
 	char path[1024];
 	snprintf(path, sizeof(path), "%s-vram-%06u.bmp", args.frame_output, index);
 
-	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ));
+	uint32_t *data = static_cast<uint32_t *>(device.map_host_buffer(*buffer, MEMORY_ACCESS_READ_BIT));
 	for (unsigned i = 0; i < width * height; i++)
 		data[i] |= 0xff000000u;
 
 	if (!stbi_write_bmp(path, width, height, 4, data))
-		LOG("Failed to write image.");
-	device.unmap_host_buffer(*buffer);
+		LOGE("Failed to write image.");
+	device.unmap_host_buffer(*buffer, MEMORY_ACCESS_READ_BIT);
 }
 
 static bool read_command(const CLIArguments &args, FILE *file, Device &device, Renderer &renderer, bool &eof,
@@ -315,7 +327,8 @@ static bool read_command(const CLIArguments &args, FILE *file, Device &device, R
 		auto h = read_u32(file);
 		auto depth_24bpp = read_u32(file);
 
-		renderer.set_display_mode({ x, y, w, h }, depth_24bpp != 0);
+		renderer.set_display_mode({ x, y, w, h },
+		                          depth_24bpp != 0 ? Renderer::ScanoutMode::BGR24 : Renderer::ScanoutMode::ABGR1555_555);
 		break;
 	}
 
@@ -378,7 +391,7 @@ static bool read_command(const CLIArguments &args, FILE *file, Device &device, R
 
 		renderer.set_texture_color_modulate(false);
 		renderer.set_texture_mode(TextureMode::None);
-		renderer.set_dither(line.dither);
+		//renderer.set_dither(line.dither);
 		renderer.set_mask_test(line.mask_test);
 		renderer.set_force_mask_bit(line.set_mask);
 		switch (line.blend_mode)
@@ -491,7 +504,7 @@ static double gettime()
 
 static void print_help()
 {
-	fprintf(stderr, "rsx-player [dump] [--scale <scale>] [--dump-vram <path>] [--trace-frame <frame> <path>] "
+	fprintf(stderr, "rsx-player [dump] [--scale <scale>] [--msaa <factor>] [--dump-vram <path>] [--trace-frame <frame> <path>] "
 	                "[--verbose] [--help]\n");
 }
 
@@ -511,13 +524,14 @@ int main(int argc, char *argv[])
 		args.trace = true;
 	});
 	cbs.add("--scale", [&args](CLIParser &parser) { args.scale = parser.next_uint(); });
+	cbs.add("--msaa", [&args](CLIParser &parser) { args.msaa = parser.next_uint(); });
 	cbs.add("--verbose", [&args](CLIParser &) { args.verbose = true; });
 	cbs.error_handler = [] { print_help(); };
 	cbs.default_handler = [&args](const char *value) { args.dump = value; };
 	CLIParser parser{ move(cbs), argc - 1, argv + 1 };
 	if (!parser.parse())
 		return 1;
-	else if (parser.ended_state)
+	else if (parser.is_ended_state())
 		return 0;
 
 	if (!args.dump)
@@ -527,10 +541,22 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	WSI wsi;
-	wsi.init(1280, 960);
-	auto &device = wsi.get_device();
-	Renderer renderer(device, args.scale, nullptr);
+	if (!Context::init_loader(nullptr))
+	{
+		LOGE("Failed to initialize Vulkan loader.\n");
+		return 1;
+	}
+
+	Context ctx;
+	if (!ctx.init_instance_and_device(nullptr, 0, nullptr, 0))
+	{
+		LOGE("Failed to create Vulkan instance and device.\n");
+		return 1;
+	}
+
+	Device device;
+	device.set_context(ctx);
+	Renderer renderer(device, args.scale, args.msaa, nullptr);
 
 	FILE *file = fopen(args.dump, "rb");
 	if (!file)
@@ -542,22 +568,20 @@ int main(int argc, char *argv[])
 	unsigned frames = 0;
 	unsigned draw_call = 0;
 	double total_time = 0.0;
-	while (!eof && wsi.alive())
+	while (!eof)
 	{
 		draw_call = 0;
+		device.next_frame_context();
 
 		double start = gettime();
-		wsi.begin_frame();
 		renderer.reset_counters();
 		while (read_command(args, file, device, renderer, eof, frames, draw_call))
 			;
-		renderer.scanout();
 
 		if (args.frame_output)
 			dump_vram_to_file(args, device, renderer, frames);
 
 		renderer.flush();
-		wsi.end_frame();
 		double end = gettime();
 		total_time += end - start;
 		frames++;
@@ -566,23 +590,23 @@ int main(int argc, char *argv[])
 		{
 			if (renderer.counters.render_passes)
 			{
-				LOG("========================\n");
-				LOG("Completed frame %u.\n", frames);
-				LOG("Render passes: %u\n", renderer.counters.render_passes);
-				LOG("Readback pixels: %u\n", renderer.counters.fragment_readback_pixels);
-				LOG("Writeout pixels: %u\n", renderer.counters.fragment_writeout_pixels);
-				LOG("Draw calls: %u\n", renderer.counters.draw_calls);
-				LOG("Vertices: %u\n", renderer.counters.vertices);
-				LOG("========================\n");
+				LOGI("========================\n");
+				LOGI("Completed frame %u.\n", frames);
+				LOGI("Render passes: %u\n", renderer.counters.render_passes);
+				LOGI("Readback pixels: %u\n", renderer.counters.fragment_readback_pixels);
+				LOGI("Writeout pixels: %u\n", renderer.counters.fragment_writeout_pixels);
+				LOGI("Draw calls: %u\n", renderer.counters.draw_calls);
+				LOGI("Vertices: %u\n", renderer.counters.vertices);
+				LOGI("========================\n");
 			}
 			else
 			{
-				LOG("========================\n");
-				LOG("Completed frame %u.\n", frames);
-				LOG("========================\n");
+				LOGI("========================\n");
+				LOGI("Completed frame %u.\n", frames);
+				LOGI("========================\n");
 			}
 		}
 	}
 
-	LOG("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);
+	LOGI("Ran %u frames in %f s! (%.3f ms / frame).\n", frames, total_time, 1000.0 * total_time / frames);
 }

@@ -1,3 +1,6 @@
 [submodule "Granite"]
 	path = Granite
 	url = git://github.com/Themaister/Granite
+[submodule "beetle-psx-libretro"]
+	path = beetle-psx-libretro
+	url = git://github.com/libretro/beetle-psx-libretro

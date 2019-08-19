@@ -2,3 +2,5 @@ Makefile
 /build
 /.idea
 *.o
+/cmake-build-debug
+/cmake-build-release
