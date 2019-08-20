@@ -39,6 +39,6 @@ target_include_directories(parallel-psx PUBLIC
 
 target_link_libraries(parallel-psx PUBLIC granite)
 
-add_executable(rsx-player main.cpp Granite/util/cli_parser.hpp Granite/util/cli_parser.cpp)
+add_executable(rsx-player main.cpp Granite/util/cli_parser.hpp Granite/util/cli_parser.cpp Granite/util/timer.hpp Granite/util/timer.cpp)
 target_link_libraries(rsx-player PRIVATE parallel-psx stb)
 

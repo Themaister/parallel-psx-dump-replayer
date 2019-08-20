@@ -1,8 +1,13 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "device.hpp"
 #include "renderer/renderer.hpp"
 #include "cli_parser.hpp"
 #include "stb_image_write.h"
 #include "util.hpp"
+#include "timer.hpp"
 
 #include <cmath>
 #include <random>
@@ -85,7 +90,7 @@ static int32_t read_i32(FILE *file)
 	return val;
 }
 
-static int32_t read_f32(FILE *file)
+static float read_f32(FILE *file)
 {
 	float val;
 	if (fread(&val, sizeof(val), 1, file) != 1)
@@ -511,9 +516,7 @@ static bool read_command(const CLIArguments &args, FILE *file, Device &device, R
 
 static double gettime()
 {
-	timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec + 1e-9 * ts.tv_nsec;
+	return Util::get_current_time_nsecs() * 1e-9;
 }
 
 static void print_help()
